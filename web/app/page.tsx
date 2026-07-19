@@ -4,19 +4,35 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { createDocument, listDocuments, type EmailDocument } from "@/lib/documents";
+import { useToast } from "@/components/ui/toast";
 
 export default function Home() {
   const router = useRouter();
+  const { toast } = useToast();
   const [docs, setDocs] = useState<EmailDocument[]>([]);
   const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    listDocuments().then(setDocs).catch(console.error);
-  }, []);
+    listDocuments()
+      .then(setDocs)
+      .catch((e) => {
+        console.error(e);
+        toast.error("Nie udało się wczytać listy maili.");
+      });
+  }, [toast]);
 
   const create = async () => {
-    const id = await createDocument(name.trim() || "Nowy mail");
-    router.push(`/editor/${id}`);
+    if (creating) return;
+    setCreating(true);
+    try {
+      const id = await createDocument(name.trim() || "Nowy mail");
+      router.push(`/editor/${id}`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Nie udało się utworzyć maila.");
+      setCreating(false);
+    }
   };
 
   return (
@@ -35,12 +51,18 @@ export default function Home() {
         />
         <button
           onClick={() => void create()}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+          disabled={creating}
+          className="rounded bg-brand px-4 py-2 text-sm font-medium text-brand-fg disabled:opacity-50"
         >
-          Utwórz
+          {creating ? "Tworzę…" : "Utwórz"}
         </button>
       </div>
 
+      {docs.length === 0 && (
+        <p className="mt-8 text-sm text-zinc-400">
+          Brak maili — utwórz pierwszy powyżej.
+        </p>
+      )}
       <ul className="mt-8 divide-y divide-zinc-200">
         {docs.map((d) => (
           <li key={d.id}>

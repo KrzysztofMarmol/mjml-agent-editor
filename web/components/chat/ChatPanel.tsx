@@ -2,7 +2,9 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type ToolUIPart } from "ai";
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+import { useToast } from "@/components/ui/toast";
 
 const TOOL_LABELS: Record<string, string> = {
   get_document: "Czytam dokument",
@@ -29,17 +31,29 @@ type Props = {
 };
 
 export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props) {
+  const { toast } = useToast();
   const [input, setInput] = useState("");
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: `${process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000"}/api/chat`,
       body: { docId },
     }),
     onFinish: onAgentFinish,
-    onError: (e) => console.error("chat error:", e),
+    onError: (e) => {
+      console.error("chat error:", e);
+      toast.error("Błąd czatu z agentem.");
+    },
   });
 
   const busy = status === "submitted" || status === "streaming";
+
+  const grow = () => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  };
 
   const send = async (text: string) => {
     const trimmed = text.trim();
@@ -47,6 +61,7 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
     await onBeforeSend().catch(console.error);
     void sendMessage({ text: trimmed });
     setInput("");
+    if (taRef.current) taRef.current.style.height = "auto";
   };
 
   return (
@@ -113,10 +128,15 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
           }}
         >
           <textarea
-            className="h-24 w-full resize-none rounded border border-zinc-300 p-2 text-sm"
+            ref={taRef}
+            rows={2}
+            className="max-h-40 min-h-14 w-full resize-none rounded-md border border-zinc-300 p-2 text-sm"
             placeholder="Napisz do agenta… (Enter = wyślij, Shift+Enter = nowa linia)"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              grow();
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
