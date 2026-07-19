@@ -13,7 +13,7 @@ import "grapesjs/dist/css/grapes.min.css";
 import "./editor-theme.css";
 import { useRef, useState, type ReactNode } from "react";
 
-import { getDocument, updateDocument, STARTER_MJML } from "@/lib/documents";
+import { getDocument, updateDocument, STARTER_MJML, type CommentTarget } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Undo2, Redo2, Code2, Copy, ChevronRight } from "lucide-react";
@@ -43,32 +43,65 @@ export type EditorApi = {
   flushSave: () => Promise<void>;
   /** Przeładowanie dokumentu z bazy (po zmianach agenta). */
   reloadFromDb: () => Promise<void>;
-  /** Zaznacza i przewija do sekcji o danym sec-id. */
-  selectSection: (sectionId: string) => void;
-  /** Podświetla w kanwie sekcje o danych sec-id (reszta bez podświetlenia). */
-  setCommentedSections: (sectionIds: string[]) => void;
+  /** Podświetla sekcję w canvasie na czas edycji przez agenta. */
+  highlightSection: (sectionId: string, on: boolean) => void;
 };
 
 type Props = {
   docId: string;
   onReady: (api: EditorApi) => void;
-  onSelectSection: (sectionId: string | null) => void;
-  onOpenComments: (sectionId: string) => void;
+  onSelectTarget: (target: CommentTarget | null) => void;
+  onOpenComments: (target: CommentTarget) => void;
 };
 
 const SEC_ID_RE = /\bsec-([A-Za-z0-9_-]+)\b/;
+const OBJ_ID_RE = /\bobj-([A-Za-z0-9_-]+)\b/;
+
+// Typy elementów, do których można dodać komentarz (poza sekcją).
+const TYPE_LABEL: Record<string, string> = {
+  "mj-text": "Tekst",
+  "mj-button": "Przycisk",
+  "mj-image": "Obraz",
+  "mj-column": "Kolumna",
+};
+
+function tagOf(c: Component): string {
+  return String(c.get("tagName") || c.get("type") || "");
+}
 
 // Ikona „gwiazdki" (lucide Sparkles) jako label w toolbarze GrapesJS.
 const SPARKLES_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>';
 
 function isSection(c: Component): boolean {
-  return c.get("tagName") === "mj-section" || c.get("type") === "mj-section";
+  return tagOf(c) === "mj-section";
+}
+
+function isCommentable(c: Component): boolean {
+  const t = tagOf(c);
+  return t === "mj-section" || t in TYPE_LABEL;
+}
+
+function classMatch(c: Component, re: RegExp): string | null {
+  const cssClass = String(c.getAttributes()["css-class"] ?? "");
+  return cssClass.match(re)?.[1] ?? null;
 }
 
 function sectionIdOf(c: Component): string | null {
+  return classMatch(c, SEC_ID_RE);
+}
+
+function objectIdOf(c: Component): string | null {
+  return classMatch(c, OBJ_ID_RE);
+}
+
+function addIdClass(c: Component, prefix: "sec" | "obj"): string {
+  const existing = classMatch(c, prefix === "sec" ? SEC_ID_RE : OBJ_ID_RE);
+  if (existing) return existing;
   const cssClass = String(c.getAttributes()["css-class"] ?? "");
-  return cssClass.match(SEC_ID_RE)?.[1] ?? null;
+  const id = Math.random().toString(36).slice(2, 10);
+  c.addAttributes({ "css-class": `${cssClass} ${prefix}-${id}`.trim() });
+  return id;
 }
 
 function closestSection(c: Component | undefined): Component | null {
@@ -80,18 +113,13 @@ function closestSection(c: Component | undefined): Component | null {
   return null;
 }
 
-function findSection(editor: Editor, sectionId: string): Component | undefined {
-  return editor
-    .getWrapper()
-    ?.find("mj-section")
-    .find((c) => sectionIdOf(c) === sectionId);
-}
-
-/** Elementy sekcji w dokumencie kanwy (mj-section kompiluje się do <div class="sec-…">). */
-function secEls(editor: Editor, sectionId: string): HTMLElement[] {
-  const doc = editor.Canvas.getDocument();
-  if (!doc) return [];
-  return [...doc.querySelectorAll<HTMLElement>(`.sec-${CSS.escape(sectionId)}`)];
+function objectLabel(c: Component): string {
+  const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
+  const text = String((c.getEl?.() as HTMLElement | undefined)?.textContent ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 30);
+  return text ? `${base}: „${text}”` : base;
 }
 
 const RTE_FONTS = [
@@ -169,68 +197,56 @@ function setupRichText(editor: Editor) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export default function EmailEditor({ docId, onReady, onSelectSection, onOpenComments }: Props) {
+export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComments }: Props) {
   // Refy zamiast state — GrapesJS żyje poza cyklem Reacta.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const commentedRef = useRef<Set<string>>(new Set());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [loading, setLoading] = useState(true);
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
 
   const onEditor = async (editor: Editor) => {
-    const ensureSectionId = (c: Component) => {
-      if (!isSection(c)) return;
-      if (!sectionIdOf(c)) {
-        const cssClass = String(c.getAttributes()["css-class"] ?? "");
-        const id = crypto.randomUUID().slice(0, 8);
-        c.addAttributes({ "css-class": `${cssClass} sec-${id}`.trim() });
+    // Cel komentarza dla komponentu: jego sekcja + (jeśli to nie sama sekcja)
+    // konkretny element. Nadaje stabilne ID (sec-/obj-) w razie potrzeby.
+    const targetOf = (c: Component | undefined): CommentTarget | null => {
+      const section = closestSection(c);
+      if (!section || !c) return null;
+      const sectionId = addIdClass(section, "sec");
+      if (isSection(c)) {
+        return { sectionId, objectId: null, objectLabel: null };
       }
+      const objectId = addIdClass(c, "obj");
+      return { sectionId, objectId, objectLabel: objectLabel(c) };
+    };
+
+    // Nadaje sekcji sec-<id> i dokleja przycisk 💬 do paska każdego elementu,
+    // do którego można dodać komentarz (sekcja + tekst/przycisk/obraz/kolumna).
+    const decorate = (c: Component) => {
+      if (isSection(c)) addIdClass(c, "sec");
+      if (!isCommentable(c)) return;
       const toolbar = [...((c.get("toolbar") as { command?: string }[]) ?? [])];
-      if (!toolbar.some((t) => t.command === "section-comments")) {
+      if (!toolbar.some((t) => t.command === "open-comments")) {
         toolbar.push({
-          command: "section-comments",
+          command: "open-comments",
           label: SPARKLES_SVG,
-          attributes: { title: "Komentarze do sekcji", "data-role": "sparkles" },
+          attributes: { title: "Komentarz do elementu / sekcji", "data-role": "sparkles" },
         } as never);
         c.set("toolbar", toolbar as never);
       }
     };
 
-    // Podświetlenie sekcji z komentarzem — inline outline na elemencie w
-    // dokumencie kanwy (.sec-<id>). NIE dotykamy modelu/MJML (css-class
-    // zostaje czyste dla sec-id i agenta); znacznik data-* do czyszczenia.
-    const applyCommentHighlights = () => {
-      const doc = editor.Canvas.getDocument();
-      if (!doc) return;
-      doc.querySelectorAll<HTMLElement>("[data-sec-commented]").forEach((el) => {
-        el.style.outline = "";
-        el.style.outlineOffset = "";
-        el.removeAttribute("data-sec-commented");
-      });
-      commentedRef.current.forEach((id) => {
-        secEls(editor, id).forEach((el) => {
-          el.style.outline = "2px solid #f59e0b";
-          el.style.outlineOffset = "-2px";
-          el.setAttribute("data-sec-commented", "");
-        });
-      });
-    };
-
-    editor.Commands.add("section-comments", {
+    editor.Commands.add("open-comments", {
       run(ed: Editor) {
-        const section = closestSection(ed.getSelected() ?? undefined);
-        const id = section ? sectionIdOf(section) : null;
-        if (id) onOpenComments(id);
+        const target = targetOf(ed.getSelected() ?? undefined);
+        if (target) onOpenComments(target);
       },
     });
 
     setupRichText(editor);
 
-    editor.on("component:add", ensureSectionId);
+    editor.on("component:add", decorate);
     editor.on("component:selected", (c: Component) => {
-      const section = closestSection(c);
-      onSelectSection(section ? sectionIdOf(section) : null);
+      onSelectTarget(targetOf(c));
       setSidebarView("settings");
       // mj-image nie ma domyślnie traita src (src zmienia się przez Asset
       // Manager) — dodaj pole URL, żeby dało się ustawić obraz w panelu.
@@ -249,7 +265,7 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
         );
       }
     });
-    editor.on("component:deselected", () => onSelectSection(null));
+    editor.on("component:deselected", () => onSelectTarget(null));
 
     const save = async () => {
       if (loadingRef.current) return;
@@ -274,14 +290,49 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
     });
 
     const loadMjml = (mjml: string) => {
+      // Wygłuszamy autosave na czas ładowania i chwilę po nim — setComponents
+      // potrafi odpalić event "update" asynchronicznie, co bez tego nadpisałoby
+      // w bazie świeżą zmianę agenta znormalizowaną wersją z edytora.
       loadingRef.current = true;
-      try {
-        editor.setComponents(mjml || STARTER_MJML);
-        editor.getWrapper()?.find("mj-section").forEach(ensureSectionId);
-        applyCommentHighlights();
-      } finally {
-        loadingRef.current = false;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      editor.setComponents(mjml || STARTER_MJML);
+      // Nadaj sec-<id> sekcjom i przyciski komentarza wszystkim komentowalnym elementom.
+      editor.getWrapper()?.find("mj-section").forEach(decorate);
+      for (const t of Object.keys(TYPE_LABEL)) {
+        editor.getWrapper()?.find(t).forEach(decorate);
       }
+      setTimeout(() => {
+        loadingRef.current = false;
+      }, 400);
+    };
+
+    // Podświetlenie sekcji edytowanej przez agenta — animacja wstrzykiwana do
+    // dokumentu canvasu (iframe GrapesJS).
+    const ensureHighlightStyles = () => {
+      const cdoc = editor.Canvas.getDocument();
+      if (!cdoc || cdoc.getElementById("agent-edit-style")) return;
+      const style = cdoc.createElement("style");
+      style.id = "agent-edit-style";
+      style.textContent = `
+        @keyframes agentEditPulse {
+          0%, 100% { outline-color: rgba(37, 99, 235, 0.25); }
+          50%      { outline-color: rgba(37, 99, 235, 0.95); }
+        }
+        .agent-editing {
+          outline: 3px solid rgba(37, 99, 235, 0.9) !important;
+          outline-offset: -3px;
+          animation: agentEditPulse 1s ease-in-out infinite;
+          transition: outline-color 0.2s;
+        }`;
+      cdoc.head.appendChild(style);
+    };
+
+    const sectionEl = (sectionId: string): HTMLElement | undefined => {
+      const comp = editor
+        .getWrapper()
+        ?.find("mj-section")
+        .find((c) => sectionIdOf(c) === sectionId);
+      return (comp?.getEl?.() as HTMLElement | undefined) ?? undefined;
     };
 
     try {
@@ -304,14 +355,11 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
         const fresh = await getDocument(docId);
         if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
       },
-      selectSection: (sectionId: string) => {
-        const c = findSection(editor, sectionId);
-        if (c) editor.select(c);
-        secEls(editor, sectionId)[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
-      },
-      setCommentedSections: (sectionIds: string[]) => {
-        commentedRef.current = new Set(sectionIds);
-        applyCommentHighlights();
+      highlightSection: (sectionId, on) => {
+        ensureHighlightStyles();
+        const el = sectionEl(sectionId);
+        if (!el) return;
+        el.classList.toggle("agent-editing", on);
       },
     });
   };

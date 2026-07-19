@@ -36,7 +36,7 @@ def list_open_comments(doc_id: str) -> list[dict]:
     res = (
         client()
         .table("comments")
-        .select("id, section_id, body, created_at")
+        .select("id, section_id, object_id, object_label, body, created_at")
         .eq("document_id", doc_id)
         .eq("status", "open")
         .order("created_at")

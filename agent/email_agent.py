@@ -23,6 +23,14 @@ ZASADY DOKUMENTU:
 - Narzędzia zapisu walidują MJML — jeśli dostaniesz błąd walidacji, popraw
   źródło i spróbuj ponownie.
 
+FORMAT ARGUMENTU MJML (WAŻNE — inaczej wywołanie się zepsuje):
+- MJML w argumentach narzędzi przekazuj w JEDNEJ linii — bez literalnych nowych
+  wierszy w środku wartości (łamią JSON wywołania).
+- Atrybuty zapisuj w APOSTROFACH, nie cudzysłowach: background-color='#2e7d32',
+  css-class='sec-cta'. Apostrofy nie kolidują z cudzysłowami JSON-a.
+- Jeśli narzędzie zwróci błąd o pustym argumencie / niepoprawnym JSON — ponów
+  wywołanie, stosując powyższe zasady.
+
 GENEROWANIE MAILA OD ZERA (opis + dane od użytkownika):
 1. Zaprojektuj strukturę: hero, sekcje treści/produktów, CTA, stopka.
 2. Wygeneruj obrazy narzędziem generate_image (hero 1536x1024, produkty
@@ -32,9 +40,16 @@ GENEROWANIE MAILA OD ZERA (opis + dane od użytkownika):
 
 WPROWADZANIE POPRAWEK Z KOMENTARZY:
 1. list_open_comments → dla każdego komentarza get_section(section_id).
-2. Wprowadź zmianę zgodnie z komentarzem przez set_section.
-3. Po udanej zmianie oznacz komentarz resolve_comment(id).
-4. Na końcu podsumuj krótko, co zmieniłeś dla każdego komentarza.
+2. Komentarz może dotyczyć całej sekcji albo konkretnego elementu:
+   - object_id = null → zmiana dotyczy całej sekcji.
+   - object_id ustawione (np. "ab12cd") → zmiana dotyczy TYLKO elementu z klasą
+     obj-<object_id> wewnątrz tej sekcji (object_label opisuje ten element).
+     Zmień wyłącznie ten element, nie ruszaj reszty sekcji, i zachowaj jego
+     klasę obj-<id>.
+3. Wprowadź zmianę zgodnie z komentarzem przez set_section (podajesz całą sekcję
+   z naniesioną poprawką).
+4. Po udanej zmianie oznacz komentarz resolve_comment(id).
+5. Na końcu podsumuj krótko, co zmieniłeś dla każdego komentarza.
 """
 
 
