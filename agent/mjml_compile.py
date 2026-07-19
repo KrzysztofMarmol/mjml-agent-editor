@@ -28,8 +28,11 @@ def compile_mjml(mjml: str, strict: bool = True) -> tuple[bool, str]:
             text=True,
             timeout=30,
         )
-        if proc.returncode != 0:
-            return False, (proc.stderr or proc.stdout).strip()
+        # mjml-cli wypisuje błędy walidacji na stderr, ale kończy się kodem 0 —
+        # traktujemy niepusty stderr jako niepowodzenie.
+        errors = (proc.stderr or "").strip()
+        if proc.returncode != 0 or errors:
+            return False, errors or proc.stdout.strip()
         html = pathlib.Path(out).read_text()
         return True, html
     finally:
