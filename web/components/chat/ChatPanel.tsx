@@ -4,7 +4,16 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type ToolUIPart } from "ai";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Check, Loader2, TriangleAlert, Send, Square, Sparkles, MessageSquare } from "lucide-react";
+import {
+  Check,
+  Loader2,
+  TriangleAlert,
+  Send,
+  Square,
+  Sparkles,
+  MessageSquare,
+  ChevronRight,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,6 +29,11 @@ import { Message, MessageContent } from "@/components/ui/message";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Markdown } from "@/components/chat/Markdown";
 import { Marker, MarkerIcon, MarkerContent } from "@/components/ui/marker";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
 import {
   MessageScrollerProvider,
   MessageScroller,
@@ -73,6 +87,41 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
         {failed && tool.errorText ? `: ${tool.errorText}` : ""}
       </MarkerContent>
     </Marker>
+  );
+}
+
+// Aktywność narzędzi: taski w toku widoczne; zakończone i błędne zwinięte pod spód.
+function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
+  const running = tools.filter(
+    (t) => t.state !== "output-available" && t.state !== "output-error",
+  );
+  const finished = tools.filter(
+    (t) => t.state === "output-available" || t.state === "output-error",
+  );
+  const failedCount = finished.filter((t) => t.state === "output-error").length;
+
+  return (
+    <div className="space-y-0.5">
+      {running.map((t, i) => (
+        <ToolMarker key={`r${i}`} tool={t} />
+      ))}
+      {finished.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground">
+            <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
+            <span>
+              Zakończone kroki ({finished.length}
+              {failedCount > 0 ? `, ${failedCount} błąd` : ""})
+            </span>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-0.5 pt-1 pl-1">
+            {finished.map((t, i) => (
+              <ToolMarker key={`f${i}`} tool={t} />
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+    </div>
   );
 }
 
@@ -131,31 +180,32 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
               ) : (
                 messages.map((message) => {
                   const isUser = message.role === "user";
+                  const toolParts = message.parts.filter((p) =>
+                    p.type.startsWith("tool-"),
+                  ) as ToolUIPart[];
+                  const textParts = message.parts.filter((p) => p.type === "text");
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
                       <Message align={isUser ? "end" : "start"}>
                         <MessageContent>
-                          {message.parts.map((part, i) => {
-                            if (part.type === "text") {
-                              return (
-                                <Bubble
-                                  key={i}
-                                  variant={isUser ? "default" : "muted"}
-                                  align={isUser ? "end" : "start"}
-                                >
-                                  <BubbleContent
-                                    className={isUser ? "whitespace-pre-wrap" : undefined}
-                                  >
-                                    {isUser ? part.text : <Markdown>{part.text}</Markdown>}
-                                  </BubbleContent>
-                                </Bubble>
-                              );
-                            }
-                            if (part.type.startsWith("tool-")) {
-                              return <ToolMarker key={i} tool={part as ToolUIPart} />;
-                            }
-                            return null;
-                          })}
+                          {toolParts.length > 0 && <ToolActivity tools={toolParts} />}
+                          {textParts.map((part, i) => (
+                            <Bubble
+                              key={i}
+                              variant={isUser ? "default" : "muted"}
+                              align={isUser ? "end" : "start"}
+                            >
+                              <BubbleContent
+                                className={isUser ? "whitespace-pre-wrap" : undefined}
+                              >
+                                {isUser && part.type === "text" ? (
+                                  part.text
+                                ) : part.type === "text" ? (
+                                  <Markdown>{part.text}</Markdown>
+                                ) : null}
+                              </BubbleContent>
+                            </Bubble>
+                          ))}
                         </MessageContent>
                       </Message>
                     </MessageScrollerItem>
