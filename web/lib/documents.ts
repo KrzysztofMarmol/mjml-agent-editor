@@ -12,16 +12,16 @@ export type SectionComment = {
   id: string;
   document_id: string;
   section_id: string;
-  /** Klasa obj-<id> elementu, którego dotyczy komentarz. null = cała sekcja. */
+  /** The obj-<id> class of the element the comment refers to. null = whole section. */
   object_id: string | null;
-  /** Czytelny opis elementu (np. "Przycisk: „Zamów"") do wyświetlenia. */
+  /** Human-readable element description (e.g. "Button: “Order”") for display. */
   object_label: string | null;
   body: string;
   status: "open" | "resolved";
   created_at: string;
 };
 
-/** Cel komentarza: sekcja i opcjonalnie konkretny element w niej. */
+/** Comment target: a section and optionally a specific element inside it. */
 export type CommentTarget = {
   sectionId: string;
   objectId: string | null;
@@ -32,10 +32,10 @@ export const STARTER_MJML = `<mjml>
   <mj-body background-color="#f4f4f5">
     <mj-section background-color="#ffffff" padding="32px 24px">
       <mj-column>
-        <mj-text font-size="22px" font-weight="bold">Nowy mail</mj-text>
+        <mj-text font-size="22px" font-weight="bold">New email</mj-text>
         <mj-text color="#555555">
-          Opisz w czacie po prawej, jakiego maila potrzebujesz — agent
-          zaprojektuje sekcje, treści i obrazy.
+          Describe the email you need in the chat on the right — the agent
+          will design the sections, content and images.
         </mj-text>
       </mj-column>
     </mj-section>

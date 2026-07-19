@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Tokeny motywu — używane przez UI aplikacji i override'y chromy edytora. */
+  /* Theme tokens — used by the app UI and the editor chrome overrides. */
   --brand: #2563eb; /* blue-600 */
   --brand-fg: #ffffff;
   --surface: #ffffff;
@@ -62,10 +62,10 @@
 }
 
 /*
- * Dark mode jest class-based (shadcn: @custom-variant dark + .dark poniżej) —
- * aktywuje się tylko przy klasie .dark na <html>, której nie ustawiamy, więc
- * aplikacja zostaje jasna (bez połowicznego systemowego flipa). Pełny dark mode
- * to osobne zadanie (chroma edytora .gjs-* nadal hardkoduje jasne kolory).
+ * Dark mode is class-based (shadcn: @custom-variant dark + .dark below) —
+ * it only activates with the .dark class on <html>, which we never set, so
+ * the app stays light (no half-applied system flip). Full dark mode is a
+ * separate task (the .gjs-* editor chrome still hardcodes light colors).
  */
 body {
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;

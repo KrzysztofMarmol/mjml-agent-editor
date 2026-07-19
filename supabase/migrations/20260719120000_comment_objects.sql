@@ -1,6 +1,6 @@
--- Komentarze mogą dotyczyć konkretnego elementu wewnątrz sekcji (nie tylko
--- całej sekcji). object_id = klasa obj-<id> elementu (null = cała sekcja),
--- object_label = czytelny opis elementu do wyświetlenia w panelu.
+-- Comments can refer to a specific element inside a section (not only the
+-- whole section). object_id = the element's obj-<id> class (null = whole
+-- section), object_label = human-readable element description for the panel.
 alter table comments
   add column if not exists object_id text,
   add column if not exists object_label text;

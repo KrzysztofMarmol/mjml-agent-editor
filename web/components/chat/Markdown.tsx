@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
-// Linki agenta otwieramy w nowej karcie (nie wyrzucamy z edytora).
+// Agent links open in a new tab (don't navigate away from the editor).
 const components: Components = {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   a: ({ node, ...props }) => <a target="_blank" rel="noopener noreferrer" {...props} />,

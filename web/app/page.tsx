@@ -28,7 +28,7 @@ export default function Home() {
       .then(setDocs)
       .catch((e) => {
         console.error(e);
-        toast.error("Nie udało się wczytać listy maili.");
+        toast.error("Failed to load the email list.");
       });
   }, []);
 
@@ -36,11 +36,11 @@ export default function Home() {
     if (creating) return;
     setCreating(true);
     try {
-      const id = await createDocument(name.trim() || "Nowy mail");
+      const id = await createDocument(name.trim() || "New email");
       router.push(`/editor/${id}`);
     } catch (e) {
       console.error(e);
-      toast.error("Nie udało się utworzyć maila.");
+      toast.error("Failed to create the email.");
       setCreating(false);
     }
   };
@@ -49,12 +49,12 @@ export default function Home() {
     <main className="mx-auto max-w-2xl p-10">
       <h1 className="text-2xl font-bold">MJML Editor Spike</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Edytor maili MJML + agent AI (Vercel AI SDK for Python).
+        MJML email editor + AI agent (Vercel AI SDK for Python).
       </p>
 
       <div className="mt-6 flex gap-2">
         <Input
-          placeholder="Nazwa nowego maila…"
+          placeholder="New email name…"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -64,11 +64,11 @@ export default function Home() {
         <Button onClick={() => void create()} disabled={creating}>
           {creating ? (
             <>
-              <Spinner /> Tworzę…
+              <Spinner /> Creating…
             </>
           ) : (
             <>
-              <Plus /> Utwórz
+              <Plus /> Create
             </>
           )}
         </Button>
@@ -80,8 +80,8 @@ export default function Home() {
             <EmptyMedia variant="icon">
               <Mail />
             </EmptyMedia>
-            <EmptyTitle>Brak maili</EmptyTitle>
-            <EmptyDescription>Utwórz pierwszy mail powyżej, aby zacząć.</EmptyDescription>
+            <EmptyTitle>No emails</EmptyTitle>
+            <EmptyDescription>Create your first email above to get started.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       ) : (
@@ -94,7 +94,7 @@ export default function Home() {
             >
               <span className="font-medium">{d.name}</span>
               <span className="text-sm text-muted-foreground">
-                {new Date(d.updated_at).toLocaleString("pl-PL")}
+                {new Date(d.updated_at).toLocaleString("en-US")}
               </span>
             </button>
           ))}

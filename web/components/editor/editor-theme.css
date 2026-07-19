@@ -1,12 +1,12 @@
 /*
- * Jasny motyw chromy GrapesJS (natywne managery bloków/stylów/warstw/traits
- * renderowane przez appendTo do naszych doków). GrapesJS/grapesjs-mjml
- * WSTRZYKUJE swój ciemny motyw inline w runtime (po bundlu CSS), więc override'y
- * muszą mieć wyższą specyficzność niż jego pojedyncze klasy — stąd prefiks
- * `:root ` (0,2,0 > 0,1,0), niezależny od kolejności ładowania arkuszy.
+ * Light theme for the GrapesJS chrome (native block/style/layer/trait managers
+ * rendered via appendTo into our docks). GrapesJS/grapesjs-mjml INJECTS its
+ * dark theme inline at runtime (after the CSS bundle), so the overrides need
+ * higher specificity than its single classes — hence the `:root ` prefix
+ * (0,2,0 > 0,1,0), independent of stylesheet load order.
  */
 
-/* Tła i tekst paneli */
+/* Panel backgrounds and text */
 :root .gjs-one-bg {
   background-color: #ffffff;
 }
@@ -22,7 +22,7 @@
   color: #18181b; /* zinc-900 */
 }
 
-/* Akcent (aktywne/zaznaczone) */
+/* Accent (active/selected) */
 :root .gjs-three-bg {
   background-color: #2563eb; /* brand */
   color: #ffffff;
@@ -32,7 +32,7 @@
   color: #2563eb;
 }
 
-/* Bloki */
+/* Blocks */
 :root .gjs-block {
   min-height: auto;
   padding: 10px 8px;
@@ -72,7 +72,7 @@
   color: #a1a1aa; /* zinc-400 */
 }
 
-/* Pola formularzy w managerach (style/traits) */
+/* Form fields in the managers (style/traits) */
 :root .gjs-field,
 :root .gjs-sm-field,
 :root .gjs-clm-field {
@@ -95,11 +95,11 @@
 }
 
 /*
- * Ujednolicona typografia managerów (traity + style):
- * te same rozmiary/wagi/kolory etykiet i pól w obu sekcjach panelu Ustawienia.
+ * Unified manager typography (traits + styles):
+ * same label/field sizes, weights and colors in both sections of the Settings panel.
  */
 
-/* Etykiety property (Href/Alt oraz Width/Padding/…) — jedna skala */
+/* Property labels (Href/Alt and Width/Padding/…) — one scale */
 :root .gjs-sm-label,
 :root .gjs-trt-trait .gjs-label,
 :root .gjs-label {
@@ -111,7 +111,7 @@
   color: #71717a; /* zinc-500 */
 }
 
-/* Rzędy property — spójny padding poziomy (wyrównany do nagłówków sekcji) */
+/* Property rows — consistent horizontal padding (aligned with section headers) */
 :root .gjs-sm-properties,
 :root .gjs-traits-c {
   padding: 6px 12px;
@@ -124,7 +124,7 @@
   padding: 0;
 }
 
-/* Pola — jednolita wysokość i rozmiar tekstu */
+/* Fields — uniform height and text size */
 :root .gjs-field,
 :root .gjs-sm-field {
   min-height: 28px;
@@ -138,7 +138,7 @@
   font-size: 12px;
 }
 
-/* Nagłówki sektorów stylu / traits — spójne z nagłówkami sekcji (Atrybuty/Styl) */
+/* Style/trait sector headers — consistent with section headers (Attributes/Style) */
 :root .gjs-sm-sector-title,
 :root .gjs-trt-header {
   padding: 8px 10px;
@@ -155,7 +155,7 @@
   border-bottom: 1px solid #f4f4f5;
 }
 
-/* Warstwy */
+/* Layers */
 :root .gjs-layer-title {
   color: #3f3f46;
 }
@@ -163,23 +163,23 @@
   background-color: #eff6ff; /* blue-50 */
 }
 
-/* Belka selektorów (klasy komponentu) */
+/* Selector bar (component classes) */
 :root .gjs-clm-tags {
   background-color: #ffffff;
   color: #3f3f46;
 }
 
 /*
- * Ukryj natywny panel przełącznika urządzeń nad kanwą — GrapesJS re-dodaje go
- * mimo panels:{defaults:[]}. Mamy własny przełącznik Desktop/Mobile w górnym pasku.
+ * Hide the native device-switcher panel above the canvas — GrapesJS re-adds it
+ * despite panels:{defaults:[]}. We have our own Desktop/Mobile switch in the top bar.
  */
 :root .gjs-pn-devices-c {
   display: none;
 }
 
 /*
- * Pasek narzędzi zaznaczonego obiektu (context menu) — ciemna, zaokrąglona
- * pigułka z wyraźnymi hoverami zamiast domyślnego niebieskiego paska.
+ * Toolbar of the selected object (context menu) — a dark, rounded pill with
+ * clear hover states instead of the default blue bar.
  */
 :root .gjs-toolbar {
   background-color: #18181b; /* zinc-900 */
@@ -213,7 +213,7 @@
   width: 15px;
   height: 15px;
 }
-/* Akcent na przycisku „gwiazdki" (komentarze/AI) */
+/* Accent on the "sparkles" button (comments/AI) */
 :root .gjs-toolbar-item[data-role="sparkles"] {
   color: #fcd34d; /* amber-300 */
 }
@@ -223,14 +223,14 @@
 }
 
 /*
- * Pasek edycji tekstu (RTE) — ta sama ciemna pigułka co toolbar obiektu,
- * z rozszerzeniami: czcionka, rozmiar, kolor tekstu/tła.
+ * Text-editing bar (RTE) — the same dark pill as the object toolbar, with
+ * extras: font, size, text/background color.
  */
 /*
- * Pasek RTE bywa pozycjonowany nad zaznaczeniem i przy tekście przy lewej
- * krawędzi wychodzi poza kanwę — domyślne overflow:hidden na .gjs-cv-canvas
- * go obcinało (chował się „pod" sidebarem). Pozwalamy narzędziom wyjść poza
- * kanwę; sama kanwa/iframe i tak wypełnia kontener, więc treść nie wycieka.
+ * The RTE bar can be positioned above the selection, and for text near the
+ * left edge it sticks out of the canvas — the default overflow:hidden on
+ * .gjs-cv-canvas clipped it (it hid "under" the sidebar). Let the tools escape
+ * the canvas; the canvas/iframe fills the container anyway, so content doesn't leak.
  */
 :root .gjs-cv-canvas {
   overflow: visible;
@@ -253,7 +253,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: auto; /* rośnie do treści (selecty) zamiast sztywnego 26px → koniec nachodzenia */
+  width: auto; /* grows with content (selects) instead of a fixed 26px → no more overlap */
   min-width: 26px;
   height: 26px;
   padding: 0 4px;
@@ -288,7 +288,7 @@
   cursor: pointer;
 }
 :root .gjs-rte-select option {
-  color: #18181b; /* lista rozwijana renderowana natywnie */
+  color: #18181b; /* the dropdown list is rendered natively */
 }
 :root .gjs-rte-color {
   width: 18px;

@@ -18,17 +18,17 @@ import { Badge } from "@/components/ui/badge";
 
 type Props = {
   docId: string;
-  /** Aktualnie wybrany cel komentarza (sekcja lub element w niej). */
+  /** Currently selected comment target (a section or an element inside it). */
   target: CommentTarget | null;
-  /** Zmiana wartości wymusza przeładowanie listy. */
+  /** Changing the value forces the list to reload. */
   refreshSignal: number;
-  /** Liczba otwartych komentarzy (badge na zakładce). */
+  /** Number of open comments (badge on the tab). */
   onOpenCountChange?: (count: number) => void;
 };
 
-/** Etykieta elementu komentarza: nazwa elementu albo „cała sekcja". */
+/** Label for the comment's target: element name or "whole section". */
 function scopeLabel(c: SectionComment): string {
-  return c.object_id ? (c.object_label ?? "element") : "cała sekcja";
+  return c.object_id ? (c.object_label ?? "element") : "whole section";
 }
 
 export default function CommentsPanel({ docId, target, refreshSignal, onOpenCountChange }: Props) {
@@ -40,13 +40,13 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
       .then(setComments)
       .catch((e) => {
         console.error(e);
-        toast.error("Nie udało się wczytać komentarzy.");
+        toast.error("Failed to load comments.");
       });
   }, [docId]);
 
   useEffect(reload, [reload, refreshSignal]);
 
-  // Grupowanie per sekcja: { sectionId -> komentarze } dla otwartych.
+  // Grouping per section: { sectionId -> comments } for open ones.
   const openBySection = useMemo(() => {
     const map = new Map<string, SectionComment[]>();
     for (const c of comments) {
@@ -61,7 +61,7 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
   const resolved = comments.filter((c) => c.status === "resolved");
   const openCount = comments.filter((c) => c.status === "open").length;
 
-  // Emituj licznik otwartych w górę (badge na zakładce Komentarze).
+  // Emit the open-comment count upward (badge on the Comments tab).
   useEffect(() => {
     onOpenCountChange?.(openCount);
   }, [openCount, onOpenCountChange]);
@@ -72,10 +72,10 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
       await addComment(docId, target, body.trim());
       setBody("");
       reload();
-      toast.success("Dodano komentarz.");
+      toast.success("Comment added.");
     } catch (e) {
       console.error(e);
-      toast.error("Nie udało się dodać komentarza.");
+      toast.error("Failed to add the comment.");
     }
   };
 
@@ -83,10 +83,10 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
     try {
       await resolveComment(id);
       reload();
-      toast.success("Komentarz rozwiązany.");
+      toast.success("Comment resolved.");
     } catch (e) {
       console.error(e);
-      toast.error("Nie udało się rozwiązać komentarza.");
+      toast.error("Failed to resolve the comment.");
     }
   };
 
@@ -96,51 +96,51 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
         {target ? (
           <>
             <p className="mb-1 text-xs text-muted-foreground">
-              Komentarz do{" "}
+              Comment on{" "}
               {target.objectId ? (
                 <>
-                  elementu{" "}
-                  <span className="font-medium text-foreground">{target.objectLabel}</span> w sekcji{" "}
+                  element{" "}
+                  <span className="font-medium text-foreground">{target.objectLabel}</span> in section{" "}
                   <code className="font-mono">{target.sectionId}</code>
                 </>
               ) : (
                 <>
-                  całej sekcji <code className="font-mono">{target.sectionId}</code>
+                  the whole section <code className="font-mono">{target.sectionId}</code>
                 </>
               )}
               :
             </p>
             <Textarea
               className="min-h-16 resize-y"
-              placeholder="Co zmienić i jak? np. „przycisk na zielono, krótszy tekst”"
+              placeholder="What to change and how? e.g. “make the button green, shorter text”"
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
             <Button size="sm" className="mt-2" onClick={() => void submit()} disabled={!body.trim()}>
-              Dodaj komentarz
+              Add comment
             </Button>
           </>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Zaznacz sekcję lub element w edytorze (albo użyj przycisku komentarza z
-            jego paska narzędzi), żeby dodać komentarz.
+            Select a section or an element in the editor (or use the comment button
+            in its toolbar) to add a comment.
           </p>
         )}
       </div>
 
       <div className="flex items-center gap-2">
-        <h3 className="font-medium">Otwarte</h3>
+        <h3 className="font-medium">Open</h3>
         <Badge variant="secondary">{openCount}</Badge>
       </div>
       {openCount === 0 && (
-        <p className="text-xs text-muted-foreground">Brak otwartych komentarzy.</p>
+        <p className="text-xs text-muted-foreground">No open comments.</p>
       )}
 
-      {/* Drzewko: sekcja → komentarze; każdy pokazuje, czego dotyczy */}
+      {/* Tree: section → comments; each shows what it refers to */}
       {[...openBySection.entries()].map(([sectionId, list]) => (
         <div key={sectionId} className="rounded-lg border border-border">
           <div className="border-b border-border bg-muted/50 px-2 py-1 text-xs font-medium text-muted-foreground">
-            sekcja <code className="font-mono">{sectionId}</code> ({list.length})
+            section <code className="font-mono">{sectionId}</code> ({list.length})
           </div>
           <div className="space-y-2 p-2">
             {list.map((c) => (
@@ -156,7 +156,7 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
                   className="mt-2"
                   onClick={() => void resolve(c.id)}
                 >
-                  <Check /> Oznacz jako rozwiązany
+                  <Check /> Mark as resolved
                 </Button>
               </div>
             ))}
@@ -167,12 +167,12 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
       {resolved.length > 0 && (
         <details className="mt-1">
           <summary className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            Rozwiązane <Badge variant="outline">{resolved.length}</Badge>
+            Resolved <Badge variant="outline">{resolved.length}</Badge>
           </summary>
           {resolved.map((c) => (
             <div key={c.id} className="mt-1 rounded-lg border border-border p-2 opacity-60">
               <p className="text-xs text-muted-foreground">
-                sekcja <code className="font-mono">{c.section_id}</code> · {scopeLabel(c)}
+                section <code className="font-mono">{c.section_id}</code> · {scopeLabel(c)}
               </p>
               <p className="whitespace-pre-wrap">{c.body}</p>
             </div>
@@ -183,7 +183,7 @@ export default function CommentsPanel({ docId, target, refreshSignal, onOpenCoun
   );
 }
 
-/** Kolor karty komentarza wg zakresu: element (indigo) vs cała sekcja (amber). */
+/** Comment card color by scope: element (indigo) vs whole section (amber). */
 function cnScope(objectId: string | null): string {
   return objectId
     ? "rounded-lg border border-indigo-200 bg-indigo-50 p-2"

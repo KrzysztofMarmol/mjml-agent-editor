@@ -1,6 +1,6 @@
 create table documents (
   id uuid primary key default gen_random_uuid(),
-  name text not null default 'Nowy mail',
+  name text not null default 'New email',
   mjml text not null default '',
   project_data jsonb,
   created_at timestamptz not null default now(),
@@ -19,7 +19,7 @@ create table comments (
 
 create index comments_document_open_idx on comments (document_id) where status = 'open';
 
--- Spike: bez RLS — dostęp lokalny przez anon/service key.
+-- Spike: no RLS — local access via anon/service key.
 grant usage on schema public to anon, authenticated, service_role;
 grant all on all tables in schema public to anon, authenticated, service_role;
 grant all on all sequences in schema public to anon, authenticated, service_role;

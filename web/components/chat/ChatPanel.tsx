@@ -44,23 +44,23 @@ import {
 } from "@/components/ui/message-scroller";
 
 const TOOL_LABELS: Record<string, string> = {
-  get_document: "Czytam dokument",
-  get_section: "Czytam sekcję",
-  set_document: "Zapisuję cały mail",
-  set_section: "Podmieniam sekcję",
-  insert_section: "Dodaję sekcję",
-  remove_section: "Usuwam sekcję",
-  generate_image: "Generuję obraz",
-  list_open_comments: "Czytam komentarze",
-  resolve_comment: "Zamykam komentarz",
+  get_document: "Reading document",
+  get_section: "Reading section",
+  set_document: "Saving whole email",
+  set_section: "Replacing section",
+  insert_section: "Adding section",
+  remove_section: "Removing section",
+  generate_image: "Generating image",
+  list_open_comments: "Reading comments",
+  resolve_comment: "Resolving comment",
 };
 
 const APPLY_COMMENTS_PROMPT =
-  "Wprowadź zmiany na podstawie wszystkich otwartych komentarzy do sekcji. " +
-  "Po każdej udanej zmianie oznacz komentarz jako rozwiązany i podsumuj, co zmieniłeś.";
+  "Apply changes based on all open section comments. " +
+  "After each successful change mark the comment as resolved and summarize what you changed.";
 
-// Narzędzia, które zmieniają dokument lub komentarze — po każdym z nich
-// odświeżamy podgląd/panel na żywo, nie czekając na koniec tury agenta.
+// Tools that mutate the document or comments — after each of them we refresh
+// the preview/panel live, without waiting for the agent's turn to finish.
 const MUTATING_TOOLS = new Set([
   "set_document",
   "set_section",
@@ -69,8 +69,8 @@ const MUTATING_TOOLS = new Set([
   "resolve_comment",
 ]);
 
-// Narzędzia edytujące konkretną sekcję → nazwa argumentu z jej section_id.
-// Służy do podświetlenia tej sekcji na czas edycji.
+// Tools that edit a specific section → name of the argument holding its section_id.
+// Used to highlight that section while it is being edited.
 const SECTION_ARG: Record<string, string> = {
   set_section: "section_id",
   remove_section: "section_id",
@@ -79,15 +79,15 @@ const SECTION_ARG: Record<string, string> = {
 
 type Props = {
   docId: string;
-  /** Zrzut niesapisanych zmian edytora przed startem agenta. */
+  /** Flushes unsaved editor changes before the agent starts. */
   onBeforeSend: () => Promise<void>;
-  /** Po zakończeniu tury agenta (odśwież edytor i komentarze). */
+  /** After the agent's turn finishes (refresh the editor and comments). */
   onAgentFinish: () => void;
-  /** Po każdej pojedynczej edycji agenta (mutujący tool-call) — reload na żywo. */
+  /** After each single agent edit (mutating tool call) — live reload. */
   onLiveUpdate: () => void;
-  /** Start edycji sekcji przez agenta (podświetlenie). */
+  /** Agent started editing a section (highlight it). */
   onSectionEditStart: (sectionId: string) => void;
-  /** Koniec edycji sekcji przez agenta (zdjęcie podświetlenia). */
+  /** Agent finished editing a section (remove the highlight). */
   onSectionEditEnd: (sectionId: string) => void;
 };
 
@@ -114,20 +114,20 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
   );
 }
 
-// Wskaźnik „Agent pracuje…" — renderowany albo w bieżącej wiadomości asystenta
-// (ciasno pod krokami), albo samodzielnie, gdy asystent nie zaczął jeszcze pisać.
+// "Agent is working…" indicator — rendered either inside the current assistant
+// message (tight under the steps) or standalone when the assistant hasn't started writing yet.
 function BusyMarker() {
   return (
     <Marker className="text-foreground">
       <MarkerIcon>
         <Loader2 className="animate-spin" />
       </MarkerIcon>
-      <MarkerContent>Agent pracuje…</MarkerContent>
+      <MarkerContent>Agent is working…</MarkerContent>
     </Marker>
   );
 }
 
-// Aktywność narzędzi: taski w toku widoczne; zakończone i błędne zwinięte pod spód.
+// Tool activity: in-progress tasks visible; finished and failed ones collapsed underneath.
 function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
   const running = tools.filter(
     (t) => t.state !== "output-available" && t.state !== "output-error",
@@ -145,8 +145,8 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
               {failedCount > 0
-                ? `Zakończone kroki (${finished.length}, ${failedCount} błąd)`
-                : `Zakończone kroki (${finished.length})`}
+                ? `Finished steps (${finished.length}, ${failedCount} failed)`
+                : `Finished steps (${finished.length})`}
             </span>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 space-y-0.5 border-l border-border pl-3">
@@ -181,13 +181,13 @@ export default function ChatPanel({
     onFinish: onAgentFinish,
     onError: (e) => {
       console.error("chat error:", e);
-      toast.error("Błąd czatu z agentem.");
+      toast.error("Agent chat error.");
     },
   });
 
-  // Reakcje na tool-calle agenta (dedup po kluczu wiadomość:część):
-  //  - start edycji sekcji (znany section_id, tool jeszcze się nie zakończył) → podświetl
-  //  - koniec mutującego tool-calla → reload podglądu na żywo + zdejmij podświetlenie
+  // Reactions to the agent's tool calls (deduped by message:part key):
+  //  - section edit started (section_id known, tool not finished yet) → highlight
+  //  - mutating tool call finished → live-reload the preview + remove the highlight
   const firedTools = useRef<Set<string>>(new Set());
   const highlightStarted = useRef<Map<string, string>>(new Map());
   const highlightEnded = useRef<Set<string>>(new Set());
@@ -201,7 +201,7 @@ export default function ChatPanel({
         const key = `${message.id}:${i}`;
         const done = tool.state === "output-available" || tool.state === "output-error";
 
-        // start podświetlenia — gdy znamy section_id, a tool jeszcze trwa
+        // start the highlight — when we know the section_id and the tool is still running
         const argName = SECTION_ARG[name];
         if (argName && !done && !highlightStarted.current.has(key)) {
           const sid = (tool.input as Record<string, unknown> | undefined)?.[argName];
@@ -213,13 +213,13 @@ export default function ChatPanel({
 
         if (!done) return;
 
-        // zdejmij podświetlenie sekcji (przed reloadem, który i tak przebuduje canvas)
+        // remove the section highlight (before the reload, which rebuilds the canvas anyway)
         const startedSid = highlightStarted.current.get(key);
         if (startedSid && !highlightEnded.current.has(key)) {
           highlightEnded.current.add(key);
           onSectionEditEnd(startedSid);
         }
-        // koniec mutującego tool-calla → reload na żywo
+        // mutating tool call finished → live reload
         if (MUTATING_TOOLS.has(name) && !firedTools.current.has(key)) {
           firedTools.current.add(key);
           onLiveUpdate();
@@ -230,7 +230,7 @@ export default function ChatPanel({
 
   const busy = status === "submitted" || status === "streaming";
 
-  // Czy jakieś narzędzie jest w toku (żeby nie dublować globalnego „Agent pracuje…").
+  // Whether any tool is in progress (to avoid duplicating the global "Agent is working…").
   const lastMsg = messages[messages.length - 1];
   const toolRunning =
     lastMsg?.role === "assistant" &&
@@ -268,10 +268,10 @@ export default function ChatPanel({
                     <EmptyMedia variant="icon">
                       <MessageSquare />
                     </EmptyMedia>
-                    <EmptyTitle>Zacznij rozmowę z agentem</EmptyTitle>
+                    <EmptyTitle>Start a conversation with the agent</EmptyTitle>
                     <EmptyDescription>
-                      Opisz maila (cel, ton, treść) i wklej dane — agent zaprojektuje
-                      sekcje i obrazy.
+                      Describe the email (goal, tone, content) and paste your data —
+                      the agent will design the sections and images.
                     </EmptyDescription>
                   </EmptyHeader>
                 </Empty>
@@ -282,9 +282,9 @@ export default function ChatPanel({
                   const toolParts = message.parts.filter((p) =>
                     p.type.startsWith("tool-"),
                   ) as ToolUIPart[];
-                  // Pomijamy puste części tekstu — SDK podczas streamingu
-                  // dokleja pusty text-part, który renderował się jako pusty
-                  // dymek (zbędna przerwa nad „Agent pracuje…").
+                  // Skip empty text parts — while streaming, the SDK appends an
+                  // empty text part that used to render as an empty bubble
+                  // (an unwanted gap above "Agent is working…").
                   const textParts = message.parts.filter(
                     (p) => p.type === "text" && p.text.trim() !== "",
                   );
@@ -310,9 +310,9 @@ export default function ChatPanel({
                               </BubbleContent>
                             </Bubble>
                           ))}
-                          {/* Wskaźnik pracy jako część bieżącej tury asystenta —
-                              ciasny odstęp (gap-2.5). Chowamy go, gdy leci już
-                              stream tekstu (textParts !== puste) — nie zaśmieca. */}
+                          {/* Busy indicator as part of the assistant's current turn —
+                              tight spacing (gap-2.5). Hidden once text is already
+                              streaming (textParts not empty) — keeps things clean. */}
                           {isLast &&
                             !isUser &&
                             busy &&
@@ -324,7 +324,7 @@ export default function ChatPanel({
                   );
                 })
               )}
-              {/* Fallback: agent nie utworzył jeszcze wiadomości (ostatnia = użytkownika). */}
+              {/* Fallback: the agent hasn't created a message yet (last one is the user's). */}
               {busy && !toolRunning && lastMsg?.role !== "assistant" && <BusyMarker />}
             </MessageScrollerContent>
           </MessageScrollerViewport>
@@ -339,7 +339,7 @@ export default function ChatPanel({
           disabled={busy}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
-          <Sparkles /> Wprowadź zmiany z komentarzy
+          <Sparkles /> Apply changes from comments
         </Button>
         <form
           onSubmit={(e) => {
@@ -351,7 +351,7 @@ export default function ChatPanel({
             ref={taRef}
             rows={2}
             className="max-h-40 min-h-14 resize-none"
-            placeholder="Napisz do agenta… (Enter = wyślij, Shift+Enter = nowa linia)"
+            placeholder="Message the agent… (Enter = send, Shift+Enter = new line)"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -371,7 +371,7 @@ export default function ChatPanel({
               </Button>
             )}
             <Button type="submit" size="sm" disabled={busy || !input.trim()}>
-              <Send /> Wyślij
+              <Send /> Send
             </Button>
           </div>
         </form>

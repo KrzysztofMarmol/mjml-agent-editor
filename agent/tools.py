@@ -1,4 +1,4 @@
-"""Narzędzia agenta. Budowane per żądanie (closure na doc_id)."""
+"""Agent tools. Built per request (closure over doc_id)."""
 
 from __future__ import annotations
 
@@ -25,21 +25,22 @@ def _openai() -> openai.AsyncOpenAI:
 
 
 def _validated_save(doc_id: str, mjml: str) -> str:
-    """Waliduje cały dokument kompilatorem mjml; zapisuje tylko poprawny."""
+    """Validates the whole document with the mjml compiler; saves only if valid."""
     ok, result = mjml_compile.compile_mjml(mjml)
     if not ok:
-        return f"BŁĄD walidacji MJML — dokument NIE został zapisany:\n{result}"
+        return f"ERROR: MJML validation failed — document was NOT saved:\n{result}"
     db.set_document_mjml(doc_id, mjml)
-    return "OK, zapisano."
+    return "OK, saved."
 
 
-# Gdy JSON argumentów tool-calla jest niepoprawny (najczęściej literalny nowy
-# wiersz albo cudzysłów w polu `mjml`), Vercel AI SDK podmienia argumenty na "{}"
-# — pola docierają puste. Zamiast cichej porażki dajemy modelowi jasną instrukcję.
+# When the tool-call argument JSON is invalid (most often a literal newline
+# or a double quote inside the `mjml` field), the Vercel AI SDK replaces the
+# arguments with "{}" — fields arrive empty. Instead of failing silently we
+# give the model a clear instruction.
 _EMPTY_ARG_HINT = (
-    "BŁĄD: argument dotarł pusty — JSON wywołania narzędzia był niepoprawny. "
-    "Ponów wywołanie, przekazując MJML w JEDNEJ linii (bez literalnych nowych "
-    "wierszy) i z apostrofami w atrybutach, np. <mj-section css-class='sec-x' "
+    "ERROR: argument arrived empty — the tool call JSON was invalid. "
+    "Retry the call, passing MJML on a SINGLE line (no literal newlines) "
+    "and with single-quoted attributes, e.g. <mj-section css-class='sec-x' "
     "background-color='#2e7d32'>...</mj-section>."
 )
 
@@ -47,25 +48,25 @@ _EMPTY_ARG_HINT = (
 def build_tools(doc_id: str) -> list[ai.AgentTool]:
     @ai.tool
     async def get_document() -> str:
-        """Zwraca pełne źródło MJML dokumentu wraz z listą sekcji (section_id)."""
+        """Returns the document's full MJML source along with the list of sections (section_id)."""
         mjml = db.get_document_mjml(doc_id)
         sections = json.dumps(mjml_doc.list_sections(mjml), ensure_ascii=False)
-        return f"SEKCJE: {sections}\n\nMJML:\n{mjml}"
+        return f"SECTIONS: {sections}\n\nMJML:\n{mjml}"
 
     @ai.tool
     async def get_section(section_id: str) -> str:
-        """Zwraca źródło MJML pojedynczej sekcji o podanym section_id."""
+        """Returns the MJML source of a single section with the given section_id."""
         mjml = db.get_document_mjml(doc_id)
         section = mjml_doc.get_section(mjml, section_id)
-        return section or f"BŁĄD: brak sekcji o id '{section_id}'"
+        return section or f"ERROR: no section with id '{section_id}'"
 
     @ai.tool
     async def set_document(mjml: str = "") -> str:
-        """Zastępuje CAŁY dokument nowym źródłem MJML (użyj przy generowaniu maila od zera).
+        """Replaces the ENTIRE document with new MJML source (use when generating an email from scratch).
 
-        Dokument musi być kompletny (<mjml><mj-body>...</mj-body></mjml>).
-        MJML podawaj w JEDNEJ linii, z apostrofami w atrybutach (np. background-color='#fff'),
-        żeby JSON wywołania był poprawny. Sekcje bez klasy sec-* dostaną ją automatycznie.
+        The document must be complete (<mjml><mj-body>...</mj-body></mjml>).
+        Pass MJML on a SINGLE line, with single-quoted attributes (e.g. background-color='#fff'),
+        so the call's JSON stays valid. Sections without a sec-* class get one automatically.
         """
         if not mjml.strip():
             return _EMPTY_ARG_HINT
@@ -74,52 +75,52 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
 
     @ai.tool
     async def set_section(section_id: str = "", mjml: str = "") -> str:
-        """Podmienia jedną sekcję. `mjml` to pojedynczy <mj-section>...</mj-section>
-        w JEDNEJ linii, z apostrofami w atrybutach. Zachowaj klasę sec-<id> sekcji."""
+        """Replaces a single section. `mjml` is one <mj-section>...</mj-section>
+        on a SINGLE line, with single-quoted attributes. Keep the section's sec-<id> class."""
         if not section_id.strip() or not mjml.strip():
             return _EMPTY_ARG_HINT
         doc = db.get_document_mjml(doc_id)
         try:
             updated = mjml_doc.replace_section(doc, section_id, mjml)
         except ValueError as e:
-            return f"BŁĄD: {e}"
+            return f"ERROR: {e}"
         if updated is None:
-            return f"BŁĄD: brak sekcji o id '{section_id}'"
+            return f"ERROR: no section with id '{section_id}'"
         return _validated_save(doc_id, updated)
 
     @ai.tool
     async def insert_section(mjml: str = "", after_section_id: str | None = None) -> str:
-        """Wstawia nową sekcję (jeden <mj-section>, w jednej linii, atrybuty w apostrofach)
-        po sekcji after_section_id (albo na końcu maila)."""
+        """Inserts a new section (one <mj-section>, on a single line, single-quoted attributes)
+        after the section after_section_id (or at the end of the email)."""
         if not mjml.strip():
             return _EMPTY_ARG_HINT
         doc = db.get_document_mjml(doc_id)
         try:
             updated, sid = mjml_doc.insert_section(doc, mjml, after_section_id)
         except ValueError as e:
-            return f"BŁĄD: {e}"
+            return f"ERROR: {e}"
         result = _validated_save(doc_id, updated)
-        return f"{result} Nowa sekcja: {sid}" if result.startswith("OK") else result
+        return f"{result} New section: {sid}" if result.startswith("OK") else result
 
     @ai.tool
     async def remove_section(section_id: str) -> str:
-        """Usuwa sekcję o podanym section_id."""
+        """Removes the section with the given section_id."""
         doc = db.get_document_mjml(doc_id)
         updated = mjml_doc.remove_section(doc, section_id)
         if updated is None:
-            return f"BŁĄD: brak sekcji o id '{section_id}'"
+            return f"ERROR: no section with id '{section_id}'"
         return _validated_save(doc_id, updated)
 
     @ai.tool
     async def generate_image(prompt: str, size: str = "1536x1024") -> str:
-        """Generuje obraz i zwraca publiczny URL do wstawienia w mj-image src.
+        """Generates an image and returns a public URL to put into mj-image src.
 
-        `prompt` po angielsku, opisowy (styl, kompozycja, paleta). `size`:
-        1024x1024, 1536x1024 (landscape/hero) lub 1024x1536 (portrait).
+        `prompt` in English, descriptive (style, composition, palette). `size`:
+        1024x1024, 1536x1024 (landscape/hero) or 1024x1536 (portrait).
 
-        TYMCZASOWO: bez OPENAI_API_KEY zwraca placeholder z picsum.photos
-        (deterministyczny per prompt, właściwy rozmiar) — spike działa bez
-        klucza OpenAI. Gdy klucz jest ustawiony, używa realnego gpt-image.
+        TEMPORARY: without OPENAI_API_KEY returns a placeholder from picsum.photos
+        (deterministic per prompt, correct size) — the spike works without an
+        OpenAI key. When the key is set, it uses the real gpt-image model.
         """
         if not os.environ.get("OPENAI_API_KEY"):
             try:
@@ -141,15 +142,15 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
 
     @ai.tool
     async def list_open_comments() -> str:
-        """Zwraca otwarte komentarze do sekcji tego dokumentu (id, section_id, body)."""
+        """Returns open comments on this document's sections (id, section_id, body)."""
         comments = db.list_open_comments(doc_id)
         if not comments:
-            return "Brak otwartych komentarzy."
+            return "No open comments."
         return json.dumps(comments, ensure_ascii=False, default=str)
 
     @ai.tool
     async def resolve_comment(comment_id: str) -> str:
-        """Oznacza komentarz jako rozwiązany (po wprowadzeniu zmiany, o którą prosił)."""
+        """Marks a comment as resolved (after applying the change it asked for)."""
         db.resolve_comment(comment_id)
         return "OK"
 

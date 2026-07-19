@@ -1,9 +1,9 @@
-"""Operacje na dokumencie MJML w oparciu o stabilne ID sekcji.
+"""Operations on an MJML document based on stable section IDs.
 
-Sekcje (mj-section) są adresowane klasą ``sec-<id>`` w atrybucie ``css-class``
-(walidator MJML odrzuca niestandardowe atrybuty, więc css-class to jedyne
-legalne miejsce na metadane). mj-section nie zagnieżdża się w sobie, więc
-parsowanie regexem jest wystarczające na potrzeby spike'a.
+Sections (mj-section) are addressed by a ``sec-<id>`` class in the ``css-class``
+attribute (the MJML validator rejects non-standard attributes, so css-class is
+the only legal place for metadata). mj-section does not nest inside itself, so
+regex parsing is sufficient for the purposes of this spike.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ import re
 import secrets
 
 _OPEN_RE = re.compile(r"<mj-section\b[^>]*>", re.IGNORECASE)
-# Atrybuty MJML mogą być w cudzysłowach LUB apostrofach — model bywa proszony
-# o apostrofy, żeby nie łamać JSON-a argumentów narzędzia (grupa 2 = klasy).
+# MJML attributes may use double OR single quotes — the model is asked to use
+# single quotes so it doesn't break the tool-call argument JSON (group 2 = classes).
 _CSS_CLASS_RE = re.compile(r"""css-class\s*=\s*(["'])(.*?)\1""", re.IGNORECASE)
 _SEC_ID_RE = re.compile(r"\bsec-([A-Za-z0-9_-]+)\b")
 
@@ -31,7 +31,7 @@ def _section_id_of(open_tag: str) -> str | None:
 
 
 def _with_section_id(open_tag: str, section_id: str) -> str:
-    """Zwraca tag otwierający z doklejoną klasą sec-<id>."""
+    """Returns the opening tag with the sec-<id> class appended."""
     m = _CSS_CLASS_RE.search(open_tag)
     if m:
         classes = m.group(2)
@@ -43,7 +43,7 @@ def _with_section_id(open_tag: str, section_id: str) -> str:
 
 
 def _iter_sections(mjml: str):
-    """Yielduje (start, end, open_tag, section_id) dla każdej mj-section."""
+    """Yields (start, end, open_tag, section_id) for every mj-section."""
     for m in _OPEN_RE.finditer(mjml):
         close = mjml.find("</mj-section>", m.end())
         if close == -1:
@@ -53,7 +53,7 @@ def _iter_sections(mjml: str):
 
 
 def ensure_section_ids(mjml: str) -> str:
-    """Dokleja sec-<id> do każdej sekcji, która go nie ma."""
+    """Appends sec-<id> to every section that doesn't have one."""
     out = []
     last = 0
     for m in _OPEN_RE.finditer(mjml):
@@ -68,7 +68,7 @@ def ensure_section_ids(mjml: str) -> str:
 
 
 def list_sections(mjml: str) -> list[dict[str, str]]:
-    """Lista sekcji: id + skrót treści (pierwsze ~120 znaków tekstu)."""
+    """List of sections: id + content excerpt (first ~120 characters of text)."""
     sections = []
     for start, end, _tag, sid in _iter_sections(mjml):
         body = mjml[start:end]
@@ -86,14 +86,14 @@ def get_section(mjml: str, section_id: str) -> str | None:
 
 
 def replace_section(mjml: str, section_id: str, new_section: str) -> str | None:
-    """Podmienia sekcję, pilnując zachowania jej ID. None gdy nie znaleziono."""
+    """Replaces a section, making sure its ID is preserved. None when not found."""
     new_section = new_section.strip()
     if not new_section.lower().startswith("<mj-section"):
-        raise ValueError("new_section musi być pojedynczym elementem <mj-section>...</mj-section>")
+        raise ValueError("new_section must be a single <mj-section>...</mj-section> element")
     open_m = _OPEN_RE.search(new_section)
     if open_m and _section_id_of(open_m.group(0)) != section_id:
         fixed = _with_section_id(open_m.group(0), section_id)
-        # jeśli model wstawił inne sec-* — nadpisz na właściwe
+        # if the model put in a different sec-* — overwrite it with the right one
         fixed = _SEC_ID_RE.sub(f"sec-{section_id}", fixed).replace(f"sec-sec-{section_id}", f"sec-{section_id}")
         new_section = new_section[: open_m.start()] + fixed + new_section[open_m.end() :]
     for start, end, _tag, sid in _iter_sections(mjml):
@@ -103,10 +103,10 @@ def replace_section(mjml: str, section_id: str, new_section: str) -> str | None:
 
 
 def insert_section(mjml: str, new_section: str, after_section_id: str | None = None) -> tuple[str, str]:
-    """Wstawia nową sekcję (po podanej albo na końcu mj-body). Zwraca (mjml, id)."""
+    """Inserts a new section (after the given one, or at the end of mj-body). Returns (mjml, id)."""
     new_section = new_section.strip()
     if not new_section.lower().startswith("<mj-section"):
-        raise ValueError("new_section musi być pojedynczym elementem <mj-section>...</mj-section>")
+        raise ValueError("new_section must be a single <mj-section>...</mj-section> element")
     sid = new_section_id()
     open_m = _OPEN_RE.search(new_section)
     existing = _section_id_of(open_m.group(0)) if open_m else None
@@ -121,7 +121,7 @@ def insert_section(mjml: str, new_section: str, after_section_id: str | None = N
                 return mjml[:end] + "\n" + new_section + mjml[end:], sid
     close_body = mjml.lower().rfind("</mj-body>")
     if close_body == -1:
-        raise ValueError("dokument nie zawiera </mj-body>")
+        raise ValueError("document contains no </mj-body>")
     return mjml[:close_body] + new_section + "\n" + mjml[close_body:], sid
 
 
