@@ -8,6 +8,7 @@ import "./editor-theme.css";
 import { useRef, useState } from "react";
 
 import { getDocument, updateDocument, STARTER_MJML } from "@/lib/documents";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Undo2, Redo2, Code2, Copy } from "lucide-react";
 
@@ -240,9 +241,9 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
           <TopBar saveStatus={saveStatus} />
         </WithEditor>
         <div className="flex min-h-0 flex-1">
-          {/* Doki renderują się od razu (poza WithEditor) — cele appendTo dla
+          {/* Sidebar renderuje się od razu (poza WithEditor) — cele appendTo
               natywnych managerów muszą istnieć w DOM przed inicjalizacją. */}
-          <LeftDock />
+          <LeftSidebar />
           <div className="relative min-w-0 flex-1">
             <Canvas className="h-full" />
             {loading && (
@@ -251,7 +252,6 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
               </div>
             )}
           </div>
-          <RightDock />
         </div>
       </div>
     </GjsEditor>
@@ -362,45 +362,64 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
   );
 }
 
-function LeftDock() {
+// Lewy sidebar: przełącznik Bloki / Ustawienia. Wszystkie managery są zawsze
+// zamontowane (cele appendTo dla GrapesJS) — przełączamy widoczność przez hidden.
+function LeftSidebar() {
+  const [view, setView] = useState<"blocks" | "settings">("blocks");
   return (
-    <div className="flex w-52 shrink-0 flex-col overflow-hidden border-r border-border bg-surface">
-      <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-        Bloki
-      </div>
-      <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
-    </div>
-  );
-}
-
-function RightDock() {
-  return (
-    <div className="flex w-64 shrink-0 flex-col border-l border-border bg-surface">
-      <Tabs defaultValue="settings" className="flex min-h-0 flex-1 flex-col gap-0">
-        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger value="settings" className="flex-1">
+    <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
+      <div className="border-b border-border p-2">
+        <ToggleGroup
+          type="single"
+          size="sm"
+          variant="outline"
+          value={view}
+          onValueChange={(v) => v && setView(v as "blocks" | "settings")}
+          className="w-full"
+        >
+          <ToggleGroupItem value="blocks" className="flex-1">
+            Bloki
+          </ToggleGroupItem>
+          <ToggleGroupItem value="settings" className="flex-1">
             Ustawienia
-          </TabsTrigger>
-          <TabsTrigger value="style" className="flex-1">
-            Styl
-          </TabsTrigger>
-          <TabsTrigger value="layers" className="flex-1">
-            Warstwy
-          </TabsTrigger>
-        </TabsList>
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <TabsContent value="settings" forceMount className="mt-0 data-[state=inactive]:hidden">
-            <div id="gjs-traits" />
-          </TabsContent>
-          <TabsContent value="style" forceMount className="mt-0 data-[state=inactive]:hidden">
-            <div id="gjs-selectors" />
-            <div id="gjs-styles" />
-          </TabsContent>
-          <TabsContent value="layers" forceMount className="mt-0 data-[state=inactive]:hidden">
-            <div id="gjs-layers" />
-          </TabsContent>
-        </div>
-      </Tabs>
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {/* Bloki */}
+      <div
+        id="gjs-blocks"
+        className={cn("min-h-0 flex-1 overflow-y-auto", view !== "blocks" && "hidden")}
+      />
+
+      {/* Ustawienia komponentu: Atrybuty / Styl / Warstwy */}
+      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "settings" && "hidden")}>
+        <Tabs defaultValue="traits" className="flex min-h-0 flex-1 flex-col gap-0">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+            <TabsTrigger value="traits" className="flex-1">
+              Atrybuty
+            </TabsTrigger>
+            <TabsTrigger value="style" className="flex-1">
+              Styl
+            </TabsTrigger>
+            <TabsTrigger value="layers" className="flex-1">
+              Warstwy
+            </TabsTrigger>
+          </TabsList>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <TabsContent value="traits" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <div id="gjs-traits" />
+            </TabsContent>
+            <TabsContent value="style" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <div id="gjs-selectors" />
+              <div id="gjs-styles" />
+            </TabsContent>
+            <TabsContent value="layers" forceMount className="mt-0 data-[state=inactive]:hidden">
+              <div id="gjs-layers" />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
     </div>
   );
 }
