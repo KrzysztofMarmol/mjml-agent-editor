@@ -27,4 +27,5 @@ supabase/.branches/
 /.mcp.json
 /.agents/
 /.claude/skills/
+/.claude/worktrees/
 /skills-lock.json

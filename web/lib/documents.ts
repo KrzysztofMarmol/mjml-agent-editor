@@ -12,9 +12,20 @@ export type SectionComment = {
   id: string;
   document_id: string;
   section_id: string;
+  /** Klasa obj-<id> elementu, którego dotyczy komentarz. null = cała sekcja. */
+  object_id: string | null;
+  /** Czytelny opis elementu (np. "Przycisk: „Zamów"") do wyświetlenia. */
+  object_label: string | null;
   body: string;
   status: "open" | "resolved";
   created_at: string;
+};
+
+/** Cel komentarza: sekcja i opcjonalnie konkretny element w niej. */
+export type CommentTarget = {
+  sectionId: string;
+  objectId: string | null;
+  objectLabel: string | null;
 };
 
 export const STARTER_MJML = `<mjml>
@@ -77,10 +88,18 @@ export async function listComments(documentId: string): Promise<SectionComment[]
   return data as SectionComment[];
 }
 
-export async function addComment(documentId: string, sectionId: string, body: string): Promise<void> {
-  const { error } = await supabase
-    .from("comments")
-    .insert({ document_id: documentId, section_id: sectionId, body });
+export async function addComment(
+  documentId: string,
+  target: CommentTarget,
+  body: string,
+): Promise<void> {
+  const { error } = await supabase.from("comments").insert({
+    document_id: documentId,
+    section_id: target.sectionId,
+    object_id: target.objectId,
+    object_label: target.objectLabel,
+    body,
+  });
   if (error) throw error;
 }
 

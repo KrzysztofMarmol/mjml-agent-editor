@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import ChatPanel from "@/components/chat/ChatPanel";
 import CommentsPanel from "@/components/comments/CommentsPanel";
 import type { EditorApi } from "@/components/editor/EmailEditor";
+import type { CommentTarget } from "@/lib/documents";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,28 +18,31 @@ const EmailEditor = dynamic(() => import("@/components/editor/EmailEditor"), { s
 
 export default function EditorWorkspace({ docId }: { docId: string }) {
   const editorApi = useRef<EditorApi | null>(null);
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
   const [commentsRefresh, setCommentsRefresh] = useState(0);
   const [tab, setTab] = useState<"chat" | "comments">("chat");
   const [openCount, setOpenCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
-  const openSectionIdsRef = useRef<string[]>([]);
 
-  const openComments = useCallback((sectionId: string) => {
-    setSelectedSectionId(sectionId);
+  const openComments = useCallback((target: CommentTarget) => {
+    setCommentTarget(target);
     setTab("comments");
     setCollapsed(false);
   }, []);
 
-  const onAgentFinish = useCallback(() => {
+  // Wołane po każdej pojedynczej edycji agenta (mutujący tool-call) oraz na
+  // koniec tury — odświeża podgląd z bazy i listę komentarzy na żywo.
+  const onLiveUpdate = useCallback(() => {
     void editorApi.current?.reloadFromDb();
     setCommentsRefresh((n) => n + 1);
   }, []);
 
-  const onOpenChange = useCallback((info: { count: number; sectionIds: string[] }) => {
-    setOpenCount(info.count);
-    openSectionIdsRef.current = info.sectionIds;
-    editorApi.current?.setCommentedSections(info.sectionIds);
+  // Podświetlenie sekcji na czas jej edycji przez agenta (start/koniec tool-calla).
+  const onSectionEditStart = useCallback((sectionId: string) => {
+    editorApi.current?.highlightSection(sectionId, true);
+  }, []);
+  const onSectionEditEnd = useCallback((sectionId: string) => {
+    editorApi.current?.highlightSection(sectionId, false);
   }, []);
 
   const badge =
@@ -53,11 +57,8 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
       <div className="min-w-0 flex-1">
         <EmailEditor
           docId={docId}
-          onReady={(api) => {
-            editorApi.current = api;
-            api.setCommentedSections(openSectionIdsRef.current);
-          }}
-          onSelectSection={setSelectedSectionId}
+          onReady={(api) => (editorApi.current = api)}
+          onSelectTarget={setCommentTarget}
           onOpenComments={openComments}
         />
       </div>
@@ -105,7 +106,10 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
               onBeforeSend={async () => {
                 await editorApi.current?.flushSave();
               }}
-              onAgentFinish={onAgentFinish}
+              onAgentFinish={onLiveUpdate}
+              onLiveUpdate={onLiveUpdate}
+              onSectionEditStart={onSectionEditStart}
+              onSectionEditEnd={onSectionEditEnd}
             />
           </TabsContent>
           <TabsContent
@@ -115,10 +119,9 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
           >
             <CommentsPanel
               docId={docId}
-              selectedSectionId={selectedSectionId}
+              target={commentTarget}
               refreshSignal={commentsRefresh}
-              onNavigate={(id) => editorApi.current?.selectSection(id)}
-              onOpenChange={onOpenChange}
+              onOpenCountChange={setOpenCount}
             />
           </TabsContent>
         </Tabs>
