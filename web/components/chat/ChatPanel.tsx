@@ -72,7 +72,7 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
   const done = tool.state === "output-available";
   const failed = tool.state === "output-error";
   return (
-    <Marker className={cn(failed && "text-destructive")}>
+    <Marker className={cn(failed ? "text-destructive" : done ? "" : "text-foreground")}>
       <MarkerIcon>
         {failed ? (
           <TriangleAlert />
@@ -101,26 +101,27 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
   const failedCount = finished.filter((t) => t.state === "output-error").length;
 
   return (
-    <div className="space-y-0.5">
-      {running.map((t, i) => (
-        <ToolMarker key={`r${i}`} tool={t} />
-      ))}
+    <div className="space-y-1">
       {finished.length > 0 && (
         <Collapsible>
           <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
-              Zakończone kroki ({finished.length}
-              {failedCount > 0 ? `, ${failedCount} błąd` : ""})
+              {failedCount > 0
+                ? `Zakończone kroki (${finished.length}, ${failedCount} błąd)`
+                : `Zakończone kroki (${finished.length})`}
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-0.5 pt-1 pl-1">
+          <CollapsibleContent className="mt-1 space-y-0.5 border-l border-border pl-3">
             {finished.map((t, i) => (
               <ToolMarker key={`f${i}`} tool={t} />
             ))}
           </CollapsibleContent>
         </Collapsible>
       )}
+      {running.map((t, i) => (
+        <ToolMarker key={`r${i}`} tool={t} />
+      ))}
     </div>
   );
 }
@@ -141,6 +142,16 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
   });
 
   const busy = status === "submitted" || status === "streaming";
+
+  // Czy jakieś narzędzie jest w toku (żeby nie dublować globalnego „Agent pracuje…").
+  const lastMsg = messages[messages.length - 1];
+  const toolRunning =
+    lastMsg?.role === "assistant" &&
+    lastMsg.parts.some((p) => {
+      if (!p.type.startsWith("tool-")) return false;
+      const s = (p as ToolUIPart).state;
+      return s !== "output-available" && s !== "output-error";
+    });
 
   const grow = () => {
     const el = taRef.current;
@@ -212,8 +223,8 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
                   );
                 })
               )}
-              {busy && (
-                <Marker>
+              {busy && !toolRunning && (
+                <Marker className="text-foreground">
                   <MarkerIcon>
                     <Loader2 className="animate-spin" />
                   </MarkerIcon>
