@@ -268,7 +268,12 @@ export default function ChatPanel({
                   const toolParts = message.parts.filter((p) =>
                     p.type.startsWith("tool-"),
                   ) as ToolUIPart[];
-                  const textParts = message.parts.filter((p) => p.type === "text");
+                  // Pomijamy puste części tekstu — SDK podczas streamingu
+                  // dokleja pusty text-part, który renderował się jako pusty
+                  // dymek (zbędna przerwa nad „Agent pracuje…").
+                  const textParts = message.parts.filter(
+                    (p) => p.type === "text" && p.text.trim() !== "",
+                  );
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
                       <Message align={isUser ? "end" : "start"}>

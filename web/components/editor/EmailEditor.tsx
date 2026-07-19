@@ -158,6 +158,11 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 // Rozszerza domyślny RTE GrapesJS (zgodny z mjml) o czcionkę/rozmiar/kolory.
 function setupRichText(editor: Editor) {
   const rte = editor.RichTextEditor as any;
+  // Guard: moduł RTE musi istnieć, a akcje rejestrujemy tylko raz (w dev HMR
+  // onEditor potrafi odpalić ponownie — bez tego RTE bywa w rozspójnionym
+  // stanie w trakcie teardownu, co wywala toggleEvents).
+  if (!rte || rte.__customActions) return;
+  rte.__customActions = true;
   const val = (action: any, sel: string) =>
     (action.btn?.querySelector(sel) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
 
