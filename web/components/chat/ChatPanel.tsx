@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/empty";
 import { Message, MessageContent } from "@/components/ui/message";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Markdown } from "@/components/chat/Markdown";
 import { Marker, MarkerIcon, MarkerContent } from "@/components/ui/marker";
 import {
   MessageScrollerProvider,
@@ -142,8 +143,10 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
                                   variant={isUser ? "default" : "muted"}
                                   align={isUser ? "end" : "start"}
                                 >
-                                  <BubbleContent className="whitespace-pre-wrap">
-                                    {part.text}
+                                  <BubbleContent
+                                    className={isUser ? "whitespace-pre-wrap" : undefined}
+                                  >
+                                    {isUser ? part.text : <Markdown>{part.text}</Markdown>}
                                   </BubbleContent>
                                 </Bubble>
                               );
