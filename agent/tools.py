@@ -92,11 +92,22 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
 
     @ai.tool
     async def generate_image(prompt: str, size: str = "1536x1024") -> str:
-        """Generuje obraz (OpenAI) i zwraca publiczny URL do wstawienia w mj-image src.
+        """Generuje obraz i zwraca publiczny URL do wstawienia w mj-image src.
 
         `prompt` po angielsku, opisowy (styl, kompozycja, paleta). `size`:
         1024x1024, 1536x1024 (landscape/hero) lub 1024x1536 (portrait).
+
+        TYMCZASOWO: bez OPENAI_API_KEY zwraca placeholder z picsum.photos
+        (deterministyczny per prompt, właściwy rozmiar) — spike działa bez
+        klucza OpenAI. Gdy klucz jest ustawiony, używa realnego gpt-image.
         """
+        if not os.environ.get("OPENAI_API_KEY"):
+            try:
+                width, height = (int(x) for x in size.lower().split("x", 1))
+            except ValueError:
+                width, height = 1536, 1024
+            seed = uuid.uuid5(uuid.NAMESPACE_URL, prompt).hex[:12]
+            return f"https://picsum.photos/seed/{seed}/{width}/{height}"
         result = await _openai().images.generate(
             model=os.environ.get("IMAGE_MODEL", "gpt-image-2"),
             prompt=prompt,

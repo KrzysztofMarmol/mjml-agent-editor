@@ -45,6 +45,28 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _unwrap(exc: BaseException) -> BaseException:
+    """Wyłuskuje właściwy wyjątek z zagnieżdżonych ExceptionGroup (TaskGroup
+    w Vercel AI SDK owija błąd providera w kilka warstw grup)."""
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return exc
+
+
+def _friendly_error(exc: Exception) -> str:
+    """Czytelny komunikat błędu dla UI z surowego wyjątku providera."""
+    exc = _unwrap(exc)  # type: ignore[assignment]
+    name = type(exc).__name__
+    if "RateLimit" in name or "429" in str(exc):
+        return (
+            "Limit zapytań przekroczony (429). Przy tokenie subskrypcyjnym to limit "
+            "planu Claude — odczekaj chwilę i spróbuj ponownie, albo użyj klucza API."
+        )
+    if "Authentication" in name or "401" in str(exc):
+        return "Błąd uwierzytelnienia (401) — token/klucz nie został zaakceptowany."
+    return f"Błąd agenta: {name}: {str(exc)[:300]}"
+
+
 class ChatRequest(pydantic.BaseModel):
     messages: list[ai.ui.ai_sdk.UIMessage]
     docId: str
@@ -57,9 +79,19 @@ async def chat(request: ChatRequest) -> fastapi.responses.StreamingResponse:
     agent = email_agent.build_agent(request.docId)
 
     async def stream_response() -> AsyncGenerator[str]:
-        async with agent.run(email_agent.get_model(), messages) as result:
-            async for chunk in ai.ui.ai_sdk.to_sse(result):
-                yield chunk
+        try:
+            async with agent.run(email_agent.get_model(), messages) as result:
+                async for chunk in ai.ui.ai_sdk.to_sse(result):
+                    yield chunk
+        except Exception as exc:  # noqa: BLE001 — chcemy każdy błąd pokazać w UI
+            # Bez tego wyjątek w trakcie streamu urywa chunked encoding i front
+            # widzi tylko "network error". Zamiast tego wysyłamy czytelny błąd.
+            print(f"[chat] błąd streamu: {exc!r}", file=sys.stderr, flush=True)
+            from ai.ui.ai_sdk.outbound_stream import format_done_sse, format_sse
+            from ai.ui.ai_sdk.ui_events import UIErrorEvent
+
+            yield format_sse(UIErrorEvent(error_text=_friendly_error(exc)))
+            yield format_done_sse()
 
     return fastapi.responses.StreamingResponse(
         stream_response(),
