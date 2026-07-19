@@ -1,4 +1,4 @@
-"""FastAPI: endpoint czatu agenta w protokole UI Message Stream (useChat)."""
+"""FastAPI: agent chat endpoint speaking the UI Message Stream protocol (useChat)."""
 
 from __future__ import annotations
 
@@ -46,25 +46,25 @@ async def health() -> dict[str, str]:
 
 
 def _unwrap(exc: BaseException) -> BaseException:
-    """Wyłuskuje właściwy wyjątek z zagnieżdżonych ExceptionGroup (TaskGroup
-    w Vercel AI SDK owija błąd providera w kilka warstw grup)."""
+    """Extracts the actual exception from nested ExceptionGroups (the TaskGroup
+    in the Vercel AI SDK wraps the provider error in several layers of groups)."""
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     return exc
 
 
 def _friendly_error(exc: Exception) -> str:
-    """Czytelny komunikat błędu dla UI z surowego wyjątku providera."""
+    """Readable error message for the UI built from the raw provider exception."""
     exc = _unwrap(exc)  # type: ignore[assignment]
     name = type(exc).__name__
     if "RateLimit" in name or "429" in str(exc):
         return (
-            "Limit zapytań przekroczony (429). Przy tokenie subskrypcyjnym to limit "
-            "planu Claude — odczekaj chwilę i spróbuj ponownie, albo użyj klucza API."
+            "Rate limit exceeded (429). With a subscription token this is the Claude "
+            "plan limit — wait a moment and try again, or use an API key."
         )
     if "Authentication" in name or "401" in str(exc):
-        return "Błąd uwierzytelnienia (401) — token/klucz nie został zaakceptowany."
-    return f"Błąd agenta: {name}: {str(exc)[:300]}"
+        return "Authentication error (401) — the token/key was not accepted."
+    return f"Agent error: {name}: {str(exc)[:300]}"
 
 
 class ChatRequest(pydantic.BaseModel):
@@ -83,10 +83,10 @@ async def chat(request: ChatRequest) -> fastapi.responses.StreamingResponse:
             async with agent.run(email_agent.get_model(), messages) as result:
                 async for chunk in ai.ui.ai_sdk.to_sse(result):
                     yield chunk
-        except Exception as exc:  # noqa: BLE001 — chcemy każdy błąd pokazać w UI
-            # Bez tego wyjątek w trakcie streamu urywa chunked encoding i front
-            # widzi tylko "network error". Zamiast tego wysyłamy czytelny błąd.
-            print(f"[chat] błąd streamu: {exc!r}", file=sys.stderr, flush=True)
+        except Exception as exc:  # noqa: BLE001 — we want every error surfaced in the UI
+            # Without this, an exception mid-stream cuts the chunked encoding short
+            # and the frontend only sees "network error". Send a readable error instead.
+            print(f"[chat] stream error: {exc!r}", file=sys.stderr, flush=True)
             from ai.ui.ai_sdk.outbound_stream import format_done_sse, format_sse
             from ai.ui.ai_sdk.ui_events import UIErrorEvent
 

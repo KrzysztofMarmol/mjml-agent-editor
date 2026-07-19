@@ -37,13 +37,13 @@ import { Separator } from "@/components/ui/separator";
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export type EditorApi = {
-  /** Aktualne źródło MJML z edytora. */
+  /** Current MJML source from the editor. */
   getMjml: () => string;
-  /** Natychmiastowy zapis stanu edytora do bazy. */
+  /** Immediately saves the editor state to the DB. */
   flushSave: () => Promise<void>;
-  /** Przeładowanie dokumentu z bazy (po zmianach agenta). */
+  /** Reloads the document from the DB (after agent changes). */
   reloadFromDb: () => Promise<void>;
-  /** Podświetla sekcję w canvasie na czas edycji przez agenta. */
+  /** Highlights a section in the canvas while the agent edits it. */
   highlightSection: (sectionId: string, on: boolean) => void;
 };
 
@@ -57,19 +57,19 @@ type Props = {
 const SEC_ID_RE = /\bsec-([A-Za-z0-9_-]+)\b/;
 const OBJ_ID_RE = /\bobj-([A-Za-z0-9_-]+)\b/;
 
-// Typy elementów, do których można dodać komentarz (poza sekcją).
+// Element types that can receive a comment (besides a section).
 const TYPE_LABEL: Record<string, string> = {
-  "mj-text": "Tekst",
-  "mj-button": "Przycisk",
-  "mj-image": "Obraz",
-  "mj-column": "Kolumna",
+  "mj-text": "Text",
+  "mj-button": "Button",
+  "mj-image": "Image",
+  "mj-column": "Column",
 };
 
 function tagOf(c: Component): string {
   return String(c.get("tagName") || c.get("type") || "");
 }
 
-// Ikona „gwiazdki" (lucide Sparkles) jako label w toolbarze GrapesJS.
+// "Sparkles" icon (lucide Sparkles) used as a label in the GrapesJS toolbar.
 const SPARKLES_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>';
 
@@ -119,7 +119,7 @@ function objectLabel(c: Component): string {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 30);
-  return text ? `${base}: „${text}”` : base;
+  return text ? `${base}: “${text}”` : base;
 }
 
 const RTE_FONTS = [
@@ -134,7 +134,7 @@ const RTE_FONTS = [
 ];
 const RTE_SIZES = [11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 40];
 
-// Opakowuje bieżące zaznaczenie (w dokumencie kanwy) w <span> z inline-stylem.
+// Wraps the current selection (in the canvas document) in a <span> with inline style.
 function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyleDeclaration>) {
   const doc = el?.ownerDocument;
   const sel = doc?.getSelection?.();
@@ -155,19 +155,19 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Rozszerza domyślny RTE GrapesJS (zgodny z mjml) o czcionkę/rozmiar/kolory.
+// Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 function setupRichText(editor: Editor) {
   const rte = editor.RichTextEditor as any;
-  // Guard: moduł RTE musi istnieć, a akcje rejestrujemy tylko raz (w dev HMR
-  // onEditor potrafi odpalić ponownie — bez tego RTE bywa w rozspójnionym
-  // stanie w trakcie teardownu, co wywala toggleEvents).
+  // Guard: the RTE module must exist, and actions are registered only once (in
+  // dev, HMR can fire onEditor again — without this the RTE can be in an
+  // inconsistent state during teardown, which crashes toggleEvents).
   if (!rte || rte.__customActions) return;
   rte.__customActions = true;
   const val = (action: any, sel: string) =>
     (action.btn?.querySelector(sel) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
 
   rte.add("fontName", {
-    icon: `<select class="gjs-rte-select" title="Czcionka"><option value="">Czcionka</option>${RTE_FONTS.map(
+    icon: `<select class="gjs-rte-select" title="Font"><option value="">Font</option>${RTE_FONTS.map(
       (f) => `<option value="${f}">${f}</option>`,
     ).join("")}</select>`,
     event: "change",
@@ -178,7 +178,7 @@ function setupRichText(editor: Editor) {
   });
 
   rte.add("fontSize", {
-    icon: `<select class="gjs-rte-select" title="Rozmiar"><option value="">Rozmiar</option>${RTE_SIZES.map(
+    icon: `<select class="gjs-rte-select" title="Size"><option value="">Size</option>${RTE_SIZES.map(
       (s) => `<option value="${s}px">${s}</option>`,
     ).join("")}</select>`,
     event: "change",
@@ -189,13 +189,13 @@ function setupRichText(editor: Editor) {
   });
 
   rte.add("forecolor", {
-    icon: `<input type="color" class="gjs-rte-color" title="Kolor tekstu" value="#000000">`,
+    icon: `<input type="color" class="gjs-rte-color" title="Text color" value="#000000">`,
     event: "change",
     result: (r: any, action: any) => r.exec("foreColor", val(action, "input")),
   });
 
   rte.add("hilitecolor", {
-    icon: `<input type="color" class="gjs-rte-color" title="Kolor tła" value="#ffff00">`,
+    icon: `<input type="color" class="gjs-rte-color" title="Background color" value="#ffff00">`,
     event: "change",
     result: (r: any, action: any) => r.exec("hiliteColor", val(action, "input")),
   });
@@ -203,7 +203,7 @@ function setupRichText(editor: Editor) {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComments }: Props) {
-  // Refy zamiast state — GrapesJS żyje poza cyklem Reacta.
+  // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -211,8 +211,8 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
 
   const onEditor = async (editor: Editor) => {
-    // Cel komentarza dla komponentu: jego sekcja + (jeśli to nie sama sekcja)
-    // konkretny element. Nadaje stabilne ID (sec-/obj-) w razie potrzeby.
+    // Comment target for a component: its section + (if it's not the section
+    // itself) the specific element. Assigns stable IDs (sec-/obj-) when needed.
     const targetOf = (c: Component | undefined): CommentTarget | null => {
       const section = closestSection(c);
       if (!section || !c) return null;
@@ -224,8 +224,8 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       return { sectionId, objectId, objectLabel: objectLabel(c) };
     };
 
-    // Nadaje sekcji sec-<id> i dokleja przycisk 💬 do paska każdego elementu,
-    // do którego można dodać komentarz (sekcja + tekst/przycisk/obraz/kolumna).
+    // Gives the section a sec-<id> and adds a comment button to the toolbar of
+    // every commentable element (section + text/button/image/column).
     const decorate = (c: Component) => {
       if (isSection(c)) addIdClass(c, "sec");
       if (!isCommentable(c)) return;
@@ -234,7 +234,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         toolbar.push({
           command: "open-comments",
           label: SPARKLES_SVG,
-          attributes: { title: "Komentarz do elementu / sekcji", "data-role": "sparkles" },
+          attributes: { title: "Comment on element / section", "data-role": "sparkles" },
         } as never);
         c.set("toolbar", toolbar as never);
       }
@@ -253,16 +253,16 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
     editor.on("component:selected", (c: Component) => {
       onSelectTarget(targetOf(c));
       setSidebarView("settings");
-      // mj-image nie ma domyślnie traita src (src zmienia się przez Asset
-      // Manager) — dodaj pole URL, żeby dało się ustawić obraz w panelu.
+      // mj-image has no src trait by default (src changes via the Asset
+      // Manager) — add a URL field so the image can be set from the panel.
       if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
-        // src to WŁAŚCIWOŚĆ modelu obrazu (get('src')), nie atrybut — stąd
-        // changeProp, żeby wpisany URL od razu przeładował obraz w kanwie.
+        // src is a PROPERTY of the image model (get('src')), not an attribute —
+        // hence changeProp, so a typed URL immediately reloads the image in the canvas.
         c.addTrait(
           {
             type: "text",
             name: "src",
-            label: "Obraz (URL)",
+            label: "Image (URL)",
             placeholder: "https://…",
             changeProp: true,
           } as never,
@@ -283,7 +283,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         setSaveStatus("saved");
       } catch (e) {
         setSaveStatus("error");
-        toast.error("Nie udało się zapisać zmian.");
+        toast.error("Failed to save changes.");
         throw e;
       }
     };
@@ -295,13 +295,13 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
     });
 
     const loadMjml = (mjml: string) => {
-      // Wygłuszamy autosave na czas ładowania i chwilę po nim — setComponents
-      // potrafi odpalić event "update" asynchronicznie, co bez tego nadpisałoby
-      // w bazie świeżą zmianę agenta znormalizowaną wersją z edytora.
+      // Mute autosave during loading and for a moment after — setComponents
+      // can fire the "update" event asynchronously, which would otherwise
+      // overwrite the agent's fresh change in the DB with the editor's normalized version.
       loadingRef.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       editor.setComponents(mjml || STARTER_MJML);
-      // Nadaj sec-<id> sekcjom i przyciski komentarza wszystkim komentowalnym elementom.
+      // Give sections a sec-<id> and comment buttons to all commentable elements.
       editor.getWrapper()?.find("mj-section").forEach(decorate);
       for (const t of Object.keys(TYPE_LABEL)) {
         editor.getWrapper()?.find(t).forEach(decorate);
@@ -311,8 +311,8 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       }, 400);
     };
 
-    // Podświetlenie sekcji edytowanej przez agenta — animacja wstrzykiwana do
-    // dokumentu canvasu (iframe GrapesJS).
+    // Highlight for the section being edited by the agent — animation injected
+    // into the canvas document (GrapesJS iframe).
     const ensureHighlightStyles = () => {
       const cdoc = editor.Canvas.getDocument();
       if (!cdoc || cdoc.getElementById("agent-edit-style")) return;
@@ -344,7 +344,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       const doc = await getDocument(docId);
       loadMjml(doc.mjml);
     } catch (e) {
-      toast.error("Nie udało się wczytać dokumentu.");
+      toast.error("Failed to load the document.");
       console.error(e);
     } finally {
       setLoading(false);
@@ -378,7 +378,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         storageManager: false,
         fromElement: false,
         panels: { defaults: [] },
-        // Natywne managery renderują się wprost do naszych doków (id poniżej).
+        // Native managers render directly into our docks (ids below).
         blockManager: { appendTo: "#gjs-blocks" },
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
@@ -398,14 +398,14 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
           <TopBar saveStatus={saveStatus} />
         </WithEditor>
         <div className="flex min-h-0 flex-1">
-          {/* Sidebar renderuje się od razu (poza WithEditor) — cele appendTo
-              natywnych managerów muszą istnieć w DOM przed inicjalizacją. */}
+          {/* The sidebar renders immediately (outside WithEditor) — the appendTo
+              targets of the native managers must exist in the DOM before init. */}
           <LeftSidebar view={sidebarView} onViewChange={setSidebarView} />
           <div className="relative min-w-0 flex-1">
             <Canvas className="h-full" />
             {loading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-                <Spinner /> Wczytywanie edytora…
+                <Spinner /> Loading editor…
               </div>
             )}
           </div>
@@ -417,9 +417,9 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
 
 const SAVE_LABEL: Record<SaveStatus, string> = {
   idle: "",
-  saving: "Zapisywanie…",
-  saved: "Zapisano",
-  error: "Błąd zapisu",
+  saving: "Saving…",
+  saved: "Saved",
+  error: "Save failed",
 };
 
 function SaveBadge({ status }: { status: SaveStatus }) {
@@ -473,7 +473,7 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
             <Undo2 />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Cofnij</TooltipContent>
+        <TooltipContent>Undo</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -481,7 +481,7 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
             <Redo2 />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Ponów</TooltipContent>
+        <TooltipContent>Redo</TooltipContent>
       </Tooltip>
 
       <div className="ml-auto flex items-center gap-2">
@@ -489,12 +489,12 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" size="sm" onClick={() => setCode(editor.getHtml())}>
-              <Code2 /> Kod MJML
+              <Code2 /> MJML code
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Kod MJML</DialogTitle>
+              <DialogTitle>MJML code</DialogTitle>
             </DialogHeader>
             <ScrollArea className="max-h-[60vh] rounded-md border bg-muted/40">
               <pre className="p-3 text-xs leading-relaxed break-words whitespace-pre-wrap">
@@ -507,10 +507,10 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
               className="self-end"
               onClick={() => {
                 void navigator.clipboard?.writeText(code);
-                toast.success("Skopiowano kod MJML.");
+                toast.success("MJML code copied.");
               }}
             >
-              <Copy /> Kopiuj
+              <Copy /> Copy
             </Button>
           </DialogContent>
         </Dialog>
@@ -521,7 +521,7 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
 
 type SidebarView = "blocks" | "settings" | "layers";
 
-// Zwijana sekcja — treść ZAWSZE zamontowana (cel appendTo), chowana przez hidden.
+// Collapsible section — content ALWAYS mounted (appendTo target), hidden via `hidden`.
 function CollapseSection({
   title,
   defaultOpen = true,
@@ -547,8 +547,8 @@ function CollapseSection({
   );
 }
 
-// Lewy sidebar: Bloki / Ustawienia / Warstwy. Wszystkie managery są zawsze
-// zamontowane (cele appendTo dla GrapesJS) — przełączamy widoczność przez hidden.
+// Left sidebar: Blocks / Settings / Layers. All managers are always mounted
+// (appendTo targets for GrapesJS) — visibility is toggled via `hidden`.
 function LeftSidebar({
   view,
   onViewChange,
@@ -559,7 +559,7 @@ function LeftSidebar({
   const editor = useEditorMaybe();
   const [layersExpanded, setLayersExpanded] = useState(false);
 
-  // Klik „Ustawienia" bez zaznaczonego obiektu → pokaż ustawienia całego body.
+  // Clicking "Settings" with nothing selected → show settings for the whole body.
   const changeView = (v: SidebarView) => {
     if (v === "settings" && editor && !editor.getSelected()) {
       const wrapper = editor.getWrapper();
@@ -569,7 +569,7 @@ function LeftSidebar({
     onViewChange(v);
   };
 
-  // Rozwiń/zwiń wszystkie warstwy naraz.
+  // Expand/collapse all layers at once.
   const toggleLayers = (expand: boolean) => {
     setLayersExpanded(expand);
     editor?.getWrapper()?.onAll((c) => c.set("open", expand));
@@ -580,9 +580,9 @@ function LeftSidebar({
       <div className="flex border-b border-border">
         {(
           [
-            ["blocks", "Bloki"],
-            ["settings", "Ustawienia"],
-            ["layers", "Warstwy"],
+            ["blocks", "Blocks"],
+            ["settings", "Settings"],
+            ["layers", "Layers"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -602,26 +602,26 @@ function LeftSidebar({
         ))}
       </div>
 
-      {/* Bloki */}
+      {/* Blocks */}
       <div
         id="gjs-blocks"
         className={cn("min-h-0 flex-1 overflow-y-auto", view !== "blocks" && "hidden")}
       />
 
-      {/* Ustawienia: Atrybuty + Styl (zwijane, jedno pod drugim) */}
+      {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
-        <CollapseSection title="Atrybuty">
+        <CollapseSection title="Attributes">
           <div id="gjs-traits" />
         </CollapseSection>
-        <CollapseSection title="Styl">
+        <CollapseSection title="Style">
           <div id="gjs-styles" />
         </CollapseSection>
       </div>
 
-      {/* Warstwy — z przełącznikiem rozwiń/zwiń wszystko */}
+      {/* Layers — with an expand/collapse-all switch */}
       <div className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}>
         <label className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs text-zinc-600">
-          <span>Rozwiń wszystkie</span>
+          <span>Expand all</span>
           <Switch checked={layersExpanded} onCheckedChange={toggleLayers} />
         </label>
         <div id="gjs-layers" className="min-h-0 flex-1 overflow-y-auto" />

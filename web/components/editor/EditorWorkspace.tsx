@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-// GrapesJS dotyka window przy imporcie — tylko po stronie klienta.
+// GrapesJS touches window at import time — client side only.
 const EmailEditor = dynamic(() => import("@/components/editor/EmailEditor"), { ssr: false });
 
 export default function EditorWorkspace({ docId }: { docId: string }) {
@@ -30,14 +30,14 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
     setCollapsed(false);
   }, []);
 
-  // Wołane po każdej pojedynczej edycji agenta (mutujący tool-call) oraz na
-  // koniec tury — odświeża podgląd z bazy i listę komentarzy na żywo.
+  // Called after each single agent edit (mutating tool call) and at the end
+  // of the turn — refreshes the preview from the DB and the comment list live.
   const onLiveUpdate = useCallback(() => {
     void editorApi.current?.reloadFromDb();
     setCommentsRefresh((n) => n + 1);
   }, []);
 
-  // Podświetlenie sekcji na czas jej edycji przez agenta (start/koniec tool-calla).
+  // Section highlight while the agent edits it (tool call start/end).
   const onSectionEditStart = useCallback((sectionId: string) => {
     editorApi.current?.highlightSection(sectionId, true);
   }, []);
@@ -63,7 +63,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
         />
       </div>
 
-      {/* Panel zostaje zamontowany (w-0 przy zwinięciu) — stan czatu przetrwa. */}
+      {/* The panel stays mounted (w-0 when collapsed) — chat state survives. */}
       <aside
         className={cn(
           "flex shrink-0 flex-col border-l border-border bg-surface transition-[width] duration-200",
@@ -82,7 +82,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
                 Agent
               </TabsTrigger>
               <TabsTrigger value="comments" className="flex-1">
-                Komentarze
+                Comments
                 {badge}
               </TabsTrigger>
             </TabsList>
@@ -91,7 +91,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
               size="icon"
               className="mr-1 shrink-0"
               onClick={() => setCollapsed(true)}
-              title="Zwiń panel"
+              title="Collapse panel"
             >
               <PanelRightClose />
             </Button>
@@ -133,7 +133,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
           size="icon"
           className="absolute top-2 right-2 z-20 shadow-sm"
           onClick={() => setCollapsed(false)}
-          title="Rozwiń panel"
+          title="Expand panel"
         >
           <PanelRightOpen />
         </Button>

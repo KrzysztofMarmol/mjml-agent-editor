@@ -1,7 +1,7 @@
-"""Walidacja/kompilacja MJML przez CLI mjml (node, instalowane w web/).
+"""MJML validation/compilation via the mjml CLI (node, installed in web/).
 
-Używamy mjml v4 (ta sama linia co kompilator w grapesjs-mjml), żeby podgląd
-w edytorze i wynik kompilacji się nie rozjeżdżały.
+We use mjml v4 (the same line as the compiler in grapesjs-mjml) so the editor
+preview and the compilation output don't drift apart.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ MJML_BIN = os.environ.get("MJML_BIN", str(_REPO_ROOT / "web" / "node_modules" / 
 
 
 def compile_mjml(mjml: str, strict: bool = True) -> tuple[bool, str]:
-    """Zwraca (ok, html_lub_błędy)."""
+    """Returns (ok, html_or_errors)."""
     with tempfile.NamedTemporaryFile("w", suffix=".mjml", delete=False) as f:
         f.write(mjml)
         src = f.name
@@ -28,8 +28,8 @@ def compile_mjml(mjml: str, strict: bool = True) -> tuple[bool, str]:
             text=True,
             timeout=30,
         )
-        # mjml-cli wypisuje błędy walidacji na stderr, ale kończy się kodem 0 —
-        # traktujemy niepusty stderr jako niepowodzenie.
+        # mjml-cli prints validation errors to stderr but exits with code 0 —
+        # treat non-empty stderr as failure.
         errors = (proc.stderr or "").strip()
         if proc.returncode != 0 or errors:
             return False, errors or proc.stdout.strip()

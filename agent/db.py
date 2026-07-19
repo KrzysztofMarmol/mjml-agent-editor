@@ -1,4 +1,4 @@
-"""Klient Supabase (service role) + operacje na dokumentach i komentarzach."""
+"""Supabase client (service role) + operations on documents and comments."""
 
 from __future__ import annotations
 
