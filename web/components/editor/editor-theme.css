@@ -50,6 +50,8 @@
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
 }
 :root .gjs-block__media {
+  display: flex;
+  justify-content: center;
   margin-bottom: 4px;
 }
 :root .gjs-block svg {
