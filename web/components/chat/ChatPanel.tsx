@@ -311,8 +311,13 @@ export default function ChatPanel({
                             </Bubble>
                           ))}
                           {/* Wskaźnik pracy jako część bieżącej tury asystenta —
-                              ciasny odstęp (gap-2.5), bez pełnego gap-6. */}
-                          {isLast && !isUser && busy && !toolRunning && <BusyMarker />}
+                              ciasny odstęp (gap-2.5). Chowamy go, gdy leci już
+                              stream tekstu (textParts !== puste) — nie zaśmieca. */}
+                          {isLast &&
+                            !isUser &&
+                            busy &&
+                            !toolRunning &&
+                            textParts.length === 0 && <BusyMarker />}
                         </MessageContent>
                       </Message>
                     </MessageScrollerItem>
