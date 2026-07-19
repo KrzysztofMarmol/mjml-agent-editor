@@ -98,13 +98,16 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
     });
 
     const loadMjml = (mjml: string) => {
+      // Wygłuszamy autosave na czas ładowania i chwilę po nim — setComponents
+      // potrafi odpalić event "update" asynchronicznie, co bez tego nadpisałoby
+      // w bazie świeżą zmianę agenta znormalizowaną wersją z edytora.
       loadingRef.current = true;
-      try {
-        editor.setComponents(mjml || STARTER_MJML);
-        editor.getWrapper()?.find("mj-section").forEach(ensureSectionId);
-      } finally {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      editor.setComponents(mjml || STARTER_MJML);
+      editor.getWrapper()?.find("mj-section").forEach(ensureSectionId);
+      setTimeout(() => {
         loadingRef.current = false;
-      }
+      }, 400);
     };
 
     const doc = await getDocument(docId);
