@@ -8,7 +8,24 @@ import "./editor-theme.css";
 import { useRef, useState } from "react";
 
 import { getDocument, updateDocument, STARTER_MJML } from "@/lib/documents";
-import { useToast } from "@/components/ui/toast";
+import { toast } from "sonner";
+import { Undo2, Redo2, Code2, Copy } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -67,7 +84,6 @@ function secEls(editor: Editor, sectionId: string): HTMLElement[] {
 }
 
 export default function EmailEditor({ docId, onReady, onSelectSection, onOpenComments }: Props) {
-  const { toast } = useToast();
   // Refy zamiast state — GrapesJS żyje poza cyklem Reacta.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -230,8 +246,8 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
           <div className="relative min-w-0 flex-1">
             <Canvas className="h-full" />
             {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-sm text-zinc-500">
-                Wczytywanie edytora…
+              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
+                <Spinner /> Wczytywanie edytora…
               </div>
             )}
           </div>
@@ -242,75 +258,105 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
   );
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 const SAVE_LABEL: Record<SaveStatus, string> = {
   idle: "",
   saving: "Zapisywanie…",
   saved: "Zapisano",
   error: "Błąd zapisu",
 };
-const SAVE_COLOR: Record<SaveStatus, string> = {
-  idle: "text-zinc-400",
-  saving: "text-zinc-500",
-  saved: "text-emerald-600",
-  error: "text-red-600",
-};
+
+function SaveBadge({ status }: { status: SaveStatus }) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <Spinner className="size-3" /> {SAVE_LABEL.saving}
+      </Badge>
+    );
+  }
+  if (status === "error") return <Badge variant="destructive">{SAVE_LABEL.error}</Badge>;
+  return (
+    <Badge variant="outline" className="border-emerald-300 text-emerald-600">
+      {SAVE_LABEL.saved}
+    </Badge>
+  );
+}
 
 function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
   const editor = useEditor();
-
-  const showCode = () => {
-    const mjml = escapeHtml(editor.getHtml());
-    editor.Modal.open({
-      title: "Kod MJML",
-      content: `<pre style="max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.5;margin:0;padding:12px;background:#fafafa;border-radius:8px;color:#18181b">${mjml}</pre>`,
-    });
-  };
-
-  const btn =
-    "inline-flex h-8 items-center gap-1 rounded-md border border-border bg-white px-2.5 text-sm text-zinc-700 hover:bg-zinc-50";
+  const [code, setCode] = useState("");
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
       <span className="text-sm font-semibold text-zinc-800">MJML Editor</span>
 
-      <div className="mx-1 h-5 w-px bg-border" />
+      <Separator orientation="vertical" className="mx-1 !h-5" />
 
       <DevicesProvider>
         {({ devices, selected, select }) => (
-          <div className="inline-flex overflow-hidden rounded-md border border-border">
+          <ToggleGroup
+            type="single"
+            size="sm"
+            variant="outline"
+            value={selected}
+            onValueChange={(v) => v && select(v)}
+          >
             {devices.map((d) => (
-              <button
-                key={String(d.id)}
-                onClick={() => select(String(d.id))}
-                className={`h-8 px-2.5 text-sm ${
-                  selected === d.id
-                    ? "bg-brand text-brand-fg"
-                    : "bg-white text-zinc-600 hover:bg-zinc-50"
-                }`}
-              >
+              <ToggleGroupItem key={String(d.id)} value={String(d.id)}>
                 {d.getName() || String(d.id)}
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
+          </ToggleGroup>
         )}
       </DevicesProvider>
 
-      <button className={btn} onClick={() => editor.UndoManager.undo()} title="Cofnij">
-        ↶
-      </button>
-      <button className={btn} onClick={() => editor.UndoManager.redo()} title="Ponów">
-        ↷
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={() => editor.UndoManager.undo()}>
+            <Undo2 />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Cofnij</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={() => editor.UndoManager.redo()}>
+            <Redo2 />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Ponów</TooltipContent>
+      </Tooltip>
 
-      <div className="ml-auto flex items-center gap-3">
-        <span className={`text-xs ${SAVE_COLOR[saveStatus]}`}>{SAVE_LABEL[saveStatus]}</span>
-        <button className={btn} onClick={showCode} title="Pokaż kod MJML">
-          Kod MJML
-        </button>
+      <div className="ml-auto flex items-center gap-2">
+        <SaveBadge status={saveStatus} />
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm" onClick={() => setCode(editor.getHtml())}>
+              <Code2 /> Kod MJML
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Kod MJML</DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] rounded-md border bg-muted/40">
+              <pre className="p-3 text-xs leading-relaxed break-words whitespace-pre-wrap">
+                {code}
+              </pre>
+            </ScrollArea>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="self-end"
+              onClick={() => {
+                void navigator.clipboard?.writeText(code);
+                toast.success("Skopiowano kod MJML.");
+              }}
+            >
+              <Copy /> Kopiuj
+            </Button>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
@@ -327,42 +373,34 @@ function LeftDock() {
   );
 }
 
-type RightTab = "settings" | "style" | "layers";
-
 function RightDock() {
-  const [tab, setTab] = useState<RightTab>("settings");
-  const tabs: { id: RightTab; label: string }[] = [
-    { id: "settings", label: "Ustawienia" },
-    { id: "style", label: "Styl" },
-    { id: "layers", label: "Warstwy" },
-  ];
   return (
     <div className="flex w-64 shrink-0 flex-col border-l border-border bg-surface">
-      <div className="flex border-b border-border text-xs">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`flex-1 px-2 py-2 font-medium ${
-              tab === t.id ? "border-b-2 border-brand text-brand" : "text-zinc-500"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={tab === "settings" ? "" : "hidden"}>
-          <div id="gjs-traits" />
+      <Tabs defaultValue="settings" className="flex min-h-0 flex-1 flex-col gap-0">
+        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsTrigger value="settings" className="flex-1">
+            Ustawienia
+          </TabsTrigger>
+          <TabsTrigger value="style" className="flex-1">
+            Styl
+          </TabsTrigger>
+          <TabsTrigger value="layers" className="flex-1">
+            Warstwy
+          </TabsTrigger>
+        </TabsList>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <TabsContent value="settings" forceMount className="mt-0 data-[state=inactive]:hidden">
+            <div id="gjs-traits" />
+          </TabsContent>
+          <TabsContent value="style" forceMount className="mt-0 data-[state=inactive]:hidden">
+            <div id="gjs-selectors" />
+            <div id="gjs-styles" />
+          </TabsContent>
+          <TabsContent value="layers" forceMount className="mt-0 data-[state=inactive]:hidden">
+            <div id="gjs-layers" />
+          </TabsContent>
         </div>
-        <div className={tab === "style" ? "" : "hidden"}>
-          <div id="gjs-selectors" />
-          <div id="gjs-styles" />
-        </div>
-        <div className={tab === "layers" ? "" : "hidden"}>
-          <div id="gjs-layers" />
-        </div>
-      </div>
+      </Tabs>
     </div>
   );
 }

@@ -3,8 +3,30 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type ToolUIPart } from "ai";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { Check, Loader2, TriangleAlert, Send, Square, Sparkles, MessageSquare } from "lucide-react";
 
-import { useToast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
+import { Message, MessageContent } from "@/components/ui/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Marker, MarkerIcon, MarkerContent } from "@/components/ui/marker";
+import {
+  MessageScrollerProvider,
+  MessageScroller,
+  MessageScrollerViewport,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerButton,
+} from "@/components/ui/message-scroller";
 
 const TOOL_LABELS: Record<string, string> = {
   get_document: "Czytam dokument",
@@ -30,8 +52,30 @@ type Props = {
   onAgentFinish: () => void;
 };
 
+function ToolMarker({ tool }: { tool: ToolUIPart }) {
+  const name = tool.type.slice(5);
+  const done = tool.state === "output-available";
+  const failed = tool.state === "output-error";
+  return (
+    <Marker className={cn(failed && "text-destructive")}>
+      <MarkerIcon>
+        {failed ? (
+          <TriangleAlert />
+        ) : done ? (
+          <Check className="text-emerald-600" />
+        ) : (
+          <Loader2 className="animate-spin" />
+        )}
+      </MarkerIcon>
+      <MarkerContent>
+        {TOOL_LABELS[name] ?? name}
+        {failed && tool.errorText ? `: ${tool.errorText}` : ""}
+      </MarkerContent>
+    </Marker>
+  );
+}
+
 export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props) {
-  const { toast } = useToast();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const { messages, sendMessage, status, stop } = useChat({
@@ -66,71 +110,88 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-3 overflow-y-auto p-3">
-        {messages.length === 0 && (
-          <p className="text-sm text-zinc-500">
-            Opisz maila (cel, ton, treść) i wklej dane — np. listę produktów w
-            JSON. Agent zaprojektuje sekcje i obrazy.
-          </p>
-        )}
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={
-              message.role === "user"
-                ? "ml-6 rounded-lg bg-blue-600 p-2 text-sm text-white"
-                : "mr-2 space-y-1 rounded-lg bg-zinc-100 p-2 text-sm text-zinc-900"
-            }
-          >
-            {message.parts.map((part, i) => {
-              if (part.type === "text") {
-                return (
-                  <p key={i} className="whitespace-pre-wrap">
-                    {part.text}
-                  </p>
-                );
-              }
-              if (part.type.startsWith("tool-")) {
-                const tool = part as ToolUIPart;
-                const name = tool.type.slice(5);
-                const done = tool.state === "output-available";
-                const failed = tool.state === "output-error";
-                return (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-600"
-                  >
-                    <span>{failed ? "⚠️" : done ? "✅" : "⏳"}</span>
-                    <span>{TOOL_LABELS[name] ?? name}</span>
-                    {failed && <span className="text-red-600">{String(tool.errorText ?? "")}</span>}
-                  </div>
-                );
-              }
-              return null;
-            })}
-          </div>
-        ))}
-        {busy && <p className="text-xs text-zinc-400">Agent pracuje…</p>}
-      </div>
+      <MessageScrollerProvider autoScroll>
+        <MessageScroller className="flex-1">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="p-3">
+              {messages.length === 0 ? (
+                <Empty className="h-full">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageSquare />
+                    </EmptyMedia>
+                    <EmptyTitle>Zacznij rozmowę z agentem</EmptyTitle>
+                    <EmptyDescription>
+                      Opisz maila (cel, ton, treść) i wklej dane — agent zaprojektuje
+                      sekcje i obrazy.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                messages.map((message) => {
+                  const isUser = message.role === "user";
+                  return (
+                    <MessageScrollerItem key={message.id} messageId={message.id}>
+                      <Message align={isUser ? "end" : "start"}>
+                        <MessageContent>
+                          {message.parts.map((part, i) => {
+                            if (part.type === "text") {
+                              return (
+                                <Bubble
+                                  key={i}
+                                  variant={isUser ? "default" : "muted"}
+                                  align={isUser ? "end" : "start"}
+                                >
+                                  <BubbleContent className="whitespace-pre-wrap">
+                                    {part.text}
+                                  </BubbleContent>
+                                </Bubble>
+                              );
+                            }
+                            if (part.type.startsWith("tool-")) {
+                              return <ToolMarker key={i} tool={part as ToolUIPart} />;
+                            }
+                            return null;
+                          })}
+                        </MessageContent>
+                      </Message>
+                    </MessageScrollerItem>
+                  );
+                })
+              )}
+              {busy && (
+                <Marker>
+                  <MarkerIcon>
+                    <Loader2 className="animate-spin" />
+                  </MarkerIcon>
+                  <MarkerContent>Agent pracuje…</MarkerContent>
+                </Marker>
+              )}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton direction="end" />
+        </MessageScroller>
+      </MessageScrollerProvider>
 
-      <div className="border-t border-zinc-200 p-3">
-        <button
-          className="mb-2 w-full rounded bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+      <div className="border-t border-border p-3">
+        <Button
+          variant="secondary"
+          className="mb-2 w-full"
           disabled={busy}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
-          Wprowadź zmiany z komentarzy
-        </button>
+          <Sparkles /> Wprowadź zmiany z komentarzy
+        </Button>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void send(input);
           }}
         >
-          <textarea
+          <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 w-full resize-none rounded-md border border-zinc-300 p-2 text-sm"
+            className="max-h-40 min-h-14 resize-none"
             placeholder="Napisz do agenta… (Enter = wyślij, Shift+Enter = nowa linia)"
             value={input}
             onChange={(e) => {
@@ -144,23 +205,15 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish }: Props)
               }
             }}
           />
-          <div className="mt-1 flex justify-end gap-2">
+          <div className="mt-2 flex justify-end gap-2">
             {busy && (
-              <button
-                type="button"
-                onClick={() => void stop()}
-                className="rounded border border-zinc-300 px-3 py-1 text-sm"
-              >
-                Stop
-              </button>
+              <Button type="button" variant="outline" size="sm" onClick={() => void stop()}>
+                <Square /> Stop
+              </Button>
             )}
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-50"
-            >
-              Wyślij
-            </button>
+            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
+              <Send /> Wyślij
+            </Button>
           </div>
         </form>
       </div>

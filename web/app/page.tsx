@@ -2,13 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Plus, Mail } from "lucide-react";
 
 import { createDocument, listDocuments, type EmailDocument } from "@/lib/documents";
-import { useToast } from "@/components/ui/toast";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
 
 export default function Home() {
   const router = useRouter();
-  const { toast } = useToast();
   const [docs, setDocs] = useState<EmailDocument[]>([]);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
@@ -20,7 +30,7 @@ export default function Home() {
         console.error(e);
         toast.error("Nie udało się wczytać listy maili.");
       });
-  }, [toast]);
+  }, []);
 
   const create = async () => {
     if (creating) return;
@@ -38,46 +48,58 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-2xl p-10">
       <h1 className="text-2xl font-bold">MJML Editor Spike</h1>
-      <p className="mt-1 text-sm text-zinc-500">
+      <p className="mt-1 text-sm text-muted-foreground">
         Edytor maili MJML + agent AI (Vercel AI SDK for Python).
       </p>
 
       <div className="mt-6 flex gap-2">
-        <input
-          className="flex-1 rounded border border-zinc-300 p-2 text-sm"
+        <Input
           placeholder="Nazwa nowego maila…"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void create();
+          }}
         />
-        <button
-          onClick={() => void create()}
-          disabled={creating}
-          className="rounded bg-brand px-4 py-2 text-sm font-medium text-brand-fg disabled:opacity-50"
-        >
-          {creating ? "Tworzę…" : "Utwórz"}
-        </button>
+        <Button onClick={() => void create()} disabled={creating}>
+          {creating ? (
+            <>
+              <Spinner /> Tworzę…
+            </>
+          ) : (
+            <>
+              <Plus /> Utwórz
+            </>
+          )}
+        </Button>
       </div>
 
-      {docs.length === 0 && (
-        <p className="mt-8 text-sm text-zinc-400">
-          Brak maili — utwórz pierwszy powyżej.
-        </p>
-      )}
-      <ul className="mt-8 divide-y divide-zinc-200">
-        {docs.map((d) => (
-          <li key={d.id}>
+      {docs.length === 0 ? (
+        <Empty className="mt-10 rounded-lg border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Mail />
+            </EmptyMedia>
+            <EmptyTitle>Brak maili</EmptyTitle>
+            <EmptyDescription>Utwórz pierwszy mail powyżej, aby zacząć.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="mt-8 divide-y divide-border overflow-hidden rounded-lg border">
+          {docs.map((d) => (
             <button
+              key={d.id}
               onClick={() => router.push(`/editor/${d.id}`)}
-              className="flex w-full justify-between py-3 text-left hover:bg-zinc-50"
+              className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50"
             >
               <span className="font-medium">{d.name}</span>
-              <span className="text-sm text-zinc-400">
+              <span className="text-sm text-muted-foreground">
                 {new Date(d.updated_at).toLocaleString("pl-PL")}
               </span>
             </button>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
