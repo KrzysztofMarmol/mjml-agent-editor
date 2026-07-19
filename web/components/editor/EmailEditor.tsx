@@ -88,6 +88,81 @@ function secEls(editor: Editor, sectionId: string): HTMLElement[] {
   return [...doc.querySelectorAll<HTMLElement>(`.sec-${CSS.escape(sectionId)}`)];
 }
 
+const RTE_FONTS = [
+  "Arial",
+  "Helvetica",
+  "Georgia",
+  "Times New Roman",
+  "Verdana",
+  "Tahoma",
+  "Trebuchet MS",
+  "Courier New",
+];
+const RTE_SIZES = [11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 40];
+
+// Opakowuje bieżące zaznaczenie (w dokumencie kanwy) w <span> z inline-stylem.
+function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyleDeclaration>) {
+  const doc = el?.ownerDocument;
+  const sel = doc?.getSelection?.();
+  if (!doc || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const span = doc.createElement("span");
+  Object.assign(span.style, style);
+  try {
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    sel.removeAllRanges();
+    const nr = doc.createRange();
+    nr.selectNodeContents(span);
+    sel.addRange(nr);
+  } catch {
+    /* ignore */
+  }
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Rozszerza domyślny RTE GrapesJS (zgodny z mjml) o czcionkę/rozmiar/kolory.
+function setupRichText(editor: Editor) {
+  const rte = editor.RichTextEditor as any;
+  const val = (action: any, sel: string) =>
+    (action.btn?.querySelector(sel) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
+
+  rte.add("fontName", {
+    icon: `<select class="gjs-rte-select" title="Czcionka"><option value="">Czcionka</option>${RTE_FONTS.map(
+      (f) => `<option value="${f}">${f}</option>`,
+    ).join("")}</select>`,
+    event: "change",
+    result: (r: any, action: any) => {
+      const v = val(action, "select");
+      if (v) r.exec("fontName", v);
+    },
+  });
+
+  rte.add("fontSize", {
+    icon: `<select class="gjs-rte-select" title="Rozmiar"><option value="">Rozmiar</option>${RTE_SIZES.map(
+      (s) => `<option value="${s}px">${s}</option>`,
+    ).join("")}</select>`,
+    event: "change",
+    result: (r: any, action: any) => {
+      const v = val(action, "select");
+      if (v) wrapSelectionStyle(r.el, { fontSize: v });
+    },
+  });
+
+  rte.add("forecolor", {
+    icon: `<input type="color" class="gjs-rte-color" title="Kolor tekstu" value="#000000">`,
+    event: "change",
+    result: (r: any, action: any) => r.exec("foreColor", val(action, "input")),
+  });
+
+  rte.add("hilitecolor", {
+    icon: `<input type="color" class="gjs-rte-color" title="Kolor tła" value="#ffff00">`,
+    event: "change",
+    result: (r: any, action: any) => r.exec("hiliteColor", val(action, "input")),
+  });
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export default function EmailEditor({ docId, onReady, onSelectSection, onOpenComments }: Props) {
   // Refy zamiast state — GrapesJS żyje poza cyklem Reacta.
   const loadingRef = useRef(false);
@@ -142,6 +217,8 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
         if (id) onOpenComments(id);
       },
     });
+
+    setupRichText(editor);
 
     editor.on("component:add", ensureSectionId);
     editor.on("component:selected", (c: Component) => {

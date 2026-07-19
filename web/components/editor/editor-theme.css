@@ -181,3 +181,66 @@
   background-color: rgba(252, 211, 77, 0.18);
   color: #fde68a;
 }
+
+/*
+ * Pasek edycji tekstu (RTE) — ta sama ciemna pigułka co toolbar obiektu,
+ * z rozszerzeniami: czcionka, rozmiar, kolor tekstu/tła.
+ */
+:root .gjs-rte-toolbar {
+  background-color: #18181b; /* zinc-900 */
+  border: none;
+  border-radius: 9px;
+  padding: 3px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+:root .gjs-rte-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+:root .gjs-rte-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 6px;
+  color: #d4d4d8; /* zinc-300 */
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+:root .gjs-rte-action:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+:root .gjs-rte-action svg {
+  width: 15px;
+  height: 15px;
+}
+:root .gjs-rte-action.gjs-rte-active {
+  background-color: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+:root .gjs-rte-select {
+  background: transparent;
+  color: #e4e4e7;
+  border: none;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+:root .gjs-rte-select option {
+  color: #18181b; /* lista rozwijana renderowana natywnie */
+}
+:root .gjs-rte-color {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
