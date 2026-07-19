@@ -136,3 +136,48 @@
 :root .gjs-pn-devices-c {
   display: none;
 }
+
+/*
+ * Pasek narzędzi zaznaczonego obiektu (context menu) — ciemna, zaokrąglona
+ * pigułka z wyraźnymi hoverami zamiast domyślnego niebieskiego paska.
+ */
+:root .gjs-toolbar {
+  background-color: #18181b; /* zinc-900 */
+  border-radius: 9px;
+  padding: 3px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+:root .gjs-toolbar-items {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+:root .gjs-toolbar-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  color: #d4d4d8; /* zinc-300 */
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+:root .gjs-toolbar-item:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+:root .gjs-toolbar-item svg {
+  width: 15px;
+  height: 15px;
+}
+/* Akcent na przycisku „gwiazdki" (komentarze/AI) */
+:root .gjs-toolbar-item[data-role="sparkles"] {
+  color: #fcd34d; /* amber-300 */
+}
+:root .gjs-toolbar-item[data-role="sparkles"]:hover {
+  background-color: rgba(252, 211, 77, 0.18);
+  color: #fde68a;
+}
