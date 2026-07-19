@@ -114,6 +114,19 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
   );
 }
 
+// Wskaźnik „Agent pracuje…" — renderowany albo w bieżącej wiadomości asystenta
+// (ciasno pod krokami), albo samodzielnie, gdy asystent nie zaczął jeszcze pisać.
+function BusyMarker() {
+  return (
+    <Marker className="text-foreground">
+      <MarkerIcon>
+        <Loader2 className="animate-spin" />
+      </MarkerIcon>
+      <MarkerContent>Agent pracuje…</MarkerContent>
+    </Marker>
+  );
+}
+
 // Aktywność narzędzi: taski w toku widoczne; zakończone i błędne zwinięte pod spód.
 function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
   const running = tools.filter(
@@ -263,8 +276,9 @@ export default function ChatPanel({
                   </EmptyHeader>
                 </Empty>
               ) : (
-                messages.map((message) => {
+                messages.map((message, mi) => {
                   const isUser = message.role === "user";
+                  const isLast = mi === messages.length - 1;
                   const toolParts = message.parts.filter((p) =>
                     p.type.startsWith("tool-"),
                   ) as ToolUIPart[];
@@ -296,20 +310,17 @@ export default function ChatPanel({
                               </BubbleContent>
                             </Bubble>
                           ))}
+                          {/* Wskaźnik pracy jako część bieżącej tury asystenta —
+                              ciasny odstęp (gap-2.5), bez pełnego gap-6. */}
+                          {isLast && !isUser && busy && !toolRunning && <BusyMarker />}
                         </MessageContent>
                       </Message>
                     </MessageScrollerItem>
                   );
                 })
               )}
-              {busy && !toolRunning && (
-                <Marker className="text-foreground">
-                  <MarkerIcon>
-                    <Loader2 className="animate-spin" />
-                  </MarkerIcon>
-                  <MarkerContent>Agent pracuje…</MarkerContent>
-                </Marker>
-              )}
+              {/* Fallback: agent nie utworzył jeszcze wiadomości (ostatnia = użytkownika). */}
+              {busy && !toolRunning && lastMsg?.role !== "assistant" && <BusyMarker />}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton direction="end" />
