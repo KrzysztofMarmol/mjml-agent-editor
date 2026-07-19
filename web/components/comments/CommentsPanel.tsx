@@ -8,7 +8,12 @@ import {
   resolveComment,
   type SectionComment,
 } from "@/lib/documents";
-import { useToast } from "@/components/ui/toast";
+import { toast } from "sonner";
+import { Check } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 type Props = {
   docId: string;
@@ -28,7 +33,6 @@ export default function CommentsPanel({
   onNavigate,
   onOpenChange,
 }: Props) {
-  const { toast } = useToast();
   const [comments, setComments] = useState<SectionComment[]>([]);
   const [body, setBody] = useState("");
 
@@ -39,7 +43,7 @@ export default function CommentsPanel({
         console.error(e);
         toast.error("Nie udało się wczytać komentarzy.");
       });
-  }, [docId, toast]);
+  }, [docId]);
 
   useEffect(reload, [reload, refreshSignal]);
 
@@ -78,37 +82,43 @@ export default function CommentsPanel({
   };
 
   return (
-    <div className="flex h-full flex-col gap-2 overflow-y-auto p-3 text-sm">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto p-3 text-sm">
       <div className="rounded-lg border border-border p-2">
         {selectedSectionId ? (
           <>
-            <p className="mb-1 text-xs text-zinc-500">
+            <p className="mb-1 text-xs text-muted-foreground">
               Komentarz do sekcji <code className="font-mono">{selectedSectionId}</code>:
             </p>
-            <textarea
-              className="min-h-16 w-full resize-y rounded-md border border-zinc-300 p-2"
+            <Textarea
+              className="min-h-16 resize-y"
               placeholder="Co zmienić i jak? np. „przycisk na zielono, krótszy tekst”"
               value={body}
               onChange={(e) => setBody(e.target.value)}
             />
-            <button
+            <Button
+              size="sm"
+              className="mt-2"
               onClick={() => void submit()}
               disabled={!body.trim()}
-              className="mt-1 rounded-md bg-brand px-3 py-1 text-xs font-medium text-brand-fg disabled:opacity-50"
             >
               Dodaj komentarz
-            </button>
+            </Button>
           </>
         ) : (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             Zaznacz sekcję w edytorze (albo użyj 💬 z jej paska narzędzi), żeby
             dodać komentarz.
           </p>
         )}
       </div>
 
-      <h3 className="mt-1 font-medium">Otwarte ({open.length})</h3>
-      {open.length === 0 && <p className="text-xs text-zinc-400">Brak otwartych komentarzy.</p>}
+      <div className="flex items-center gap-2">
+        <h3 className="font-medium">Otwarte</h3>
+        <Badge variant="secondary">{open.length}</Badge>
+      </div>
+      {open.length === 0 && (
+        <p className="text-xs text-muted-foreground">Brak otwartych komentarzy.</p>
+      )}
       {open.map((c) => (
         <div key={c.id} className="rounded-lg border border-amber-300 bg-amber-50 p-2">
           <button
@@ -122,23 +132,25 @@ export default function CommentsPanel({
             </p>
             <p className="whitespace-pre-wrap text-zinc-800">{c.body}</p>
           </button>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 border-amber-300 text-amber-800 hover:bg-amber-100 hover:text-amber-900"
             onClick={() => void resolve(c.id)}
-            className="mt-2 rounded-md border border-amber-300 bg-white px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100"
           >
-            Oznacz jako rozwiązany
-          </button>
+            <Check /> Oznacz jako rozwiązany
+          </Button>
         </div>
       ))}
 
       {resolved.length > 0 && (
         <details className="mt-1">
-          <summary className="cursor-pointer text-xs text-zinc-500">
-            Rozwiązane ({resolved.length})
+          <summary className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+            Rozwiązane <Badge variant="outline">{resolved.length}</Badge>
           </summary>
           {resolved.map((c) => (
             <div key={c.id} className="mt-1 rounded-lg border border-border p-2 opacity-60">
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 sekcja <code className="font-mono">{c.section_id}</code>
               </p>
               <p className="whitespace-pre-wrap">{c.body}</p>
