@@ -6,7 +6,7 @@ import grapesjsMJML from "grapesjs-mjml";
 import "grapesjs/dist/css/grapes.min.css";
 import { useRef } from "react";
 
-import { getDocument, updateDocument, STARTER_MJML } from "@/lib/documents";
+import { getDocument, updateDocument, STARTER_MJML, type CommentTarget } from "@/lib/documents";
 
 export type EditorApi = {
   /** Aktualne źródło MJML z edytora. */
@@ -22,19 +22,54 @@ export type EditorApi = {
 type Props = {
   docId: string;
   onReady: (api: EditorApi) => void;
-  onSelectSection: (sectionId: string | null) => void;
-  onOpenComments: (sectionId: string) => void;
+  onSelectTarget: (target: CommentTarget | null) => void;
+  onOpenComments: (target: CommentTarget) => void;
 };
 
 const SEC_ID_RE = /\bsec-([A-Za-z0-9_-]+)\b/;
+const OBJ_ID_RE = /\bobj-([A-Za-z0-9_-]+)\b/;
+
+// Typy elementów, do których można dodać komentarz (poza sekcją).
+const TYPE_LABEL: Record<string, string> = {
+  "mj-text": "Tekst",
+  "mj-button": "Przycisk",
+  "mj-image": "Obraz",
+  "mj-column": "Kolumna",
+};
+
+function tagOf(c: Component): string {
+  return String(c.get("tagName") || c.get("type") || "");
+}
 
 function isSection(c: Component): boolean {
-  return c.get("tagName") === "mj-section" || c.get("type") === "mj-section";
+  return tagOf(c) === "mj-section";
+}
+
+function isCommentable(c: Component): boolean {
+  const t = tagOf(c);
+  return t === "mj-section" || t in TYPE_LABEL;
+}
+
+function classMatch(c: Component, re: RegExp): string | null {
+  const cssClass = String(c.getAttributes()["css-class"] ?? "");
+  return cssClass.match(re)?.[1] ?? null;
 }
 
 function sectionIdOf(c: Component): string | null {
+  return classMatch(c, SEC_ID_RE);
+}
+
+function objectIdOf(c: Component): string | null {
+  return classMatch(c, OBJ_ID_RE);
+}
+
+function addIdClass(c: Component, prefix: "sec" | "obj"): string {
+  const existing = classMatch(c, prefix === "sec" ? SEC_ID_RE : OBJ_ID_RE);
+  if (existing) return existing;
   const cssClass = String(c.getAttributes()["css-class"] ?? "");
-  return cssClass.match(SEC_ID_RE)?.[1] ?? null;
+  const id = Math.random().toString(36).slice(2, 10);
+  c.addAttributes({ "css-class": `${cssClass} ${prefix}-${id}`.trim() });
+  return id;
 }
 
 function closestSection(c: Component | undefined): Component | null {
@@ -46,44 +81,60 @@ function closestSection(c: Component | undefined): Component | null {
   return null;
 }
 
-export default function EmailEditor({ docId, onReady, onSelectSection, onOpenComments }: Props) {
+function objectLabel(c: Component): string {
+  const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
+  const text = String((c.getEl?.() as HTMLElement | undefined)?.textContent ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 30);
+  return text ? `${base}: „${text}”` : base;
+}
+
+export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComments }: Props) {
   // Refy zamiast state — GrapesJS żyje poza cyklem Reacta.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onEditor = async (editor: Editor) => {
-    const ensureSectionId = (c: Component) => {
-      if (!isSection(c)) return;
-      if (!sectionIdOf(c)) {
-        const cssClass = String(c.getAttributes()["css-class"] ?? "");
-        const id = Math.random().toString(36).slice(2, 10);
-        c.addAttributes({ "css-class": `${cssClass} sec-${id}`.trim() });
+    // Cel komentarza dla komponentu: jego sekcja + (jeśli to nie sama sekcja)
+    // konkretny element. Nadaje stabilne ID (sec-/obj-) w razie potrzeby.
+    const targetOf = (c: Component | undefined): CommentTarget | null => {
+      const section = closestSection(c);
+      if (!section || !c) return null;
+      const sectionId = addIdClass(section, "sec");
+      if (isSection(c)) {
+        return { sectionId, objectId: null, objectLabel: null };
       }
+      const objectId = addIdClass(c, "obj");
+      return { sectionId, objectId, objectLabel: objectLabel(c) };
+    };
+
+    // Nadaje sekcji sec-<id> i dokleja przycisk 💬 do paska każdego elementu,
+    // do którego można dodać komentarz (sekcja + tekst/przycisk/obraz/kolumna).
+    const decorate = (c: Component) => {
+      if (isSection(c)) addIdClass(c, "sec");
+      if (!isCommentable(c)) return;
       const toolbar = [...((c.get("toolbar") as { command?: string }[]) ?? [])];
-      if (!toolbar.some((t) => t.command === "section-comments")) {
+      if (!toolbar.some((t) => t.command === "open-comments")) {
         toolbar.push({
-          command: "section-comments",
+          command: "open-comments",
           label: "💬",
-          attributes: { title: "Komentarze do sekcji" },
+          attributes: { title: "Komentarz do elementu / sekcji" },
         } as never);
         c.set("toolbar", toolbar as never);
       }
     };
 
-    editor.Commands.add("section-comments", {
+    editor.Commands.add("open-comments", {
       run(ed: Editor) {
-        const section = closestSection(ed.getSelected() ?? undefined);
-        const id = section ? sectionIdOf(section) : null;
-        if (id) onOpenComments(id);
+        const target = targetOf(ed.getSelected() ?? undefined);
+        if (target) onOpenComments(target);
       },
     });
 
-    editor.on("component:add", ensureSectionId);
-    editor.on("component:selected", (c: Component) => {
-      const section = closestSection(c);
-      onSelectSection(section ? sectionIdOf(section) : null);
-    });
-    editor.on("component:deselected", () => onSelectSection(null));
+    editor.on("component:add", decorate);
+    editor.on("component:selected", (c: Component) => onSelectTarget(targetOf(c)));
+    editor.on("component:deselected", () => onSelectTarget(null));
 
     const save = async () => {
       if (loadingRef.current) return;
@@ -106,7 +157,11 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
       loadingRef.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       editor.setComponents(mjml || STARTER_MJML);
-      editor.getWrapper()?.find("mj-section").forEach(ensureSectionId);
+      // Nadaj sec-<id> sekcjom i przyciski 💬 wszystkim komentowalnym elementom.
+      editor.getWrapper()?.find("mj-section").forEach(decorate);
+      for (const t of Object.keys(TYPE_LABEL)) {
+        editor.getWrapper()?.find(t).forEach(decorate);
+      }
       setTimeout(() => {
         loadingRef.current = false;
       }, 400);

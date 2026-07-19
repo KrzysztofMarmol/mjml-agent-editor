@@ -6,18 +6,19 @@ import { useCallback, useRef, useState } from "react";
 import ChatPanel from "@/components/chat/ChatPanel";
 import CommentsPanel from "@/components/comments/CommentsPanel";
 import type { EditorApi } from "@/components/editor/EmailEditor";
+import type { CommentTarget } from "@/lib/documents";
 
 // GrapesJS dotyka window przy imporcie — tylko po stronie klienta.
 const EmailEditor = dynamic(() => import("@/components/editor/EmailEditor"), { ssr: false });
 
 export default function EditorWorkspace({ docId }: { docId: string }) {
   const editorApi = useRef<EditorApi | null>(null);
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [commentTarget, setCommentTarget] = useState<CommentTarget | null>(null);
   const [commentsRefresh, setCommentsRefresh] = useState(0);
   const [tab, setTab] = useState<"chat" | "comments">("chat");
 
-  const openComments = useCallback((sectionId: string) => {
-    setSelectedSectionId(sectionId);
+  const openComments = useCallback((target: CommentTarget) => {
+    setCommentTarget(target);
     setTab("comments");
   }, []);
 
@@ -42,7 +43,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
         <EmailEditor
           docId={docId}
           onReady={(api) => (editorApi.current = api)}
-          onSelectSection={setSelectedSectionId}
+          onSelectTarget={setCommentTarget}
           onOpenComments={openComments}
         />
       </div>
@@ -76,7 +77,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
         <div className={`min-h-0 flex-1 ${tab === "comments" ? "" : "hidden"}`}>
           <CommentsPanel
             docId={docId}
-            selectedSectionId={selectedSectionId}
+            target={commentTarget}
             refreshSignal={commentsRefresh}
           />
         </div>
