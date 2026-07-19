@@ -186,7 +186,17 @@
  * Pasek edycji tekstu (RTE) — ta sama ciemna pigułka co toolbar obiektu,
  * z rozszerzeniami: czcionka, rozmiar, kolor tekstu/tła.
  */
+/*
+ * Pasek RTE bywa pozycjonowany nad zaznaczeniem i przy tekście przy lewej
+ * krawędzi wychodzi poza kanwę — domyślne overflow:hidden na .gjs-cv-canvas
+ * go obcinało (chował się „pod" sidebarem). Pozwalamy narzędziom wyjść poza
+ * kanwę; sama kanwa/iframe i tak wypełnia kontener, więc treść nie wycieka.
+ */
+:root .gjs-cv-canvas {
+  overflow: visible;
+}
 :root .gjs-rte-toolbar {
+  z-index: 100;
   background-color: #18181b; /* zinc-900 */
   border: none;
   border-radius: 9px;
@@ -202,9 +212,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
+  width: auto; /* rośnie do treści (selecty) zamiast sztywnego 26px → koniec nachodzenia */
   min-width: 26px;
   height: 26px;
-  padding: 0 5px;
+  padding: 0 4px;
   border: none;
   border-radius: 6px;
   color: #d4d4d8; /* zinc-300 */
@@ -225,10 +237,13 @@
   color: #ffffff;
 }
 :root .gjs-rte-select {
+  max-width: 92px;
+  padding: 0 2px;
   background: transparent;
   color: #e4e4e7;
   border: none;
   font-size: 12px;
+  text-overflow: ellipsis;
   outline: none;
   cursor: pointer;
 }
