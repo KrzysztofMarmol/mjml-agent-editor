@@ -22,3 +22,9 @@ supabase/.branches/
 # misc
 .DS_Store
 *.log
+
+# lokalne narzędzia agenta (MCP + skille) — nie commitować
+/.mcp.json
+/.agents/
+/.claude/skills/
+/skills-lock.json
