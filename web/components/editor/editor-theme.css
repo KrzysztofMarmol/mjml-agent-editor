@@ -94,21 +94,61 @@
   border-top-color: #52525b;
 }
 
-/* Etykiety property (style/traits) */
+/*
+ * Ujednolicona typografia managerów (traity + style):
+ * te same rozmiary/wagi/kolory etykiet i pól w obu sekcjach panelu Ustawienia.
+ */
+
+/* Etykiety property (Href/Alt oraz Width/Padding/…) — jedna skala */
 :root .gjs-sm-label,
 :root .gjs-trt-trait .gjs-label,
 :root .gjs-label {
-  color: #52525b;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+  color: #71717a; /* zinc-500 */
 }
 
-/* Sektory stylów / grupy */
+/* Rzędy property — spójny padding poziomy (wyrównany do nagłówków sekcji) */
+:root .gjs-sm-properties,
+:root .gjs-traits-c {
+  padding: 6px 12px;
+}
+:root .gjs-trt-trait {
+  padding: 4px 0;
+}
+:root .gjs-sm-property {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+/* Pola — jednolita wysokość i rozmiar tekstu */
+:root .gjs-field,
+:root .gjs-sm-field {
+  min-height: 28px;
+  font-size: 12px;
+}
+:root .gjs-field input,
+:root .gjs-field select,
+:root .gjs-field textarea,
+:root .gjs-sm-field input,
+:root .gjs-sm-field select {
+  font-size: 12px;
+}
+
+/* Nagłówki sektorów stylu / traits — spójne z nagłówkami sekcji (Atrybuty/Styl) */
 :root .gjs-sm-sector-title,
 :root .gjs-trt-header {
+  padding: 8px 10px;
   background-color: #fafafa;
-  color: #3f3f46;
+  color: #52525b; /* zinc-600 */
   border-bottom: 1px solid #e4e4e7;
   font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 :root .gjs-sm-sector,
 :root .gjs-trt-trait {

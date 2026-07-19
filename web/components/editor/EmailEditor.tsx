@@ -232,6 +232,22 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
       const section = closestSection(c);
       onSelectSection(section ? sectionIdOf(section) : null);
       setSidebarView("settings");
+      // mj-image nie ma domyślnie traita src (src zmienia się przez Asset
+      // Manager) — dodaj pole URL, żeby dało się ustawić obraz w panelu.
+      if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
+        // src to WŁAŚCIWOŚĆ modelu obrazu (get('src')), nie atrybut — stąd
+        // changeProp, żeby wpisany URL od razu przeładował obraz w kanwie.
+        c.addTrait(
+          {
+            type: "text",
+            name: "src",
+            label: "Obraz (URL)",
+            placeholder: "https://…",
+            changeProp: true,
+          } as never,
+          { at: 0 },
+        );
+      }
     });
     editor.on("component:deselected", () => onSelectSection(null));
 
@@ -508,25 +524,29 @@ function LeftSidebar({
 
   return (
     <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="border-b border-border p-2">
-        <ToggleGroup
-          type="single"
-          size="sm"
-          variant="outline"
-          value={view}
-          onValueChange={(v) => v && changeView(v as SidebarView)}
-          className="w-full"
-        >
-          <ToggleGroupItem value="blocks" className="flex-1">
-            Bloki
-          </ToggleGroupItem>
-          <ToggleGroupItem value="settings" className="flex-1">
-            Ustawienia
-          </ToggleGroupItem>
-          <ToggleGroupItem value="layers" className="flex-1">
-            Warstwy
-          </ToggleGroupItem>
-        </ToggleGroup>
+      <div className="flex border-b border-border">
+        {(
+          [
+            ["blocks", "Bloki"],
+            ["settings", "Ustawienia"],
+            ["layers", "Warstwy"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => changeView(value)}
+            className={cn(
+              "relative flex-1 px-3 py-2.5 text-sm transition-colors",
+              "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:transition-colors",
+              view === value
+                ? "font-medium text-foreground after:bg-brand"
+                : "text-muted-foreground after:bg-transparent hover:text-foreground",
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Bloki */}
