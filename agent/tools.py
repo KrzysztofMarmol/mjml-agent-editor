@@ -33,6 +33,17 @@ def _validated_save(doc_id: str, mjml: str) -> str:
     return "OK, zapisano."
 
 
+# Gdy JSON argumentów tool-calla jest niepoprawny (najczęściej literalny nowy
+# wiersz albo cudzysłów w polu `mjml`), Vercel AI SDK podmienia argumenty na "{}"
+# — pola docierają puste. Zamiast cichej porażki dajemy modelowi jasną instrukcję.
+_EMPTY_ARG_HINT = (
+    "BŁĄD: argument dotarł pusty — JSON wywołania narzędzia był niepoprawny. "
+    "Ponów wywołanie, przekazując MJML w JEDNEJ linii (bez literalnych nowych "
+    "wierszy) i z apostrofami w atrybutach, np. <mj-section css-class='sec-x' "
+    "background-color='#2e7d32'>...</mj-section>."
+)
+
+
 def build_tools(doc_id: str) -> list[ai.AgentTool]:
     @ai.tool
     async def get_document() -> str:
@@ -49,18 +60,24 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         return section or f"BŁĄD: brak sekcji o id '{section_id}'"
 
     @ai.tool
-    async def set_document(mjml: str) -> str:
+    async def set_document(mjml: str = "") -> str:
         """Zastępuje CAŁY dokument nowym źródłem MJML (użyj przy generowaniu maila od zera).
 
         Dokument musi być kompletny (<mjml><mj-body>...</mj-body></mjml>).
-        Sekcje bez klasy sec-* dostaną ją automatycznie.
+        MJML podawaj w JEDNEJ linii, z apostrofami w atrybutach (np. background-color='#fff'),
+        żeby JSON wywołania był poprawny. Sekcje bez klasy sec-* dostaną ją automatycznie.
         """
+        if not mjml.strip():
+            return _EMPTY_ARG_HINT
         mjml = mjml_doc.ensure_section_ids(mjml)
         return _validated_save(doc_id, mjml)
 
     @ai.tool
-    async def set_section(section_id: str, mjml: str) -> str:
-        """Podmienia jedną sekcję. `mjml` to pojedynczy element <mj-section>...</mj-section>."""
+    async def set_section(section_id: str = "", mjml: str = "") -> str:
+        """Podmienia jedną sekcję. `mjml` to pojedynczy <mj-section>...</mj-section>
+        w JEDNEJ linii, z apostrofami w atrybutach. Zachowaj klasę sec-<id> sekcji."""
+        if not section_id.strip() or not mjml.strip():
+            return _EMPTY_ARG_HINT
         doc = db.get_document_mjml(doc_id)
         try:
             updated = mjml_doc.replace_section(doc, section_id, mjml)
@@ -71,8 +88,11 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         return _validated_save(doc_id, updated)
 
     @ai.tool
-    async def insert_section(mjml: str, after_section_id: str | None = None) -> str:
-        """Wstawia nową sekcję po sekcji after_section_id (albo na końcu maila)."""
+    async def insert_section(mjml: str = "", after_section_id: str | None = None) -> str:
+        """Wstawia nową sekcję (jeden <mj-section>, w jednej linii, atrybuty w apostrofach)
+        po sekcji after_section_id (albo na końcu maila)."""
+        if not mjml.strip():
+            return _EMPTY_ARG_HINT
         doc = db.get_document_mjml(doc_id)
         try:
             updated, sid = mjml_doc.insert_section(doc, mjml, after_section_id)

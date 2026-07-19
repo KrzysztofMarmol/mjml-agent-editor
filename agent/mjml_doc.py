@@ -12,7 +12,9 @@ import re
 import secrets
 
 _OPEN_RE = re.compile(r"<mj-section\b[^>]*>", re.IGNORECASE)
-_CSS_CLASS_RE = re.compile(r'css-class\s*=\s*"([^"]*)"', re.IGNORECASE)
+# Atrybuty MJML mogą być w cudzysłowach LUB apostrofach — model bywa proszony
+# o apostrofy, żeby nie łamać JSON-a argumentów narzędzia (grupa 2 = klasy).
+_CSS_CLASS_RE = re.compile(r"""css-class\s*=\s*(["'])(.*?)\1""", re.IGNORECASE)
 _SEC_ID_RE = re.compile(r"\bsec-([A-Za-z0-9_-]+)\b")
 
 
@@ -24,7 +26,7 @@ def _section_id_of(open_tag: str) -> str | None:
     m = _CSS_CLASS_RE.search(open_tag)
     if not m:
         return None
-    sid = _SEC_ID_RE.search(m.group(1))
+    sid = _SEC_ID_RE.search(m.group(2))
     return sid.group(1) if sid else None
 
 
@@ -32,7 +34,7 @@ def _with_section_id(open_tag: str, section_id: str) -> str:
     """Zwraca tag otwierający z doklejoną klasą sec-<id>."""
     m = _CSS_CLASS_RE.search(open_tag)
     if m:
-        classes = m.group(1)
+        classes = m.group(2)
         if _SEC_ID_RE.search(classes):
             return open_tag
         updated = f'css-class="{classes} sec-{section_id}"'.strip()

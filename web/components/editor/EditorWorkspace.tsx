@@ -21,7 +21,9 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
     setTab("comments");
   }, []);
 
-  const onAgentFinish = useCallback(() => {
+  // Wołane po każdej pojedynczej edycji agenta (mutujący tool-call) oraz na
+  // koniec tury — odświeża podgląd z bazy i listę komentarzy na żywo.
+  const onLiveUpdate = useCallback(() => {
     void editorApi.current?.reloadFromDb();
     setCommentsRefresh((n) => n + 1);
   }, []);
@@ -57,7 +59,8 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
             onBeforeSend={async () => {
               await editorApi.current?.flushSave();
             }}
-            onAgentFinish={onAgentFinish}
+            onAgentFinish={onLiveUpdate}
+            onLiveUpdate={onLiveUpdate}
           />
         </div>
         <div className={`min-h-0 flex-1 ${tab === "comments" ? "" : "hidden"}`}>
