@@ -1,37 +1,39 @@
 /*
  * Jasny motyw chromy GrapesJS (natywne managery bloków/stylów/warstw/traits
- * renderujemy w Container-ach @grapesjs/react wewnątrz własnej powłoki Tailwind).
- * GrapesJS 0.22 tematyzuje się przez klasy .gjs-*-bg / .gjs-*-color, nie CSS vars.
+ * renderowane przez appendTo do naszych doków). GrapesJS/grapesjs-mjml
+ * WSTRZYKUJE swój ciemny motyw inline w runtime (po bundlu CSS), więc override'y
+ * muszą mieć wyższą specyficzność niż jego pojedyncze klasy — stąd prefiks
+ * `:root ` (0,2,0 > 0,1,0), niezależny od kolejności ładowania arkuszy.
  */
 
 /* Tła i tekst paneli */
-.gjs-one-bg {
+:root .gjs-one-bg {
   background-color: #ffffff;
 }
-.gjs-two-bg {
+:root .gjs-two-bg {
   background-color: #f4f4f5; /* zinc-100 */
 }
-.gjs-two-color,
-.gjs-two-color-h:hover {
+:root .gjs-two-color,
+:root .gjs-two-color-h:hover {
   color: #3f3f46; /* zinc-700 */
 }
-.gjs-color-main,
-.gjs-color-active {
+:root .gjs-color-main,
+:root .gjs-color-active {
   color: #18181b; /* zinc-900 */
 }
 
 /* Akcent (aktywne/zaznaczone) */
-.gjs-three-bg {
+:root .gjs-three-bg {
   background-color: #2563eb; /* brand */
   color: #ffffff;
 }
-.gjs-four-color,
-.gjs-four-color-h:hover {
+:root .gjs-four-color,
+:root .gjs-four-color-h:hover {
   color: #2563eb;
 }
 
 /* Bloki */
-.gjs-block {
+:root .gjs-block {
   border: 1px solid #e4e4e7;
   border-radius: 8px;
   background-color: #ffffff;
@@ -41,16 +43,19 @@
     border-color 0.12s ease,
     box-shadow 0.12s ease;
 }
-.gjs-block:hover {
+:root .gjs-block:hover {
   border-color: #2563eb;
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
 }
-.gjs-block-label {
+:root .gjs-block svg {
+  fill: #52525b;
+}
+:root .gjs-block-label {
   font-size: 11px;
   color: #52525b;
 }
-.gjs-block-category .gjs-title,
-.gjs-blocks-c .gjs-title {
+:root .gjs-block-category .gjs-title,
+:root .gjs-blocks-c .gjs-title {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -59,44 +64,58 @@
 }
 
 /* Pola formularzy w managerach (style/traits) */
-.gjs-field,
-.gjs-sm-field,
-.gjs-clm-field {
+:root .gjs-field,
+:root .gjs-sm-field,
+:root .gjs-clm-field {
   background-color: #ffffff;
   border: 1px solid #e4e4e7;
   border-radius: 6px;
   color: #18181b;
 }
-.gjs-field input,
-.gjs-field select,
-.gjs-sm-field input {
+:root .gjs-field input,
+:root .gjs-field select,
+:root .gjs-field textarea,
+:root .gjs-sm-field input,
+:root .gjs-clm-field input {
   color: #18181b;
+}
+:root .gjs-field-arrow-u,
+:root .gjs-field-arrow-d {
+  border-bottom-color: #52525b;
+  border-top-color: #52525b;
+}
+
+/* Etykiety property (style/traits) */
+:root .gjs-sm-label,
+:root .gjs-trt-trait .gjs-label,
+:root .gjs-label {
+  color: #52525b;
 }
 
 /* Sektory stylów / grupy */
-.gjs-sm-sector-title,
-.gjs-trt-header {
+:root .gjs-sm-sector-title,
+:root .gjs-trt-header {
   background-color: #fafafa;
   color: #3f3f46;
   border-bottom: 1px solid #e4e4e7;
   font-size: 11px;
   font-weight: 600;
 }
-.gjs-sm-sector,
-.gjs-trt-trait {
+:root .gjs-sm-sector,
+:root .gjs-trt-trait {
   border-bottom: 1px solid #f4f4f5;
 }
 
 /* Warstwy */
-.gjs-layer-title {
+:root .gjs-layer-title {
   color: #3f3f46;
 }
-.gjs-layer.gjs-selected > .gjs-layer-item {
+:root .gjs-layer.gjs-selected > .gjs-layer-item {
   background-color: #eff6ff; /* blue-50 */
 }
 
 /* Belka selektorów (klasy komponentu) */
-.gjs-clm-tags {
+:root .gjs-clm-tags {
   background-color: #ffffff;
   color: #3f3f46;
 }
@@ -105,6 +124,6 @@
  * Ukryj natywny panel przełącznika urządzeń nad kanwą — GrapesJS re-dodaje go
  * mimo panels:{defaults:[]}. Mamy własny przełącznik Desktop/Mobile w górnym pasku.
  */
-.gjs-pn-devices-c {
+:root .gjs-pn-devices-c {
   display: none;
 }
