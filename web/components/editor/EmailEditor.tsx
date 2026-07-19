@@ -1,16 +1,22 @@
 "use client";
 
 import grapesjs, { Component, Editor } from "grapesjs";
-import GjsEditor, { Canvas, WithEditor, DevicesProvider, useEditor } from "@grapesjs/react";
+import GjsEditor, {
+  Canvas,
+  WithEditor,
+  DevicesProvider,
+  useEditor,
+  useEditorMaybe,
+} from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
 import "grapesjs/dist/css/grapes.min.css";
 import "./editor-theme.css";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { getDocument, updateDocument, STARTER_MJML } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Undo2, Redo2, Code2, Copy } from "lucide-react";
+import { Undo2, Redo2, Code2, Copy, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -24,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
@@ -170,6 +176,7 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
   const commentedRef = useRef<Set<string>>(new Set());
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [loading, setLoading] = useState(true);
+  const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
 
   const onEditor = async (editor: Editor) => {
     const ensureSectionId = (c: Component) => {
@@ -224,6 +231,7 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
     editor.on("component:selected", (c: Component) => {
       const section = closestSection(c);
       onSelectSection(section ? sectionIdOf(section) : null);
+      setSidebarView("settings");
     });
     editor.on("component:deselected", () => onSelectSection(null));
 
@@ -306,7 +314,6 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
         layerManager: { appendTo: "#gjs-layers" },
-        selectorManager: { appendTo: "#gjs-selectors" },
         deviceManager: {
           devices: [
             { id: "desktop", name: "Desktop", width: "" },
@@ -324,7 +331,7 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
         <div className="flex min-h-0 flex-1">
           {/* Sidebar renderuje się od razu (poza WithEditor) — cele appendTo
               natywnych managerów muszą istnieć w DOM przed inicjalizacją. */}
-          <LeftSidebar />
+          <LeftSidebar view={sidebarView} onViewChange={setSidebarView} />
           <div className="relative min-w-0 flex-1">
             <Canvas className="h-full" />
             {loading && (
@@ -443,10 +450,62 @@ function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
   );
 }
 
-// Lewy sidebar: przełącznik Bloki / Ustawienia. Wszystkie managery są zawsze
+type SidebarView = "blocks" | "settings" | "layers";
+
+// Zwijana sekcja — treść ZAWSZE zamontowana (cel appendTo), chowana przez hidden.
+function CollapseSection({
+  title,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-border">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase hover:text-zinc-800"
+      >
+        <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
+        {title}
+      </button>
+      <div className={cn(!open && "hidden")}>{children}</div>
+    </div>
+  );
+}
+
+// Lewy sidebar: Bloki / Ustawienia / Warstwy. Wszystkie managery są zawsze
 // zamontowane (cele appendTo dla GrapesJS) — przełączamy widoczność przez hidden.
-function LeftSidebar() {
-  const [view, setView] = useState<"blocks" | "settings">("blocks");
+function LeftSidebar({
+  view,
+  onViewChange,
+}: {
+  view: SidebarView;
+  onViewChange: (v: SidebarView) => void;
+}) {
+  const editor = useEditorMaybe();
+  const [layersExpanded, setLayersExpanded] = useState(false);
+
+  // Klik „Ustawienia" bez zaznaczonego obiektu → pokaż ustawienia całego body.
+  const changeView = (v: SidebarView) => {
+    if (v === "settings" && editor && !editor.getSelected()) {
+      const wrapper = editor.getWrapper();
+      const body = wrapper?.find("mj-body")[0] ?? wrapper;
+      if (body) editor.select(body);
+    }
+    onViewChange(v);
+  };
+
+  // Rozwiń/zwiń wszystkie warstwy naraz.
+  const toggleLayers = (expand: boolean) => {
+    setLayersExpanded(expand);
+    editor?.getWrapper()?.onAll((c) => c.set("open", expand));
+  };
+
   return (
     <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
       <div className="border-b border-border p-2">
@@ -455,7 +514,7 @@ function LeftSidebar() {
           size="sm"
           variant="outline"
           value={view}
-          onValueChange={(v) => v && setView(v as "blocks" | "settings")}
+          onValueChange={(v) => v && changeView(v as SidebarView)}
           className="w-full"
         >
           <ToggleGroupItem value="blocks" className="flex-1">
@@ -463,6 +522,9 @@ function LeftSidebar() {
           </ToggleGroupItem>
           <ToggleGroupItem value="settings" className="flex-1">
             Ustawienia
+          </ToggleGroupItem>
+          <ToggleGroupItem value="layers" className="flex-1">
+            Warstwy
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
@@ -473,33 +535,23 @@ function LeftSidebar() {
         className={cn("min-h-0 flex-1 overflow-y-auto", view !== "blocks" && "hidden")}
       />
 
-      {/* Ustawienia komponentu: Atrybuty / Styl / Warstwy */}
-      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "settings" && "hidden")}>
-        <Tabs defaultValue="traits" className="flex min-h-0 flex-1 flex-col gap-0">
-          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-            <TabsTrigger value="traits" className="flex-1">
-              Atrybuty
-            </TabsTrigger>
-            <TabsTrigger value="style" className="flex-1">
-              Styl
-            </TabsTrigger>
-            <TabsTrigger value="layers" className="flex-1">
-              Warstwy
-            </TabsTrigger>
-          </TabsList>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <TabsContent value="traits" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <div id="gjs-traits" />
-            </TabsContent>
-            <TabsContent value="style" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <div id="gjs-selectors" />
-              <div id="gjs-styles" />
-            </TabsContent>
-            <TabsContent value="layers" forceMount className="mt-0 data-[state=inactive]:hidden">
-              <div id="gjs-layers" />
-            </TabsContent>
-          </div>
-        </Tabs>
+      {/* Ustawienia: Atrybuty + Styl (zwijane, jedno pod drugim) */}
+      <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
+        <CollapseSection title="Atrybuty">
+          <div id="gjs-traits" />
+        </CollapseSection>
+        <CollapseSection title="Styl">
+          <div id="gjs-styles" />
+        </CollapseSection>
+      </div>
+
+      {/* Warstwy — z przełącznikiem rozwiń/zwiń wszystko */}
+      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}>
+        <label className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs text-zinc-600">
+          <span>Rozwiń wszystkie</span>
+          <Switch checked={layersExpanded} onCheckedChange={toggleLayers} />
+        </label>
+        <div id="gjs-layers" className="min-h-0 flex-1 overflow-y-auto" />
       </div>
     </div>
   );
