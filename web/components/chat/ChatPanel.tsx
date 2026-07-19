@@ -30,6 +30,14 @@ const MUTATING_TOOLS = new Set([
   "resolve_comment",
 ]);
 
+// Narzędzia edytujące konkretną sekcję → nazwa argumentu z jej section_id.
+// Służy do podświetlenia tej sekcji na czas edycji.
+const SECTION_ARG: Record<string, string> = {
+  set_section: "section_id",
+  remove_section: "section_id",
+  insert_section: "after_section_id",
+};
+
 type Props = {
   docId: string;
   /** Zrzut niesapisanych zmian edytora przed startem agenta. */
@@ -38,9 +46,20 @@ type Props = {
   onAgentFinish: () => void;
   /** Po każdej pojedynczej edycji agenta (mutujący tool-call) — reload na żywo. */
   onLiveUpdate: () => void;
+  /** Start edycji sekcji przez agenta (podświetlenie). */
+  onSectionEditStart: (sectionId: string) => void;
+  /** Koniec edycji sekcji przez agenta (zdjęcie podświetlenia). */
+  onSectionEditEnd: (sectionId: string) => void;
 };
 
-export default function ChatPanel({ docId, onBeforeSend, onAgentFinish, onLiveUpdate }: Props) {
+export default function ChatPanel({
+  docId,
+  onBeforeSend,
+  onAgentFinish,
+  onLiveUpdate,
+  onSectionEditStart,
+  onSectionEditEnd,
+}: Props) {
   const [input, setInput] = useState("");
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
@@ -51,25 +70,48 @@ export default function ChatPanel({ docId, onBeforeSend, onAgentFinish, onLiveUp
     onError: (e) => console.error("chat error:", e),
   });
 
-  // Odświeżanie live: gdy mutujący tool-call osiągnie stan "output-available",
-  // wołamy onLiveUpdate raz na dany tool-call (dedup po kluczu wiadomość:część).
+  // Reakcje na tool-calle agenta (dedup po kluczu wiadomość:część):
+  //  - start edycji sekcji (znany section_id, tool jeszcze się nie zakończył) → podświetl
+  //  - koniec mutującego tool-calla → reload podglądu na żywo + zdejmij podświetlenie
   const firedTools = useRef<Set<string>>(new Set());
+  const highlightStarted = useRef<Map<string, string>>(new Map());
+  const highlightEnded = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const message of messages) {
       if (message.role !== "assistant") continue;
       message.parts.forEach((part, i) => {
         if (!part.type.startsWith("tool-")) return;
         const tool = part as ToolUIPart;
-        if (tool.state !== "output-available") return;
         const name = tool.type.slice(5);
-        if (!MUTATING_TOOLS.has(name)) return;
         const key = `${message.id}:${i}`;
-        if (firedTools.current.has(key)) return;
-        firedTools.current.add(key);
-        onLiveUpdate();
+        const done = tool.state === "output-available" || tool.state === "output-error";
+
+        // start podświetlenia — gdy znamy section_id, a tool jeszcze trwa
+        const argName = SECTION_ARG[name];
+        if (argName && !done && !highlightStarted.current.has(key)) {
+          const sid = (tool.input as Record<string, unknown> | undefined)?.[argName];
+          if (typeof sid === "string" && sid) {
+            highlightStarted.current.set(key, sid);
+            onSectionEditStart(sid);
+          }
+        }
+
+        if (!done) return;
+
+        // zdejmij podświetlenie sekcji (przed reloadem, który i tak przebuduje canvas)
+        const startedSid = highlightStarted.current.get(key);
+        if (startedSid && !highlightEnded.current.has(key)) {
+          highlightEnded.current.add(key);
+          onSectionEditEnd(startedSid);
+        }
+        // koniec mutującego tool-calla → reload na żywo
+        if (MUTATING_TOOLS.has(name) && !firedTools.current.has(key)) {
+          firedTools.current.add(key);
+          onLiveUpdate();
+        }
       });
     }
-  }, [messages, onLiveUpdate]);
+  }, [messages, onLiveUpdate, onSectionEditStart, onSectionEditEnd]);
 
   const busy = status === "submitted" || status === "streaming";
 

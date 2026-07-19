@@ -15,6 +15,8 @@ export type EditorApi = {
   flushSave: () => Promise<void>;
   /** Przeładowanie dokumentu z bazy (po zmianach agenta). */
   reloadFromDb: () => Promise<void>;
+  /** Podświetla sekcję w canvasie na czas edycji przez agenta. */
+  highlightSection: (sectionId: string, on: boolean) => void;
 };
 
 type Props = {
@@ -110,6 +112,35 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
       }, 400);
     };
 
+    // Podświetlenie sekcji edytowanej przez agenta — animacja wstrzykiwana do
+    // dokumentu canvasu (iframe GrapesJS).
+    const ensureHighlightStyles = () => {
+      const cdoc = editor.Canvas.getDocument();
+      if (!cdoc || cdoc.getElementById("agent-edit-style")) return;
+      const style = cdoc.createElement("style");
+      style.id = "agent-edit-style";
+      style.textContent = `
+        @keyframes agentEditPulse {
+          0%, 100% { outline-color: rgba(37, 99, 235, 0.25); }
+          50%      { outline-color: rgba(37, 99, 235, 0.95); }
+        }
+        .agent-editing {
+          outline: 3px solid rgba(37, 99, 235, 0.9) !important;
+          outline-offset: -3px;
+          animation: agentEditPulse 1s ease-in-out infinite;
+          transition: outline-color 0.2s;
+        }`;
+      cdoc.head.appendChild(style);
+    };
+
+    const sectionEl = (sectionId: string): HTMLElement | undefined => {
+      const comp = editor
+        .getWrapper()
+        ?.find("mj-section")
+        .find((c) => sectionIdOf(c) === sectionId);
+      return (comp?.getEl?.() as HTMLElement | undefined) ?? undefined;
+    };
+
     const doc = await getDocument(docId);
     loadMjml(doc.mjml);
 
@@ -122,6 +153,12 @@ export default function EmailEditor({ docId, onReady, onSelectSection, onOpenCom
       reloadFromDb: async () => {
         const fresh = await getDocument(docId);
         if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
+      },
+      highlightSection: (sectionId, on) => {
+        ensureHighlightStyles();
+        const el = sectionEl(sectionId);
+        if (!el) return;
+        el.classList.toggle("agent-editing", on);
       },
     });
   };

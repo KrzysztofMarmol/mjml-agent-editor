@@ -28,6 +28,14 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
     setCommentsRefresh((n) => n + 1);
   }, []);
 
+  // Podświetlenie sekcji na czas jej edycji przez agenta (start/koniec tool-calla).
+  const onSectionEditStart = useCallback((sectionId: string) => {
+    editorApi.current?.highlightSection(sectionId, true);
+  }, []);
+  const onSectionEditEnd = useCallback((sectionId: string) => {
+    editorApi.current?.highlightSection(sectionId, false);
+  }, []);
+
   return (
     <div className="flex h-screen">
       <div className="min-w-0 flex-1">
@@ -61,6 +69,8 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
             }}
             onAgentFinish={onLiveUpdate}
             onLiveUpdate={onLiveUpdate}
+            onSectionEditStart={onSectionEditStart}
+            onSectionEditEnd={onSectionEditEnd}
           />
         </div>
         <div className={`min-h-0 flex-1 ${tab === "comments" ? "" : "hidden"}`}>
