@@ -1,13 +1,7 @@
 "use client";
 
 import grapesjs, { Component, Editor } from "grapesjs";
-import GjsEditor, {
-  Canvas,
-  WithEditor,
-  DevicesProvider,
-  useEditor,
-  useEditorMaybe,
-} from "@grapesjs/react";
+import GjsEditor, { Canvas, useEditorMaybe } from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
 import "grapesjs/dist/css/grapes.min.css";
 import "./editor-theme.css";
@@ -16,42 +10,49 @@ import { useRef, useState, type ReactNode } from "react";
 import { getDocument, updateDocument, STARTER_MJML, type CommentTarget } from "@/lib/documents";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Undo2, Redo2, Code2, Copy, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
+import CanvasComments from "@/components/comments/CanvasComments";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+/** Snapshot of editor state pushed to the header (device, undo, save). */
+export type EditorState = {
+  device: string;
+  canUndo: boolean;
+  canRedo: boolean;
+  saveStatus: SaveStatus;
+};
 
 export type EditorApi = {
   /** Current MJML source from the editor. */
   getMjml: () => string;
+  /** Compiled email HTML (via grapesjs-mjml's mjml-get-code). */
+  getCompiledHtml: () => string;
   /** Immediately saves the editor state to the DB. */
   flushSave: () => Promise<void>;
   /** Reloads the document from the DB (after agent changes). */
   reloadFromDb: () => Promise<void>;
   /** Highlights a section in the canvas while the agent edits it. */
   highlightSection: (sectionId: string, on: boolean) => void;
+  /** Device manager control (used by the top header). */
+  getDevices: () => { id: string; name: string }[];
+  setDevice: (name: string) => void;
+  undo: () => void;
+  redo: () => void;
+  /** Subscribe to editor state changes (device/undo/save). Returns unsubscribe. */
+  onEditorState: (cb: (s: EditorState) => void) => () => void;
 };
 
 type Props = {
   docId: string;
   onReady: (api: EditorApi) => void;
-  onSelectTarget: (target: CommentTarget | null) => void;
-  onOpenComments: (target: CommentTarget) => void;
+  /** Bump to force the canvas comment layer to refetch (after agent turns). */
+  commentsRefresh: number;
+  /** Reports the number of open comments (for the header indicator). */
+  onOpenCountChange: (n: number) => void;
 };
 
 const SEC_ID_RE = /\bsec-([A-Za-z0-9_-]+)\b/;
@@ -89,10 +90,6 @@ function classMatch(c: Component, re: RegExp): string | null {
 
 function sectionIdOf(c: Component): string | null {
   return classMatch(c, SEC_ID_RE);
-}
-
-function objectIdOf(c: Component): string | null {
-  return classMatch(c, OBJ_ID_RE);
 }
 
 function addIdClass(c: Component, prefix: "sec" | "obj"): string {
@@ -158,9 +155,6 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 // Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 function setupRichText(editor: Editor) {
   const rte = editor.RichTextEditor as any;
-  // Guard: the RTE module must exist, and actions are registered only once (in
-  // dev, HMR can fire onEditor again — without this the RTE can be in an
-  // inconsistent state during teardown, which crashes toggleEvents).
   if (!rte || rte.__customActions) return;
   rte.__customActions = true;
   const val = (action: any, sel: string) =>
@@ -202,15 +196,38 @@ function setupRichText(editor: Editor) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComments }: Props) {
+export default function EmailEditor({
+  docId,
+  onReady,
+  commentsRefresh,
+  onOpenCountChange,
+}: Props) {
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveStatusRef = useRef<SaveStatus>("idle");
+  const stateListeners = useRef(new Set<(s: EditorState) => void>());
   const [loading, setLoading] = useState(true);
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
+  // Comment being composed (sparkles button) — opens the canvas popover.
+  const [composeTarget, setComposeTarget] = useState<CommentTarget | null>(null);
 
   const onEditor = async (editor: Editor) => {
+    const snapshot = (): EditorState => ({
+      device: editor.getDevice(),
+      canUndo: editor.UndoManager.hasUndo(),
+      canRedo: editor.UndoManager.hasRedo(),
+      saveStatus: saveStatusRef.current,
+    });
+    const notifyState = () => {
+      const s = snapshot();
+      stateListeners.current.forEach((l) => l(s));
+    };
+    const setSave = (s: SaveStatus) => {
+      saveStatusRef.current = s;
+      notifyState();
+    };
+
     // Comment target for a component: its section + (if it's not the section
     // itself) the specific element. Assigns stable IDs (sec-/obj-) when needed.
     const targetOf = (c: Component | undefined): CommentTarget | null => {
@@ -243,7 +260,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
     editor.Commands.add("open-comments", {
       run(ed: Editor) {
         const target = targetOf(ed.getSelected() ?? undefined);
-        if (target) onOpenComments(target);
+        if (target) setComposeTarget(target);
       },
     });
 
@@ -251,13 +268,10 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
 
     editor.on("component:add", decorate);
     editor.on("component:selected", (c: Component) => {
-      onSelectTarget(targetOf(c));
       setSidebarView("settings");
       // mj-image has no src trait by default (src changes via the Asset
       // Manager) — add a URL field so the image can be set from the panel.
       if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
-        // src is a PROPERTY of the image model (get('src')), not an attribute —
-        // hence changeProp, so a typed URL immediately reloads the image in the canvas.
         c.addTrait(
           {
             type: "text",
@@ -270,38 +284,38 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         );
       }
     });
-    editor.on("component:deselected", () => onSelectTarget(null));
 
     const save = async () => {
       if (loadingRef.current) return;
-      setSaveStatus("saving");
+      setSave("saving");
       try {
         await updateDocument(docId, {
           mjml: editor.getHtml(),
           project_data: editor.getProjectData(),
         });
-        setSaveStatus("saved");
+        setSave("saved");
       } catch (e) {
-        setSaveStatus("error");
+        setSave("error");
         toast.error("Failed to save changes.");
         throw e;
       }
     };
 
     editor.on("update", () => {
+      notifyState();
       if (loadingRef.current) return;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void save().catch(console.error), 1200);
     });
+    editor.on("change:device", notifyState);
 
     const loadMjml = (mjml: string) => {
       // Mute autosave during loading and for a moment after — setComponents
       // can fire the "update" event asynchronously, which would otherwise
-      // overwrite the agent's fresh change in the DB with the editor's normalized version.
+      // overwrite the agent's fresh change with the editor's normalized version.
       loadingRef.current = true;
       if (saveTimer.current) clearTimeout(saveTimer.current);
       editor.setComponents(mjml || STARTER_MJML);
-      // Give sections a sec-<id> and comment buttons to all commentable elements.
       editor.getWrapper()?.find("mj-section").forEach(decorate);
       for (const t of Object.keys(TYPE_LABEL)) {
         editor.getWrapper()?.find(t).forEach(decorate);
@@ -312,7 +326,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
     };
 
     // Highlight for the section being edited by the agent — animation injected
-    // into the canvas document (GrapesJS iframe).
+    // into the canvas document (GrapesJS iframe). Violet to match the brand.
     const ensureHighlightStyles = () => {
       const cdoc = editor.Canvas.getDocument();
       if (!cdoc || cdoc.getElementById("agent-edit-style")) return;
@@ -320,11 +334,11 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       style.id = "agent-edit-style";
       style.textContent = `
         @keyframes agentEditPulse {
-          0%, 100% { outline-color: rgba(37, 99, 235, 0.25); }
-          50%      { outline-color: rgba(37, 99, 235, 0.95); }
+          0%, 100% { outline-color: rgba(124, 58, 237, 0.25); }
+          50%      { outline-color: rgba(124, 58, 237, 0.95); }
         }
         .agent-editing {
-          outline: 3px solid rgba(37, 99, 235, 0.9) !important;
+          outline: 3px solid rgba(124, 58, 237, 0.9) !important;
           outline-offset: -3px;
           animation: agentEditPulse 1s ease-in-out infinite;
           transition: outline-color 0.2s;
@@ -340,6 +354,17 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       return (comp?.getEl?.() as HTMLElement | undefined) ?? undefined;
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const compiledHtml = (): string => {
+      try {
+        // grapesjs-mjml compiles MJML → email HTML via this command ({ html, errors }).
+        const res = editor.runCommand("mjml-code-to-html") as { html?: string } | undefined;
+        return res?.html ?? editor.getHtml();
+      } catch {
+        return editor.getHtml();
+      }
+    };
+
     try {
       const doc = await getDocument(docId);
       loadMjml(doc.mjml);
@@ -352,6 +377,7 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
 
     onReady({
       getMjml: () => editor.getHtml(),
+      getCompiledHtml: compiledHtml,
       flushSave: async () => {
         if (saveTimer.current) clearTimeout(saveTimer.current);
         await save();
@@ -366,6 +392,28 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         if (!el) return;
         el.classList.toggle("agent-editing", on);
       },
+      getDevices: () =>
+        editor.Devices.getDevices().map((d) => ({
+          id: String(d.id),
+          name: d.getName() || String(d.id),
+        })),
+      setDevice: (name) => {
+        editor.setDevice(name);
+        notifyState();
+      },
+      undo: () => {
+        editor.UndoManager.undo();
+        notifyState();
+      },
+      redo: () => {
+        editor.UndoManager.redo();
+        notifyState();
+      },
+      onEditorState: (cb) => {
+        stateListeners.current.add(cb);
+        cb(snapshot());
+        return () => stateListeners.current.delete(cb);
+      },
     });
   };
 
@@ -378,7 +426,6 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
         storageManager: false,
         fromElement: false,
         panels: { defaults: [] },
-        // Native managers render directly into our docks (ids below).
         blockManager: { appendTo: "#gjs-blocks" },
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
@@ -393,129 +440,26 @@ export default function EmailEditor({ docId, onReady, onSelectTarget, onOpenComm
       }}
       onEditor={onEditor}
     >
-      <div className="flex h-full min-h-0 flex-col bg-surface-muted text-foreground">
-        <WithEditor>
-          <TopBar saveStatus={saveStatus} />
-        </WithEditor>
-        <div className="flex min-h-0 flex-1">
-          {/* The sidebar renders immediately (outside WithEditor) — the appendTo
-              targets of the native managers must exist in the DOM before init. */}
-          <LeftSidebar view={sidebarView} onViewChange={setSidebarView} />
-          <div className="relative min-w-0 flex-1">
-            <Canvas className="h-full" />
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-                <Spinner /> Loading editor…
-              </div>
-            )}
-          </div>
+      <div className="flex h-full min-h-0 flex-1">
+        <LeftSidebar view={sidebarView} onViewChange={setSidebarView} />
+        <div className="relative min-w-0 flex-1 bg-surface-muted">
+          <Canvas className="h-full" />
+          {/* Canvas comment layer (pins + thread popovers) overlays the canvas. */}
+          <CanvasComments
+            docId={docId}
+            composeTarget={composeTarget}
+            onComposeConsumed={() => setComposeTarget(null)}
+            refreshSignal={commentsRefresh}
+            onOpenCountChange={onOpenCountChange}
+          />
+          {loading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
+              <Spinner /> Loading editor…
+            </div>
+          )}
         </div>
       </div>
     </GjsEditor>
-  );
-}
-
-const SAVE_LABEL: Record<SaveStatus, string> = {
-  idle: "",
-  saving: "Saving…",
-  saved: "Saved",
-  error: "Save failed",
-};
-
-function SaveBadge({ status }: { status: SaveStatus }) {
-  if (status === "idle") return null;
-  if (status === "saving") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <Spinner className="size-3" /> {SAVE_LABEL.saving}
-      </Badge>
-    );
-  }
-  if (status === "error") return <Badge variant="destructive">{SAVE_LABEL.error}</Badge>;
-  return (
-    <Badge variant="outline" className="border-emerald-300 text-emerald-600">
-      {SAVE_LABEL.saved}
-    </Badge>
-  );
-}
-
-function TopBar({ saveStatus }: { saveStatus: SaveStatus }) {
-  const editor = useEditor();
-  const [code, setCode] = useState("");
-
-  return (
-    <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3">
-      <span className="text-sm font-semibold text-zinc-800">MJML Editor</span>
-
-      <Separator orientation="vertical" className="mx-1 !h-5" />
-
-      <DevicesProvider>
-        {({ devices, selected, select }) => (
-          <ToggleGroup
-            type="single"
-            size="sm"
-            variant="outline"
-            value={selected}
-            onValueChange={(v) => v && select(v)}
-          >
-            {devices.map((d) => (
-              <ToggleGroupItem key={String(d.id)} value={String(d.id)}>
-                {d.getName() || String(d.id)}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        )}
-      </DevicesProvider>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={() => editor.UndoManager.undo()}>
-            <Undo2 />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Undo</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={() => editor.UndoManager.redo()}>
-            <Redo2 />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Redo</TooltipContent>
-      </Tooltip>
-
-      <div className="ml-auto flex items-center gap-2">
-        <SaveBadge status={saveStatus} />
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" onClick={() => setCode(editor.getHtml())}>
-              <Code2 /> MJML code
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>MJML code</DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="max-h-[60vh] rounded-md border bg-muted/40">
-              <pre className="p-3 text-xs leading-relaxed break-words whitespace-pre-wrap">
-                {code}
-              </pre>
-            </ScrollArea>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="self-end"
-              onClick={() => {
-                void navigator.clipboard?.writeText(code);
-                toast.success("MJML code copied.");
-              }}
-            >
-              <Copy /> Copy
-            </Button>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </div>
   );
 }
 
@@ -533,11 +477,11 @@ function CollapseSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-b border-border">
+    <div className="border-b border-panel-border">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase hover:text-zinc-800"
+        className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-semibold tracking-wide text-panel-muted-fg uppercase hover:text-panel-fg"
       >
         <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
         {title}
@@ -547,8 +491,8 @@ function CollapseSection({
   );
 }
 
-// Left sidebar: Blocks / Settings / Layers. All managers are always mounted
-// (appendTo targets for GrapesJS) — visibility is toggled via `hidden`.
+// Left sidebar (dark): Blocks / Settings / Layers. All managers are always
+// mounted (appendTo targets for GrapesJS) — visibility toggled via `hidden`.
 function LeftSidebar({
   view,
   onViewChange,
@@ -559,7 +503,6 @@ function LeftSidebar({
   const editor = useEditorMaybe();
   const [layersExpanded, setLayersExpanded] = useState(false);
 
-  // Clicking "Settings" with nothing selected → show settings for the whole body.
   const changeView = (v: SidebarView) => {
     if (v === "settings" && editor && !editor.getSelected()) {
       const wrapper = editor.getWrapper();
@@ -569,15 +512,14 @@ function LeftSidebar({
     onViewChange(v);
   };
 
-  // Expand/collapse all layers at once.
   const toggleLayers = (expand: boolean) => {
     setLayersExpanded(expand);
     editor?.getWrapper()?.onAll((c) => c.set("open", expand));
   };
 
   return (
-    <div className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="flex border-b border-border">
+    <div className="editor-dark flex w-64 shrink-0 flex-col border-r border-panel-border bg-panel text-panel-fg">
+      <div className="flex border-b border-panel-border">
         {(
           [
             ["blocks", "Blocks"],
@@ -593,8 +535,8 @@ function LeftSidebar({
               "relative flex-1 px-3 py-2.5 text-sm transition-colors",
               "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:transition-colors",
               view === value
-                ? "font-medium text-foreground after:bg-brand"
-                : "text-muted-foreground after:bg-transparent hover:text-foreground",
+                ? "font-medium text-panel-fg after:bg-brand"
+                : "text-panel-muted-fg after:bg-transparent hover:text-panel-fg",
             )}
           >
             {label}
@@ -620,7 +562,7 @@ function LeftSidebar({
 
       {/* Layers — with an expand/collapse-all switch */}
       <div className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}>
-        <label className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-xs text-zinc-600">
+        <label className="flex items-center justify-between gap-2 border-b border-panel-border px-3 py-2 text-xs text-panel-muted-fg">
           <span>Expand all</span>
           <Switch checked={layersExpanded} onCheckedChange={toggleLayers} />
         </label>
