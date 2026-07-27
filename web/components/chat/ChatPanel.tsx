@@ -96,12 +96,12 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
   const done = tool.state === "output-available";
   const failed = tool.state === "output-error";
   return (
-    <Marker className={cn(failed ? "text-destructive" : done ? "" : "text-foreground")}>
+    <Marker className={cn(failed ? "text-destructive" : "text-panel-fg")}>
       <MarkerIcon>
         {failed ? (
           <TriangleAlert />
         ) : done ? (
-          <Check className="text-emerald-600" />
+          <Check className="text-emerald-400" />
         ) : (
           <Loader2 className="animate-spin" />
         )}
@@ -118,7 +118,7 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
 // message (tight under the steps) or standalone when the assistant hasn't started writing yet.
 function BusyMarker() {
   return (
-    <Marker className="text-foreground">
+    <Marker className="text-panel-fg">
       <MarkerIcon>
         <Loader2 className="animate-spin" />
       </MarkerIcon>
@@ -141,7 +141,7 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
     <div className="space-y-1">
       {finished.length > 0 && (
         <Collapsible>
-          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground">
+          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-panel-muted-fg hover:text-panel-fg">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
               {failedCount > 0
@@ -149,7 +149,7 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
                 : `Finished steps (${finished.length})`}
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-1 space-y-0.5 border-l border-border pl-3">
+          <CollapsibleContent className="mt-1 space-y-0.5 border-l border-panel-border pl-3">
             {finished.map((t, i) => (
               <ToolMarker key={`f${i}`} tool={t} />
             ))}
@@ -332,10 +332,9 @@ export default function ChatPanel({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-panel-border p-3">
         <Button
-          variant="secondary"
-          className="mb-2 w-full"
+          className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
           disabled={busy}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
@@ -350,7 +349,7 @@ export default function ChatPanel({
           <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 resize-none"
+            className="max-h-40 min-h-14 resize-none border-panel-border bg-panel-elevated text-panel-fg placeholder:text-panel-muted-fg"
             placeholder="Message the agent… (Enter = send, Shift+Enter = new line)"
             value={input}
             onChange={(e) => {
