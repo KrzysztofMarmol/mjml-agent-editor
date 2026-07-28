@@ -1,0 +1,24 @@
+{
+  "name": "@mjml-agent-editor/example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reference wiring: Supabase adapters plus a dev server exposing the agent.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.103",
+    "@mjml-agent-editor/agent-node": "workspace:*",
+    "@mjml-agent-editor/core": "workspace:*",
+    "@supabase/supabase-js": "^2.47.10",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
