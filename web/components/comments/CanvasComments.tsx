@@ -2,7 +2,7 @@
 
 import { useEditorMaybe } from "@grapesjs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, MessageSquarePlus } from "lucide-react";
+import { Check, MessageSquarePlus, X } from "lucide-react";
 
 import {
   addComment,
@@ -159,14 +159,25 @@ export default function CanvasComments({
   })();
   const activePos = activeKey ? positions[activeKey] : undefined;
 
-  const closePopover = () => {
+  const closePopover = useCallback(() => {
     setActiveKey(null);
     setBody("");
     if (composeInfo) {
       setComposeInfo(null);
       onComposeConsumed();
     }
-  };
+  }, [composeInfo, onComposeConsumed]);
+
+  // Close the popover on a click inside the canvas iframe (Radix's outside-click
+  // detection lives in the top document and misses iframe clicks).
+  useEffect(() => {
+    if (!activeKey || !editor) return;
+    const doc = editor.Canvas.getDocument?.();
+    if (!doc) return;
+    const onDown = () => closePopover();
+    doc.addEventListener("mousedown", onDown, true);
+    return () => doc.removeEventListener("mousedown", onDown, true);
+  }, [activeKey, editor, closePopover]);
 
   const submit = async () => {
     if (!activeTarget || !body.trim()) return;
@@ -227,18 +238,28 @@ export default function CanvasComments({
           />
         </PopoverAnchor>
         <PopoverContent side="right" align="start" className="pointer-events-auto w-80 p-0">
-          <div className="border-b px-3 py-2 text-xs text-muted-foreground">
-            {activeTarget?.objectId ? (
-              <>
-                Comment on{" "}
-                <span className="font-medium text-foreground">{activeTarget.objectLabel}</span>
-              </>
-            ) : (
-              <>
-                Comment on the whole section{" "}
-                <code className="font-mono">{activeTarget?.sectionId}</code>
-              </>
-            )}
+          <div className="flex items-start justify-between gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+            <span className="min-w-0">
+              {activeTarget?.objectId ? (
+                <>
+                  Comment on{" "}
+                  <span className="font-medium text-foreground">{activeTarget.objectLabel}</span>
+                </>
+              ) : (
+                <>
+                  Comment on the whole section{" "}
+                  <code className="font-mono">{activeTarget?.sectionId}</code>
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={closePopover}
+              aria-label="Close"
+              className="-mr-1 -mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
           </div>
           <div className="max-h-64 space-y-2 overflow-y-auto p-3">
             {activeComments.length === 0 && (
