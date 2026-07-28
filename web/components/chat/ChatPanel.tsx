@@ -350,12 +350,13 @@ export default function ChatPanel({
             e.preventDefault();
             void send(input);
           }}
+          className="rounded-xl border border-panel-border bg-panel-elevated transition-colors focus-within:border-brand/60"
         >
           <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 resize-none border-panel-border bg-panel-elevated text-panel-fg placeholder:text-panel-muted-fg"
-            placeholder="Message the agent… (Enter = send, Shift+Enter = new line)"
+            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0"
+            placeholder="Describe what you want to change… (Enter = send, Shift+Enter = new line)"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -368,13 +369,24 @@ export default function ChatPanel({
               }
             }}
           />
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 px-2 pb-2">
             {busy && (
-              <Button type="button" variant="outline" size="sm" onClick={() => void stop()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-panel-border bg-transparent text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+                onClick={() => void stop()}
+              >
                 <Square /> Stop
               </Button>
             )}
-            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={busy || !input.trim()}
+              className="bg-brand text-brand-fg hover:bg-brand/90"
+            >
               <Send /> Send
             </Button>
           </div>

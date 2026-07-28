@@ -118,6 +118,28 @@ function closestSection(c: Component | undefined): Component | null {
   return null;
 }
 
+// Friendly names for the canvas breadcrumb.
+const CRUMB_NAME: Record<string, string> = {
+  "mj-section": "Section",
+  "mj-column": "Column",
+  "mj-group": "Group",
+  "mj-text": "Text",
+  "mj-button": "Button",
+  "mj-image": "Image",
+  "mj-divider": "Divider",
+  "mj-spacer": "Spacer",
+  "mj-hero": "Hero",
+  "mj-navbar": "Navbar",
+  "mj-social": "Social",
+  "mj-social-element": "Social",
+  "mj-wrapper": "Wrapper",
+};
+
+function crumbName(c: Component): string {
+  const t = tagOf(c);
+  return CRUMB_NAME[t] ?? t.replace(/^mj-/, "") ?? "Element";
+}
+
 function objectLabel(c: Component): string {
   const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
   const text = String((c.getEl?.() as HTMLElement | undefined)?.textContent ?? "")
@@ -222,8 +244,25 @@ export default function EmailEditor({
   // Where the current selection came from — canvas click opens Settings,
   // selecting from the Layers tree does not (keeps you on Layers).
   const selectionSource = useRef<"canvas" | "layers" | "other">("other");
+  // Breadcrumb of the selected component's ancestry (Section › Column › …).
+  const editorRef = useRef<Editor | null>(null);
+  const [crumbs, setCrumbs] = useState<Component[]>([]);
 
   const onEditor = async (editor: Editor) => {
+    editorRef.current = editor;
+    // Build the breadcrumb chain from a component up to (but excluding) mj-body.
+    const buildCrumbs = (c: Component | undefined) => {
+      const chain: Component[] = [];
+      let cur: Component | undefined = c;
+      while (cur) {
+        const t = tagOf(cur);
+        if (!t || t === "mj-body" || t === "wrapper" || t === "Wrapper") break;
+        chain.unshift(cur);
+        cur = cur.parent() ?? undefined;
+      }
+      setCrumbs(chain);
+    };
+
     const bodyWidth = (): string => {
       const body = editor.getWrapper()?.find("mj-body")[0];
       return String((body?.getAttributes?.() as Record<string, unknown>)?.width ?? "600px");
@@ -313,6 +352,7 @@ export default function EmailEditor({
     editor.on("component:selected", (c: Component) => {
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
+      buildCrumbs(c);
       // mj-image has no src trait by default (src changes via the Asset
       // Manager) — add a URL field so the image can be set from the panel.
       if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
@@ -328,6 +368,7 @@ export default function EmailEditor({
         );
       }
     });
+    editor.on("component:deselected", () => setCrumbs([]));
 
     const save = async () => {
       if (loadingRef.current) return;
@@ -499,21 +540,24 @@ export default function EmailEditor({
           onViewChange={setSidebarView}
           markLayersSource={() => (selectionSource.current = "layers")}
         />
-        <div className="relative min-w-0 flex-1 bg-surface-muted">
-          <Canvas className="h-full" />
-          {/* Canvas comment layer (pins + thread popovers) overlays the canvas. */}
-          <CanvasComments
-            docId={docId}
-            composeTarget={composeTarget}
-            onComposeConsumed={() => setComposeTarget(null)}
-            refreshSignal={commentsRefresh}
-            onOpenCountChange={onOpenCountChange}
-          />
-          {loading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-              <Spinner /> Loading editor…
-            </div>
-          )}
+        <div className="flex min-w-0 flex-1 flex-col bg-surface-muted">
+          <div className="relative min-h-0 flex-1">
+            <Canvas className="h-full" />
+            {/* Canvas comment layer (pins + thread popovers) overlays the canvas. */}
+            <CanvasComments
+              docId={docId}
+              composeTarget={composeTarget}
+              onComposeConsumed={() => setComposeTarget(null)}
+              refreshSignal={commentsRefresh}
+              onOpenCountChange={onOpenCountChange}
+            />
+            {loading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
+                <Spinner /> Loading editor…
+              </div>
+            )}
+          </div>
+          <Breadcrumb crumbs={crumbs} onSelect={(c) => editorRef.current?.select(c)} />
         </div>
       </div>
     </GjsEditor>
@@ -657,10 +701,47 @@ function LeftSidebar({
       >
         <label className="flex items-center justify-between gap-2 border-b border-panel-border px-3 py-2 text-xs text-panel-muted-fg">
           <span>Expand all</span>
-          <Switch checked={layersExpanded} onCheckedChange={toggleLayers} />
+          <Switch
+            checked={layersExpanded}
+            onCheckedChange={toggleLayers}
+            className="data-[state=checked]:bg-brand data-[state=unchecked]:bg-panel-border"
+          />
         </label>
         <div id="gjs-layers" className="min-h-0 flex-1 overflow-y-auto" />
       </div>
+    </div>
+  );
+}
+
+// Breadcrumb under the canvas: the selected component's ancestry (clickable).
+function Breadcrumb({
+  crumbs,
+  onSelect,
+}: {
+  crumbs: Component[];
+  onSelect: (c: Component) => void;
+}) {
+  return (
+    <div className="flex h-9 shrink-0 items-center gap-0.5 border-t border-border bg-surface px-3 text-xs text-muted-foreground">
+      {crumbs.length === 0 ? (
+        <span className="text-muted-foreground/60">Select an element…</span>
+      ) : (
+        crumbs.map((c, i) => (
+          <span key={i} className="flex items-center gap-0.5">
+            {i > 0 && <ChevronRight className="size-3 opacity-40" />}
+            <button
+              type="button"
+              onClick={() => onSelect(c)}
+              className={cn(
+                "rounded px-1.5 py-0.5 hover:bg-muted hover:text-foreground",
+                i === crumbs.length - 1 && "font-medium text-brand",
+              )}
+            >
+              {crumbName(c)}
+            </button>
+          </span>
+        ))
+      )}
     </div>
   );
 }

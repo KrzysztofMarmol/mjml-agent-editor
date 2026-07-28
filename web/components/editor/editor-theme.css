@@ -68,15 +68,24 @@
   color: #a99bff;
 }
 
-/* ── Blocks (dark navy cards) ────────────────────────────────────────────── */
+/* ── Blocks (dark navy cards, 3-column grid) ─────────────────────────────── */
+.editor-dark .gjs-blocks-c {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px 8px 10px;
+}
 .editor-dark .gjs-block {
-  min-height: auto;
-  padding: 12px 8px;
-  border: 1px solid #263250;
+  width: auto;
+  min-width: 0;
+  min-height: 62px;
+  margin: 0;
+  padding: 10px 4px;
+  border: 1px solid #212a42;
   border-radius: 10px;
-  background-color: #1a2440;
+  background-color: #161d31;
   box-shadow: none;
-  color: #cbd5e1;
+  color: #aeb8cf;
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease,
@@ -84,22 +93,23 @@
 }
 .editor-dark .gjs-block:hover {
   border-color: #7c5cfc;
-  background-color: #22304f;
-  box-shadow: 0 1px 10px rgba(124, 92, 252, 0.35);
+  background-color: #1c2740;
+  box-shadow: 0 1px 10px rgba(124, 92, 252, 0.3);
 }
 .editor-dark .gjs-block__media {
   display: flex;
   justify-content: center;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 .editor-dark .gjs-block svg {
-  width: 26px;
-  height: 26px;
-  fill: #aab6cc;
+  width: 22px;
+  height: 22px;
+  fill: #aeb8cf;
 }
 .editor-dark .gjs-block-label {
-  font-size: 11px;
-  color: #cbd5e1;
+  font-size: 10px;
+  line-height: 1.2;
+  color: #aeb8cf;
 }
 .editor-dark .gjs-block-category .gjs-title,
 .editor-dark .gjs-blocks-c .gjs-title {
