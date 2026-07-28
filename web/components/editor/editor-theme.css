@@ -1,102 +1,108 @@
 /*
- * GrapesJS chrome theme. The native block/style/layer/trait managers render via
- * appendTo into our docks inside the DARK left sidebar (wrapper `.editor-dark`),
- * so those managers are styled dark and scoped under `.editor-dark` — this keeps
- * the mail canvas (outside `.editor-dark`) on its light backdrop.
+ * GrapesJS chrome theme. Native block/style/layer/trait managers render via
+ * appendTo into our docks inside the DARK NAVY left sidebar (wrapper
+ * `.editor-dark`) — styled dark & scoped under `.editor-dark`, which keeps the
+ * mail canvas (outside `.editor-dark`) on its light backdrop.
  *
- * GrapesJS/grapesjs-mjml INJECTS its own theme inline at runtime, so overrides
- * need higher specificity than its single classes — `.editor-dark .gjs-x`
- * (0,2,0) beats a single class (0,1,0), independent of load order. The object
- * toolbar and RTE bar render over the canvas (not in the sidebar) and stay dark
- * pills via global `:root` rules.
+ * GrapesJS injects its own theme inline at runtime, so overrides need higher
+ * specificity than its single classes — `.editor-dark .gjs-x` (0,2,0) beats a
+ * single class (0,1,0). The object toolbar / RTE bar render over the canvas
+ * (not in the sidebar) and stay dark pills via global `:root` rules.
  */
 
-/* ── Dark manager surfaces (left sidebar) ───────────────────────────────── */
+/* ── Dark navy manager surfaces (left sidebar) ──────────────────────────── */
 .editor-dark .gjs-one-bg {
-  background-color: #18181b; /* panel */
+  background-color: #0f1729; /* panel */
 }
 .editor-dark .gjs-two-bg {
-  background-color: #27272a; /* panel-elevated */
+  background-color: #1a2440; /* panel-elevated */
 }
 .editor-dark .gjs-two-color,
 .editor-dark .gjs-two-color-h:hover {
-  color: #d4d4d8; /* zinc-300 */
+  color: #cbd5e1; /* slate-300 */
 }
 .editor-dark .gjs-color-main,
 .editor-dark .gjs-color-active {
-  color: #fafafa; /* zinc-50 */
+  color: #e6ebf4; /* slate-100 */
 }
 
 /* Accent (active/selected) — violet brand */
 :root .gjs-three-bg {
-  background-color: #7c3aed; /* violet-600 */
+  background-color: #7c5cfc;
   color: #ffffff;
 }
 :root .gjs-four-color,
 :root .gjs-four-color-h:hover {
-  color: #a78bfa; /* violet-400 */
+  color: #a99bff;
 }
 
-/* ── Blocks (dark cards) ─────────────────────────────────────────────────── */
+/* ── Blocks (dark navy cards) ────────────────────────────────────────────── */
 .editor-dark .gjs-block {
   min-height: auto;
-  padding: 10px 8px;
-  border: 1px solid #3f3f46;
-  border-radius: 8px;
-  background-color: #27272a;
+  padding: 12px 8px;
+  border: 1px solid #263250;
+  border-radius: 10px;
+  background-color: #1a2440;
   box-shadow: none;
-  color: #d4d4d8;
+  color: #cbd5e1;
   transition:
     border-color 0.12s ease,
-    box-shadow 0.12s ease;
+    box-shadow 0.12s ease,
+    background-color 0.12s ease;
 }
 .editor-dark .gjs-block:hover {
-  border-color: #7c3aed;
-  box-shadow: 0 1px 8px rgba(124, 58, 237, 0.35);
+  border-color: #7c5cfc;
+  background-color: #22304f;
+  box-shadow: 0 1px 10px rgba(124, 92, 252, 0.35);
 }
 .editor-dark .gjs-block__media {
   display: flex;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .editor-dark .gjs-block svg {
-  width: 32px;
-  height: 32px;
-  fill: #d4d4d8;
+  width: 26px;
+  height: 26px;
+  fill: #aab6cc;
 }
 .editor-dark .gjs-block-label {
   font-size: 11px;
-  color: #d4d4d8;
+  color: #cbd5e1;
 }
 .editor-dark .gjs-block-category .gjs-title,
 .editor-dark .gjs-blocks-c .gjs-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #a1a1aa; /* zinc-400 */
+  letter-spacing: 0.06em;
+  color: #6b7891; /* slate-500 */
+  padding: 10px 10px 4px;
+}
+/* Category open indicator — hide the default caret for a cleaner header */
+.editor-dark .gjs-block-category .gjs-caret-icon {
+  display: none;
 }
 
 /* ── Form fields (style/traits) ──────────────────────────────────────────── */
 .editor-dark .gjs-field,
 .editor-dark .gjs-sm-field,
 .editor-dark .gjs-clm-field {
-  background-color: #27272a;
-  border: 1px solid #3f3f46;
+  background-color: #1a2440;
+  border: 1px solid #263250;
   border-radius: 6px;
-  color: #fafafa;
+  color: #e6ebf4;
 }
 .editor-dark .gjs-field input,
 .editor-dark .gjs-field select,
 .editor-dark .gjs-field textarea,
 .editor-dark .gjs-sm-field input,
 .editor-dark .gjs-clm-field input {
-  color: #fafafa;
+  color: #e6ebf4;
 }
 .editor-dark .gjs-field-arrow-u,
 .editor-dark .gjs-field-arrow-d {
-  border-bottom-color: #a1a1aa;
-  border-top-color: #a1a1aa;
+  border-bottom-color: #8b96ac;
+  border-top-color: #8b96ac;
 }
 
 /* Unified manager typography (traits + styles) */
@@ -108,7 +114,7 @@
   line-height: 1.4;
   letter-spacing: normal;
   text-transform: none;
-  color: #a1a1aa; /* zinc-400 */
+  color: #8b96ac;
 }
 .editor-dark .gjs-sm-properties,
 .editor-dark .gjs-traits-c {
@@ -138,9 +144,9 @@
 .editor-dark .gjs-sm-sector-title,
 .editor-dark .gjs-trt-header {
   padding: 8px 10px;
-  background-color: #212124;
-  color: #d4d4d8;
-  border-bottom: 1px solid #3f3f46;
+  background-color: #16203a;
+  color: #cbd5e1;
+  border-bottom: 1px solid #263250;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -148,21 +154,33 @@
 }
 .editor-dark .gjs-sm-sector,
 .editor-dark .gjs-trt-trait {
-  border-bottom: 1px solid #27272a;
+  border-bottom: 1px solid #1a2440;
 }
 
 /* Layers */
 .editor-dark .gjs-layer-title {
-  color: #d4d4d8;
+  color: #cbd5e1;
 }
 .editor-dark .gjs-layer.gjs-selected > .gjs-layer-item {
-  background-color: rgba(124, 58, 237, 0.22);
+  background-color: rgba(124, 92, 252, 0.22);
 }
 
 /* Selector bar (component classes) */
 .editor-dark .gjs-clm-tags {
-  background-color: #27272a;
-  color: #d4d4d8;
+  background-color: #1a2440;
+  color: #cbd5e1;
+}
+
+/* ── Drop placeholder (was green) → violet ───────────────────────────────── */
+:root .gjs-placeholder {
+  border-color: #7c5cfc;
+}
+:root .gjs-placeholder.horizontal {
+  border-color: #7c5cfc;
+}
+:root .gjs-placeholder-int {
+  background-color: #7c5cfc;
+  border-color: #7c5cfc;
 }
 
 /* ── Canvas backdrop stays light (React container provides bg-surface-muted) ─ */
@@ -178,10 +196,10 @@
 
 /* ── Object toolbar (context menu) — dark rounded pill ───────────────────── */
 :root .gjs-toolbar {
-  background-color: #18181b;
+  background-color: #0f1729;
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
 }
 :root .gjs-toolbar-items {
   display: flex;
@@ -196,13 +214,13 @@
   height: 26px;
   padding: 0;
   border-radius: 6px;
-  color: #d4d4d8;
+  color: #cbd5e1;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-toolbar-item:hover {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 :root .gjs-toolbar-item svg {
@@ -211,21 +229,21 @@
 }
 /* Accent on the "sparkles" (comment/AI) button — violet */
 :root .gjs-toolbar-item[data-role="sparkles"] {
-  color: #a78bfa; /* violet-400 */
+  color: #a99bff;
 }
 :root .gjs-toolbar-item[data-role="sparkles"]:hover {
-  background-color: rgba(124, 58, 237, 0.28);
-  color: #c4b5fd;
+  background-color: rgba(124, 92, 252, 0.3);
+  color: #c9bdff;
 }
 
 /* ── RTE bar — same dark pill, with font/size/color extras ───────────────── */
 :root .gjs-rte-toolbar {
   z-index: 100;
-  background-color: #18181b;
+  background-color: #0f1729;
   border: none;
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
 }
 :root .gjs-rte-actionbar {
   display: flex;
@@ -243,13 +261,13 @@
   padding: 0 4px;
   border: none;
   border-radius: 6px;
-  color: #d4d4d8;
+  color: #cbd5e1;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-rte-action:hover {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 :root .gjs-rte-action svg {
@@ -264,7 +282,7 @@
   max-width: 92px;
   padding: 0 2px;
   background: transparent;
-  color: #e4e4e7;
+  color: #e6ebf4;
   border: none;
   font-size: 12px;
   text-overflow: ellipsis;
