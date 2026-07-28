@@ -14,7 +14,13 @@ import {
   ChevronDown,
   Minus,
   Plus,
+  Monitor,
+  Smartphone,
+  MoreVertical,
+  ArrowLeft,
 } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { getDocument, updateDocument } from "@/lib/documents";
 import type { EditorApi, EditorState, SaveStatus } from "@/components/editor/EmailEditor";
@@ -44,6 +50,11 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
 };
 
 const WIDTHS = ["600px", "640px", "680px", "720px"];
+
+const DEVICE_ICON: Record<string, ReactNode> = {
+  Desktop: <Monitor className="size-3.5" />,
+  Mobile: <Smartphone className="size-3.5" />,
+};
 
 function SaveBadge({ status }: { status: SaveStatus }) {
   if (status === "idle") return null;
@@ -157,8 +168,9 @@ export default function EditorHeader({
             <ToggleGroupItem
               key={d.id}
               value={d.name}
-              className="px-2.5 text-panel-muted-fg data-[state=on]:bg-panel-elevated data-[state=on]:text-panel-fg"
+              className="gap-1.5 px-2.5 text-panel-muted-fg data-[state=on]:bg-panel-elevated data-[state=on]:text-panel-fg"
             >
+              {DEVICE_ICON[d.name]}
               {d.name}
             </ToggleGroupItem>
           ))}
@@ -198,8 +210,13 @@ export default function EditorHeader({
       <Separator orientation="vertical" className="mx-1 !h-5 bg-panel-border max-xl:hidden" />
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className={cn(darkGhost, "gap-1.5 max-xl:hidden")}>
-            Width: {state.contentWidth}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(darkGhost, "gap-1.5 rounded-md border border-panel-border max-xl:hidden")}
+          >
+            <span className="text-panel-muted-fg">Content width</span>
+            {state.contentWidth}
             <ChevronDown className="size-3.5" />
           </Button>
         </PopoverTrigger>
@@ -220,7 +237,7 @@ export default function EditorHeader({
       </Popover>
 
       {/* Zoom */}
-      <div className="flex items-center gap-0.5 max-xl:hidden">
+      <div className="flex items-center gap-0.5 rounded-md border border-panel-border px-0.5 max-xl:hidden">
         <Button
           variant="ghost"
           size="icon"
@@ -384,6 +401,23 @@ export default function EditorHeader({
               <span className="font-medium">Export MJML</span>
               <span className="text-xs text-muted-foreground">{base}.mjml</span>
             </button>
+          </PopoverContent>
+        </Popover>
+
+        {/* Overflow menu */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className={darkGhost}>
+              <MoreVertical />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-44 p-1">
+            <Link
+              href="/"
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+            >
+              <ArrowLeft className="size-4" /> All emails
+            </Link>
           </PopoverContent>
         </Popover>
       </div>
