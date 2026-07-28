@@ -10,6 +10,20 @@ export {
   type IdPrefix,
 } from "./ids.js";
 
+export type {
+  CommentStatus,
+  CommentStore,
+  CommentTarget,
+  CompileResult,
+  DocumentPatch,
+  DocumentStore,
+  EmailDocument,
+  GenerateImageRequest,
+  ImageProvider,
+  MjmlCompiler,
+  SectionComment,
+} from "./ports.js";
+
 export {
   DEFAULT_IMAGE_SIZE,
   IMAGE_SIZES,
