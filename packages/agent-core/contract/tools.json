@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "get_document",
+      "description": "Returns the document's full MJML source together with the list of its sections (section_id plus a short preview). Call this first to learn the current state.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_section",
+      "description": "Returns the MJML source of the single section with the given section_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "description": "Identifier from the sec-<id> class."
+          }
+        },
+        "required": [
+          "section_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_document",
+      "description": "Replaces the ENTIRE document with new MJML source. Use only when creating an email from scratch; for targeted edits use set_section, insert_section or remove_section. The document must be complete (<mjml><mj-body>...</mj-body></mjml>). Sections without a sec-* class are assigned one automatically. Rejected if the MJML does not compile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mjml": {
+            "type": "string",
+            "description": "Complete MJML document."
+          }
+        },
+        "required": [
+          "mjml"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "set_section",
+      "description": "Replaces a single section. `mjml` is exactly one <mj-section>...</mj-section> element. The section keeps its sec-<id> even if you supply a different one — that id anchors existing comments. Rejected if the resulting document does not compile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "description": "Section to replace."
+          },
+          "mjml": {
+            "type": "string",
+            "description": "One complete <mj-section> element."
+          }
+        },
+        "required": [
+          "section_id",
+          "mjml"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "insert_section",
+      "description": "Inserts a new section (exactly one <mj-section> element) after after_section_id, or at the end of the email when it is null. Returns the id assigned to the new section.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mjml": {
+            "type": "string",
+            "description": "One complete <mj-section> element."
+          },
+          "after_section_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Insert after this section, or null to append at the end of the body."
+          }
+        },
+        "required": [
+          "mjml",
+          "after_section_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "remove_section",
+      "description": "Removes the section with the given section_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "description": "Section to remove."
+          }
+        },
+        "required": [
+          "section_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "generate_image",
+      "description": "Generates an image and returns a public URL to put into an mj-image src. Never invent image URLs — always obtain them from this tool.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "description": "English, descriptive: subject, style, composition, palette."
+          },
+          "size": {
+            "type": "string",
+            "enum": [
+              "1024x1024",
+              "1536x1024",
+              "1024x1536"
+            ],
+            "description": "1536x1024 for heroes, 1024x1024 for products, 1024x1536 for portraits."
+          }
+        },
+        "required": [
+          "prompt",
+          "size"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_open_comments",
+      "description": "Returns the open comments on this document: id, section_id, object_id, object_label and body. object_id null means the comment is about the whole section.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "resolve_comment",
+      "description": "Marks a comment as resolved. Call only after applying the change it asked for.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "comment_id": {
+            "type": "string",
+            "description": "Comment to resolve."
+          }
+        },
+        "required": [
+          "comment_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "mutating_tools": [
+    "set_document",
+    "set_section",
+    "insert_section",
+    "remove_section",
+    "resolve_comment"
+  ],
+  "section_id_argument": {
+    "get_section": "section_id",
+    "set_section": "section_id",
+    "remove_section": "section_id",
+    "insert_section": "after_section_id"
+  }
+}

@@ -13,6 +13,9 @@ __pycache__/
 .next/
 out/
 dist/
+.turbo/
+*.tsbuildinfo
+coverage/
 *.egg-info/
 
 # supabase local

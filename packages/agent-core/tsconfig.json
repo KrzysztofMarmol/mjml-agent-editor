@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM is here for the Web Crypto API only — this package must stay usable in
+    // both the browser (editor) and Node (agent), so it targets the web-standard
+    // `crypto.getRandomValues` rather than `node:crypto`.
+    "lib": ["ES2022", "DOM"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "contract/*.json", "tsup.config.ts", "vitest.config.ts"]
+}
