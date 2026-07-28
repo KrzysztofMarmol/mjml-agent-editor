@@ -10,6 +10,38 @@
  * (not in the sidebar) and stay dark pills via global `:root` rules.
  */
 
+/* ── Thin, theme-matched scrollbars in the dark chrome ──────────────────── */
+.editor-dark,
+.editor-dark * {
+  scrollbar-width: thin;
+  scrollbar-color: #2f3d5e transparent;
+}
+.editor-dark ::-webkit-scrollbar,
+.editor-dark::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.editor-dark ::-webkit-scrollbar-track,
+.editor-dark::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-dark ::-webkit-scrollbar-thumb,
+.editor-dark::-webkit-scrollbar-thumb {
+  background-color: #2f3d5e;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.editor-dark ::-webkit-scrollbar-thumb:hover,
+.editor-dark::-webkit-scrollbar-thumb:hover {
+  background-color: #3d4e75;
+  background-clip: content-box;
+}
+.editor-dark ::-webkit-scrollbar-corner,
+.editor-dark::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* ── Dark navy manager surfaces (left sidebar) ──────────────────────────── */
 .editor-dark .gjs-one-bg {
   background-color: #0f1729; /* panel */
