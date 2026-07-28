@@ -14,16 +14,20 @@ import { ChevronRight } from "lucide-react";
 
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 import CanvasComments from "@/components/comments/CanvasComments";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-/** Snapshot of editor state pushed to the header (device, undo, save). */
+/** Snapshot of editor state pushed to the header (device, undo, save, zoom, width). */
 export type EditorState = {
   device: string;
   canUndo: boolean;
   canRedo: boolean;
   saveStatus: SaveStatus;
+  zoom: number;
+  contentWidth: string;
 };
 
 export type EditorApi = {
@@ -42,7 +46,11 @@ export type EditorApi = {
   setDevice: (name: string) => void;
   undo: () => void;
   redo: () => void;
-  /** Subscribe to editor state changes (device/undo/save). Returns unsubscribe. */
+  /** Canvas zoom (percentage). */
+  setZoom: (z: number) => void;
+  /** Email body width (mj-body width attribute, e.g. "600px"). */
+  setContentWidth: (w: string) => void;
+  /** Subscribe to editor state changes (device/undo/save/zoom/width). Returns unsubscribe. */
   onEditorState: (cb: (s: EditorState) => void) => () => void;
 };
 
@@ -211,13 +219,22 @@ export default function EmailEditor({
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
   // Comment being composed (sparkles button) — opens the canvas popover.
   const [composeTarget, setComposeTarget] = useState<CommentTarget | null>(null);
+  // Where the current selection came from — canvas click opens Settings,
+  // selecting from the Layers tree does not (keeps you on Layers).
+  const selectionSource = useRef<"canvas" | "layers" | "other">("other");
 
   const onEditor = async (editor: Editor) => {
+    const bodyWidth = (): string => {
+      const body = editor.getWrapper()?.find("mj-body")[0];
+      return String((body?.getAttributes?.() as Record<string, unknown>)?.width ?? "600px");
+    };
     const snapshot = (): EditorState => ({
       device: editor.getDevice(),
       canUndo: editor.UndoManager.hasUndo(),
       canRedo: editor.UndoManager.hasRedo(),
       saveStatus: saveStatusRef.current,
+      zoom: Math.round((editor.Canvas.getZoom?.() as number | undefined) ?? 100),
+      contentWidth: bodyWidth(),
     });
     const notifyState = () => {
       const s = snapshot();
@@ -266,9 +283,36 @@ export default function EmailEditor({
 
     setupRichText(editor);
 
+    // Group the palette blocks into categories (the plugin ships them flat).
+    const blockCategory = (label: string): string => {
+      const l = label.toLowerCase();
+      if (/(column|section)/.test(l)) return "Layout";
+      if (/(text|image|button|divider|spacer|social)/.test(l)) return "Basic";
+      return "Advanced";
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bm = editor.BlockManager as any;
+    bm.getAll().forEach((b: { get: (k: string) => string; set: (k: string, v: unknown) => void }) => {
+      b.set("category", blockCategory(b.get("label") || ""));
+    });
+    bm.render();
+
     editor.on("component:add", decorate);
+    // Track selection origin: a mousedown inside the canvas iframe marks the
+    // next selection as coming from the canvas (→ open Settings). Selecting via
+    // the Layers tree leaves the source as "layers" (set by the sidebar).
+    editor.on("load", () => {
+      editor.Canvas.getBody()?.addEventListener(
+        "mousedown",
+        () => {
+          selectionSource.current = "canvas";
+        },
+        true,
+      );
+    });
     editor.on("component:selected", (c: Component) => {
-      setSidebarView("settings");
+      if (selectionSource.current === "canvas") setSidebarView("settings");
+      selectionSource.current = "other";
       // mj-image has no src trait by default (src changes via the Asset
       // Manager) — add a URL field so the image can be set from the panel.
       if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
@@ -409,6 +453,15 @@ export default function EmailEditor({
         editor.UndoManager.redo();
         notifyState();
       },
+      setZoom: (z) => {
+        editor.Canvas.setZoom?.(Math.max(25, Math.min(200, z)));
+        notifyState();
+      },
+      setContentWidth: (w) => {
+        const body = editor.getWrapper()?.find("mj-body")[0];
+        body?.addAttributes({ width: w });
+        notifyState();
+      },
       onEditorState: (cb) => {
         stateListeners.current.add(cb);
         cb(snapshot());
@@ -441,7 +494,11 @@ export default function EmailEditor({
       onEditor={onEditor}
     >
       <div className="flex h-full min-h-0 flex-1">
-        <LeftSidebar view={sidebarView} onViewChange={setSidebarView} />
+        <LeftSidebar
+          view={sidebarView}
+          onViewChange={setSidebarView}
+          markLayersSource={() => (selectionSource.current = "layers")}
+        />
         <div className="relative min-w-0 flex-1 bg-surface-muted">
           <Canvas className="h-full" />
           {/* Canvas comment layer (pins + thread popovers) overlays the canvas. */}
@@ -496,12 +553,15 @@ function CollapseSection({
 function LeftSidebar({
   view,
   onViewChange,
+  markLayersSource,
 }: {
   view: SidebarView;
   onViewChange: (v: SidebarView) => void;
+  markLayersSource: () => void;
 }) {
   const editor = useEditorMaybe();
   const [layersExpanded, setLayersExpanded] = useState(false);
+  const [blockSearch, setBlockSearch] = useState("");
 
   const changeView = (v: SidebarView) => {
     if (v === "settings" && editor && !editor.getSelected()) {
@@ -515,6 +575,27 @@ function LeftSidebar({
   const toggleLayers = (expand: boolean) => {
     setLayersExpanded(expand);
     editor?.getWrapper()?.onAll((c) => c.set("open", expand));
+  };
+
+  // Filter the GrapesJS-rendered blocks (DOM lives outside React) by label;
+  // hide category groups that end up empty.
+  const filterBlocks = (q: string) => {
+    setBlockSearch(q);
+    const root = document.getElementById("gjs-blocks");
+    if (!root) return;
+    const term = q.trim().toLowerCase();
+    root.querySelectorAll<HTMLElement>(".gjs-block").forEach((b) => {
+      const label = (b.querySelector(".gjs-block-label")?.textContent ?? b.textContent ?? "")
+        .toLowerCase()
+        .trim();
+      b.style.display = !term || label.includes(term) ? "" : "none";
+    });
+    root.querySelectorAll<HTMLElement>(".gjs-block-category").forEach((cat) => {
+      const anyVisible = [...cat.querySelectorAll<HTMLElement>(".gjs-block")].some(
+        (b) => b.style.display !== "none",
+      );
+      cat.style.display = anyVisible ? "" : "none";
+    });
   };
 
   return (
@@ -544,11 +625,19 @@ function LeftSidebar({
         ))}
       </div>
 
-      {/* Blocks */}
-      <div
-        id="gjs-blocks"
-        className={cn("min-h-0 flex-1 overflow-y-auto", view !== "blocks" && "hidden")}
-      />
+      {/* Blocks: search + categorized block palette */}
+      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "blocks" && "hidden")}>
+        <div className="relative border-b border-panel-border p-2">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-panel-muted-fg" />
+          <Input
+            value={blockSearch}
+            onChange={(e) => filterBlocks(e.target.value)}
+            placeholder="Search blocks…"
+            className="h-8 border-panel-border bg-panel-elevated pl-7 text-sm text-panel-fg placeholder:text-panel-muted-fg"
+          />
+        </div>
+        <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
+      </div>
 
       {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
@@ -560,8 +649,12 @@ function LeftSidebar({
         </CollapseSection>
       </div>
 
-      {/* Layers — with an expand/collapse-all switch */}
-      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}>
+      {/* Layers — with an expand/collapse-all switch. A pointer-down here marks
+          the next selection as coming from the tree (→ do NOT open Settings). */}
+      <div
+        className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}
+        onMouseDownCapture={markLayersSource}
+      >
         <label className="flex items-center justify-between gap-2 border-b border-panel-border px-3 py-2 text-xs text-panel-muted-fg">
           <span>Expand all</span>
           <Switch checked={layersExpanded} onCheckedChange={toggleLayers} />
