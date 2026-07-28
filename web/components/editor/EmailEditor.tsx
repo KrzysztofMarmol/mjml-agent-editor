@@ -677,8 +677,11 @@ function LeftSidebar({
             value={blockSearch}
             onChange={(e) => filterBlocks(e.target.value)}
             placeholder="Search blocks…"
-            className="h-8 border-panel-border bg-panel-elevated pl-7 text-sm text-panel-fg placeholder:text-panel-muted-fg"
+            className="h-8 border-panel-border bg-panel-elevated pr-10 pl-7 text-sm text-panel-fg placeholder:text-panel-muted-fg"
           />
+          <kbd className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 rounded border border-panel-border bg-panel px-1 py-0.5 font-mono text-[10px] text-panel-muted-fg">
+            ⌘K
+          </kbd>
         </div>
         <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
       </div>

@@ -44,7 +44,7 @@
 
 /* ── Dark navy manager surfaces (left sidebar) ──────────────────────────── */
 .editor-dark .gjs-one-bg {
-  background-color: #0f1729; /* panel */
+  background-color: #101a30; /* panel */
 }
 .editor-dark .gjs-two-bg {
   background-color: #1a2440; /* panel-elevated */
@@ -81,9 +81,9 @@
   min-height: 62px;
   margin: 0;
   padding: 10px 4px;
-  border: 1px solid #212a42;
+  border: 1px solid #2a3654;
   border-radius: 10px;
-  background-color: #161d31;
+  background-color: #1a2440;
   box-shadow: none;
   color: #aeb8cf;
   transition:
@@ -93,7 +93,7 @@
 }
 .editor-dark .gjs-block:hover {
   border-color: #7c5cfc;
-  background-color: #1c2740;
+  background-color: #22304f;
   box-shadow: 0 1px 10px rgba(124, 92, 252, 0.3);
 }
 .editor-dark .gjs-block__media {
@@ -238,7 +238,7 @@
 
 /* ── Object toolbar (context menu) — dark rounded pill ───────────────────── */
 :root .gjs-toolbar {
-  background-color: #0f1729;
+  background-color: #101a30;
   border-radius: 9px;
   padding: 3px;
   box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
@@ -281,7 +281,7 @@
 /* ── RTE bar — same dark pill, with font/size/color extras ───────────────── */
 :root .gjs-rte-toolbar {
   z-index: 100;
-  background-color: #0f1729;
+  background-color: #101a30;
   border: none;
   border-radius: 9px;
   padding: 3px;

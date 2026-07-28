@@ -138,18 +138,18 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
   const failedCount = finished.filter((t) => t.state === "output-error").length;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 rounded-lg border border-panel-border bg-panel-elevated/60 p-2">
       {finished.length > 0 && (
-        <Collapsible>
-          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-panel-muted-fg hover:text-panel-fg">
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-fg hover:text-panel-fg">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
               {failedCount > 0
-                ? `Finished steps (${finished.length}, ${failedCount} failed)`
-                : `Finished steps (${finished.length})`}
+                ? `Completed steps (${finished.length}, ${failedCount} failed)`
+                : `Completed steps (${finished.length})`}
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-1 space-y-0.5 border-l border-panel-border pl-3">
+          <CollapsibleContent className="mt-1 space-y-0.5 pl-1">
             {finished.map((t, i) => (
               <ToolMarker key={`f${i}`} tool={t} />
             ))}
@@ -173,6 +173,14 @@ export default function ChatPanel({
 }: Props) {
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Per-message timestamp, stamped when the message first renders.
+  const times = useRef<Map<string, string>>(new Map());
+  const timeFor = (id: string) => {
+    if (!times.current.has(id)) {
+      times.current.set(id, new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }
+    return times.current.get(id)!;
+  };
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: `${process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000"}/api/chat`,
@@ -290,6 +298,18 @@ export default function ChatPanel({
                   );
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
+                      <div className={cn("flex w-full gap-2", isUser && "flex-row-reverse")}>
+                        {!isUser && (
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand">
+                            <Sparkles className="size-3.5" />
+                          </span>
+                        )}
+                        <div
+                          className={cn(
+                            "flex min-w-0 flex-1 flex-col gap-1",
+                            isUser ? "items-end" : "items-start",
+                          )}
+                        >
                       <Message align={isUser ? "end" : "start"}>
                         <MessageContent>
                           {toolParts.length > 0 && <ToolActivity tools={toolParts} />}
@@ -325,6 +345,13 @@ export default function ChatPanel({
                             textParts.length === 0 && <BusyMarker />}
                         </MessageContent>
                       </Message>
+                          {(textParts.length > 0 || toolParts.length > 0) && (
+                            <span className="px-1 text-[10px] text-panel-muted-fg">
+                              {timeFor(message.id)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </MessageScrollerItem>
                   );
                 })
