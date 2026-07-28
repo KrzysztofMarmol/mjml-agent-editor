@@ -29,3 +29,7 @@ supabase/.branches/
 /.claude/skills/
 /.claude/worktrees/
 /skills-lock.json
+
+# turbo build cache
+.turbo/
+web/.turbo/

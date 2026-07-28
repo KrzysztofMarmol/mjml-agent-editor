@@ -140,7 +140,7 @@ export default function EditorHeader({
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-panel-border bg-panel px-3 text-panel-fg">
       {/* Logo + document name */}
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-fg">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-indigo-400 text-brand-fg shadow-sm">
         <Mail className="size-4" />
       </span>
       <span className="hidden text-sm font-semibold sm:inline">MJML Editor</span>
