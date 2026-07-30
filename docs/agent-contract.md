@@ -90,6 +90,11 @@ should stay clean, since the constraint belongs to the implementation that needs
 
 ## Conformance
 
-`pnpm test:conformance --url=<chat endpoint>` drives a fixed prompt against a running backend and
-asserts the same tool-call sequence and the same final MJML. Run it against both implementations
-in CI. _(Not yet written — Phase 1 finishes with it.)_
+`pnpm test:conformance -- --url=<chat endpoint>` drives a fixed set of scenarios against a running
+backend and checks the invariants above. Run it against both implementations in CI; it exits
+non-zero on failure. See `packages/conformance/README.md`.
+
+It asserts invariants rather than transcripts, because a live model legitimately varies its tool
+choice — on the same prompt one backend reached for `set_document` and the other for
+`set_section`, and both were correct. What must not vary is that ids survive, the stored document
+compiles, and the change lands.

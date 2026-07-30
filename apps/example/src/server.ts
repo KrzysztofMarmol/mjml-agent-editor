@@ -22,7 +22,7 @@ import {
   createDocumentStore,
   createPlaceholderImageProvider,
   createSupabaseClient,
-} from "./supabase-adapters.js";
+} from "@mjml-agent-editor/store-supabase";
 
 config();
 

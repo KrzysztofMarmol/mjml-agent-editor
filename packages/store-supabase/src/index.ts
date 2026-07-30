@@ -41,6 +41,32 @@ export function createSupabaseClient(url: string, serviceRoleKey: string): Supab
   return createClient(url, serviceRoleKey, { auth: { persistSession: false } });
 }
 
+/**
+ * Creates a document and returns its id.
+ *
+ * Deliberately not part of `DocumentStore`: the agent only ever reads and updates an
+ * existing document, so giving it a create capability would widen the port for no reason.
+ * Host applications and the conformance runner need it, so it lives here.
+ */
+export async function createDocument(
+  client: SupabaseClient,
+  name: string,
+  mjml: string,
+): Promise<string> {
+  const { data, error } = await client
+    .from("documents")
+    .insert({ name, mjml })
+    .select("id")
+    .single();
+  if (error) throw new Error(`document not creatable: ${error.message}`);
+  return (data as { id: string }).id;
+}
+
+export async function deleteDocument(client: SupabaseClient, documentId: string): Promise<void> {
+  const { error } = await client.from("documents").delete().eq("id", documentId);
+  if (error) throw new Error(`document ${documentId} not deletable: ${error.message}`);
+}
+
 export function createDocumentStore(client: SupabaseClient): DocumentStore {
   return {
     async get(documentId: string): Promise<EmailDocument> {

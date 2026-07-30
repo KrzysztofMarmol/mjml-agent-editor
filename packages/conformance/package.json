@@ -1,16 +1,15 @@
 {
-  "name": "@mjml-agent-editor/example",
+  "name": "@mjml-agent-editor/conformance",
   "version": "0.0.0",
   "private": true,
-  "description": "Reference wiring: Supabase adapters plus a dev server exposing the agent.",
+  "description": "Runs the shared agent scenarios against any running backend.",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "conformance": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.103",
     "@mjml-agent-editor/agent-node": "workspace:*",
     "@mjml-agent-editor/core": "workspace:*",
     "@mjml-agent-editor/store-supabase": "workspace:*",
@@ -19,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
