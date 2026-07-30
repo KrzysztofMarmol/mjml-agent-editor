@@ -8,8 +8,7 @@
  * requests that a long agent turn can exceed. Same-origin removes all three.
  */
 
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createChatHandler } from "@mjml-agent-editor/agent-node";
+import { createChatHandler, resolveModelFromEnv } from "@mjml-agent-editor/agent-node";
 import {
   createCommentStore,
   createDocumentStore,
@@ -32,10 +31,13 @@ const supabase = createSupabaseClient(
   required("SUPABASE_SERVICE_ROLE_KEY"),
 );
 
-const anthropic = createAnthropic({ apiKey: required("ANTHROPIC_API_KEY") });
-
+/**
+ * `AGENT_PROVIDER` picks the backend — Anthropic by default, DeepSeek or Gemini for a
+ * demo that has to cost nothing. Resolved once at module scope, so a misconfigured
+ * deployment fails at boot rather than on the first visitor's message.
+ */
 const handleChat = createChatHandler({
-  model: anthropic(process.env["AGENT_MODEL"] ?? "claude-haiku-4-5"),
+  model: resolveModelFromEnv(process.env),
   documents: createDocumentStore(supabase),
   comments: createCommentStore(supabase),
   images: createPlaceholderImageProvider(),
