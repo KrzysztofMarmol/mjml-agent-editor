@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Mail } from "lucide-react";
 
-import { createDocument, listDocuments, type EmailDocument } from "@/lib/documents";
+import { createDocument, listDocuments, type DocumentSummary } from "@/lib/documents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,7 +19,7 @@ import {
 
 export default function Home() {
   const router = useRouter();
-  const [docs, setDocs] = useState<EmailDocument[]>([]);
+  const [docs, setDocs] = useState<DocumentSummary[]>([]);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -105,7 +105,7 @@ export default function Home() {
             >
               <span className="font-medium">{d.name}</span>
               <span className="text-sm text-muted-foreground">
-                {new Date(d.updated_at).toLocaleString("en-US")}
+                {new Date(d.updatedAt).toLocaleString("en-US")}
               </span>
             </button>
           ))}

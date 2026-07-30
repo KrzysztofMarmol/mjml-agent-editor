@@ -7,7 +7,11 @@ import "grapesjs/dist/css/grapes.min.css";
 import "./editor-theme.css";
 import { useRef, useState, type ReactNode } from "react";
 
-import { getDocument, updateDocument, STARTER_MJML, type CommentTarget } from "@/lib/documents";
+import {
+  STARTER_MJML,
+  useDocumentStore,
+  type CommentTarget,
+} from "@mjml-agent-editor/editor";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -232,6 +236,8 @@ export default function EmailEditor({
   commentsRefresh,
   onOpenCountChange,
 }: Props) {
+  // Injected by the host rather than imported, so the editor carries no database.
+  const documents = useDocumentStore();
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -384,9 +390,9 @@ export default function EmailEditor({
       if (loadingRef.current) return;
       setSave("saving");
       try {
-        await updateDocument(docId, {
+        await documents.save(docId, {
           mjml: editor.getHtml(),
-          project_data: editor.getProjectData(),
+          projectData: editor.getProjectData(),
         });
         setSave("saved");
       } catch (e) {
@@ -461,7 +467,7 @@ export default function EmailEditor({
     };
 
     try {
-      const doc = await getDocument(docId);
+      const doc = await documents.get(docId);
       loadMjml(doc.mjml);
     } catch (e) {
       toast.error("Failed to load the document.");
@@ -478,7 +484,7 @@ export default function EmailEditor({
         await save();
       },
       reloadFromDb: async () => {
-        const fresh = await getDocument(docId);
+        const fresh = await documents.get(docId);
         if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
       },
       highlightSection: (sectionId, on) => {

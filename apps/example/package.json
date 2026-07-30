@@ -16,6 +16,7 @@
     "@grapesjs/react": "^2.0.0",
     "@mjml-agent-editor/agent-node": "workspace:*",
     "@mjml-agent-editor/core": "workspace:*",
+    "@mjml-agent-editor/editor": "workspace:*",
     "@mjml-agent-editor/store-supabase": "workspace:*",
     "@shadcn/react": "^0.2.1",
     "@supabase/supabase-js": "^2.110.7",

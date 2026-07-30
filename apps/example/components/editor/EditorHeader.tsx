@@ -22,7 +22,7 @@ import {
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { getDocument, updateDocument } from "@/lib/documents";
+import { useDocumentStore } from "@mjml-agent-editor/editor";
 import type { EditorApi, EditorState, SaveStatus } from "@/components/editor/EmailEditor";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,8 @@ export default function EditorHeader({
   api: EditorApi | null;
   openCount: number;
 }) {
+  // Injected by the host rather than imported, so the header carries no database.
+  const documents = useDocumentStore();
   const [name, setName] = useState("");
   const [state, setState] = useState<EditorState>({
     device: "Desktop",
@@ -112,10 +114,11 @@ export default function EditorHeader({
   const [preview, setPreview] = useState("");
 
   useEffect(() => {
-    getDocument(docId)
+    documents
+      .get(docId)
       .then((d) => setName(d.name))
       .catch(() => {});
-  }, [docId]);
+  }, [docId, documents]);
 
   useEffect(() => {
     if (!api) return;
@@ -126,7 +129,7 @@ export default function EditorHeader({
     const n = name.trim() || "Untitled";
     setName(n);
     try {
-      await updateDocument(docId, { name: n });
+      await documents.save(docId, { name: n });
     } catch {
       toast.error("Failed to rename.");
     }

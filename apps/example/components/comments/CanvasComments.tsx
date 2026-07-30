@@ -5,12 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MessageSquarePlus, X } from "lucide-react";
 
 import {
-  addComment,
-  listComments,
-  resolveComment,
+  useCommentStore,
   type CommentTarget,
   type SectionComment,
-} from "@/lib/documents";
+} from "@mjml-agent-editor/editor";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,8 +26,8 @@ type Props = {
 type Pos = { top: number; left: number };
 
 // Anchor key = the stable css-class the comment is attached to.
-const keyOf = (c: Pick<SectionComment, "object_id" | "section_id">) =>
-  c.object_id ? `obj-${c.object_id}` : `sec-${c.section_id}`;
+const keyOf = (c: Pick<SectionComment, "objectId" | "sectionId">) =>
+  c.objectId ? `obj-${c.objectId}` : `sec-${c.sectionId}`;
 const keyOfTarget = (t: CommentTarget) =>
   t.objectId ? `obj-${t.objectId}` : `sec-${t.sectionId}`;
 
@@ -40,6 +38,8 @@ export default function CanvasComments({
   refreshSignal,
   onOpenCountChange,
 }: Props) {
+  // Injected by the host rather than imported, so comments carry no database.
+  const commentStore = useCommentStore();
   const editor = useEditorMaybe();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<SectionComment[]>([]);
@@ -49,7 +49,7 @@ export default function CanvasComments({
   const [body, setBody] = useState("");
 
   const reload = useCallback(() => {
-    listComments(docId).then(setComments).catch(console.error);
+    commentStore.list(docId).then(setComments).catch(console.error);
   }, [docId]);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ export default function CanvasComments({
   const activeTarget: CommentTarget | null = (() => {
     if (!activeKey) return null;
     const c = activeComments[0];
-    if (c) return { sectionId: c.section_id, objectId: c.object_id, objectLabel: c.object_label };
+    if (c) return { sectionId: c.sectionId, objectId: c.objectId, objectLabel: c.objectLabel };
     if (composeInfo && keyOfTarget(composeInfo) === activeKey) return composeInfo;
     return null;
   })();
@@ -187,7 +187,7 @@ export default function CanvasComments({
   const submit = async () => {
     if (!activeTarget || !body.trim()) return;
     try {
-      await addComment(docId, activeTarget, body.trim());
+      await commentStore.add(docId, activeTarget, body.trim());
       setBody("");
       if (composeInfo) {
         setComposeInfo(null);
@@ -201,7 +201,7 @@ export default function CanvasComments({
 
   const resolve = async (id: string) => {
     try {
-      await resolveComment(id);
+      await commentStore.resolve(id);
       reload();
     } catch (e) {
       console.error(e);
