@@ -91,6 +91,10 @@ export default function CanvasComments({
     if (!frame || !cdoc) return;
     const cRect = container.getBoundingClientRect();
     const fRect = frame.getBoundingClientRect();
+    // The iframe is scaled by GrapesJS zoom (transform), so its on-screen rect
+    // (fRect) is scaled while elements INSIDE it report unscaled coordinates.
+    // Map an inner coordinate to screen by this zoom factor.
+    const zoom = frame.offsetWidth ? fRect.width / frame.offsetWidth : 1;
     const keys = new Set<string>(openRef.current.map(keyOf));
     if (activeRef.current) keys.add(activeRef.current);
     const next: Record<string, Pos> = {};
@@ -98,11 +102,11 @@ export default function CanvasComments({
       const el = cdoc.querySelector(`.${k}`) as HTMLElement | null;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      // Just past the element's right edge (into the canvas margin) so the pin
-      // doesn't overlap GrapesJS's element toolbar or get clipped.
+      // Element's top-right corner mapped from iframe coords to screen (× zoom),
+      // then a small constant offset so the pin sits just past the right edge.
       next[k] = {
-        top: fRect.top + r.top - cRect.top + 4,
-        left: fRect.left + r.left - cRect.left + r.width + 8,
+        top: fRect.top - cRect.top + r.top * zoom + 4,
+        left: fRect.left - cRect.left + (r.left + r.width) * zoom + 8,
       };
     });
     if (JSON.stringify(positionsRef.current) !== JSON.stringify(next)) {
