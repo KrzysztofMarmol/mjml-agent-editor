@@ -93,7 +93,11 @@ def get_model() -> ai.Model:
 
     base_url, default_model, key_env = _OPENAI_COMPAT.get(provider, (None, None, None))
     base_url = os.environ.get("AGENT_BASE_URL", base_url)
-    model_id = os.environ.get("AGENT_MODEL", default_model)
+    model_id = os.environ.get("AGENT_MODEL") or default_model
+    # Ignore a leftover "provider:model" id (e.g. "anthropic:...") from an earlier
+    # config — OpenAI-compatible model ids have no "provider:" prefix.
+    if model_id and ":" in model_id:
+        model_id = default_model
     api_key = os.environ.get("AGENT_API_KEY") or (os.environ.get(key_env, "") if key_env else "")
 
     missing = [
