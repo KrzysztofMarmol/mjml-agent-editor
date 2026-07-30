@@ -63,6 +63,8 @@ and every colour is a CSS custom property. See
 - [`packages/conformance/README.md`](packages/conformance/README.md) — the suite both backends pass.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to run the checks CI runs, and why the generated
   contract artifact needs a `git diff` rather than a test.
+- [`docs/known-issues.md`](docs/known-issues.md) — the soft spots, including why
+  `apps/example` must not be deployed as-is.
 
 ## License
 
