@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 import ai
+from ai.providers.openai import OpenAIChatCompletionsProtocol
+
 import tools
 
 SYSTEM = """\
@@ -54,8 +56,70 @@ APPLYING FIXES FROM COMMENTS:
 """
 
 
+# OpenAI-compatible backends: provider name → (base_url, default_model, key_env).
+# DeepSeek and Gemini both expose an OpenAI-compatible Chat Completions endpoint.
+_OPENAI_COMPAT = {
+    "deepseek": (
+        "https://api.deepseek.com",
+        "deepseek-chat",
+        "DEEPSEEK_API_KEY",
+    ),
+    "gemini": (
+        "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-2.5-flash",
+        "GEMINI_API_KEY",
+    ),
+}
+
+
 def get_model() -> ai.Model:
-    return ai.get_model(os.environ.get("AGENT_MODEL", "anthropic:claude-sonnet-5"))
+    """Resolve the agent model from the environment.
+
+    AGENT_PROVIDER selects the backend:
+      - "anthropic" (default): AGENT_MODEL (default "anthropic:claude-sonnet-5")
+        with ANTHROPIC_API_KEY.
+      - "deepseek": deepseek-chat via api.deepseek.com with DEEPSEEK_API_KEY.
+      - "gemini": gemini-2.5-flash via Google's OpenAI-compatible endpoint with
+        GEMINI_API_KEY.
+      - any other value: a custom OpenAI-compatible backend — set AGENT_BASE_URL,
+        AGENT_MODEL and AGENT_API_KEY.
+
+    AGENT_MODEL / AGENT_BASE_URL / AGENT_API_KEY override the preset defaults.
+    """
+    provider = os.environ.get("AGENT_PROVIDER", "anthropic").strip().lower()
+
+    if provider == "anthropic":
+        return ai.get_model(os.environ.get("AGENT_MODEL", "anthropic:claude-sonnet-5"))
+
+    base_url, default_model, key_env = _OPENAI_COMPAT.get(provider, (None, None, None))
+    base_url = os.environ.get("AGENT_BASE_URL", base_url)
+    model_id = os.environ.get("AGENT_MODEL", default_model)
+    api_key = os.environ.get("AGENT_API_KEY") or (os.environ.get(key_env, "") if key_env else "")
+
+    missing = [
+        name
+        for name, value in (
+            ("AGENT_BASE_URL", base_url),
+            ("AGENT_MODEL", model_id),
+            ("an API key", api_key),
+        )
+        if not value
+    ]
+    if missing:
+        hint = f" (e.g. set {key_env})" if key_env and not api_key else ""
+        raise ai.ConfigurationError(
+            f"AGENT_PROVIDER='{provider}' requires {', '.join(missing)}{hint}"
+        )
+
+    # DeepSeek/Gemini speak OpenAI Chat Completions (not the Responses API that
+    # the plain "openai" provider defaults to), so pin the protocol explicitly.
+    prov = ai.get_provider(
+        "openai",
+        base_url=base_url,
+        api_key=api_key,
+        protocol=OpenAIChatCompletionsProtocol(),
+    )
+    return ai.Model(id=model_id, provider=prov)
 
 
 def build_agent(doc_id: str) -> ai.Agent:
