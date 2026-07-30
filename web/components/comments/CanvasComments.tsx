@@ -163,6 +163,12 @@ export default function CanvasComments({
     return null;
   })();
   const activePos = activeKey ? positions[activeKey] : undefined;
+  // Keep the last real anchor position through the popover's close animation.
+  // On close activeKey→null makes activePos undefined; without this the anchor
+  // would snap to (0,0) and the still-animating popover would flash there.
+  const lastAnchorPos = useRef<Pos>({ top: 0, left: 0 });
+  if (activePos) lastAnchorPos.current = activePos;
+  const anchorPos = activePos ?? lastAnchorPos.current;
 
   const closePopover = useCallback(() => {
     setActiveKey(null);
@@ -235,14 +241,21 @@ export default function CanvasComments({
           <div
             style={{
               position: "absolute",
-              top: activePos?.top ?? 0,
-              left: activePos?.left ?? 0,
+              top: anchorPos.top,
+              left: anchorPos.left,
               width: 1,
               height: 1,
             }}
           />
         </PopoverAnchor>
-        <PopoverContent side="right" align="start" className="pointer-events-auto w-80 p-0">
+        <PopoverContent
+          side="right"
+          align="start"
+          // Disable the close animation: while it plays, Radix keeps the content
+          // mounted but floating-ui drops its positioning for a frame, flashing
+          // the popover at (0,0). No exit animation → instant unmount, no flash.
+          className="pointer-events-auto w-80 p-0 data-[state=closed]:!animate-none data-[state=closed]:!duration-0"
+        >
           <div className="flex items-start justify-between gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
             <span className="min-w-0">
               {activeTarget?.objectId ? (
