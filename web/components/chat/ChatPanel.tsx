@@ -96,12 +96,12 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
   const done = tool.state === "output-available";
   const failed = tool.state === "output-error";
   return (
-    <Marker className={cn(failed ? "text-destructive" : done ? "" : "text-foreground")}>
+    <Marker className={cn(failed ? "text-destructive" : "text-panel-fg")}>
       <MarkerIcon>
         {failed ? (
           <TriangleAlert />
         ) : done ? (
-          <Check className="text-emerald-600" />
+          <Check className="text-emerald-400" />
         ) : (
           <Loader2 className="animate-spin" />
         )}
@@ -118,7 +118,7 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
 // message (tight under the steps) or standalone when the assistant hasn't started writing yet.
 function BusyMarker() {
   return (
-    <Marker className="text-foreground">
+    <Marker className="text-panel-fg">
       <MarkerIcon>
         <Loader2 className="animate-spin" />
       </MarkerIcon>
@@ -138,18 +138,18 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
   const failedCount = finished.filter((t) => t.state === "output-error").length;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 rounded-lg border border-panel-border bg-panel-elevated/60 p-2">
       {finished.length > 0 && (
-        <Collapsible>
-          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground">
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-fg hover:text-panel-fg">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
               {failedCount > 0
-                ? `Finished steps (${finished.length}, ${failedCount} failed)`
-                : `Finished steps (${finished.length})`}
+                ? `Completed steps (${finished.length}, ${failedCount} failed)`
+                : `Completed steps (${finished.length})`}
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent className="mt-1 space-y-0.5 border-l border-border pl-3">
+          <CollapsibleContent className="mt-1 space-y-0.5 pl-1">
             {finished.map((t, i) => (
               <ToolMarker key={`f${i}`} tool={t} />
             ))}
@@ -173,6 +173,14 @@ export default function ChatPanel({
 }: Props) {
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Per-message timestamp, stamped when the message first renders.
+  const times = useRef<Map<string, string>>(new Map());
+  const timeFor = (id: string) => {
+    if (!times.current.has(id)) {
+      times.current.set(id, new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    }
+    return times.current.get(id)!;
+  };
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
       api: `${process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000"}/api/chat`,
@@ -290,6 +298,18 @@ export default function ChatPanel({
                   );
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
+                      <div className={cn("flex w-full gap-2", isUser && "flex-row-reverse")}>
+                        {!isUser && (
+                          <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand">
+                            <Sparkles className="size-3.5" />
+                          </span>
+                        )}
+                        <div
+                          className={cn(
+                            "flex min-w-0 flex-1 flex-col gap-1",
+                            isUser ? "items-end" : "items-start",
+                          )}
+                        >
                       <Message align={isUser ? "end" : "start"}>
                         <MessageContent>
                           {toolParts.length > 0 && <ToolActivity tools={toolParts} />}
@@ -298,6 +318,11 @@ export default function ChatPanel({
                               key={i}
                               variant={isUser ? "default" : "muted"}
                               align={isUser ? "end" : "start"}
+                              className={cn(
+                                isUser
+                                  ? "[&_[data-slot=bubble-content]]:bg-brand [&_[data-slot=bubble-content]]:text-brand-fg"
+                                  : "[&_[data-slot=bubble-content]]:border [&_[data-slot=bubble-content]]:border-panel-border [&_[data-slot=bubble-content]]:bg-panel-elevated [&_[data-slot=bubble-content]]:text-panel-fg [&_code]:!bg-white/12 [&_pre]:!bg-white/10 [&_a]:text-brand",
+                              )}
                             >
                               <BubbleContent
                                 className={isUser ? "whitespace-pre-wrap" : undefined}
@@ -320,6 +345,13 @@ export default function ChatPanel({
                             textParts.length === 0 && <BusyMarker />}
                         </MessageContent>
                       </Message>
+                          {(textParts.length > 0 || toolParts.length > 0) && (
+                            <span className="px-1 text-[10px] text-panel-muted-fg">
+                              {timeFor(message.id)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </MessageScrollerItem>
                   );
                 })
@@ -332,10 +364,9 @@ export default function ChatPanel({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-panel-border p-3">
         <Button
-          variant="secondary"
-          className="mb-2 w-full"
+          className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
           disabled={busy}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
@@ -346,12 +377,13 @@ export default function ChatPanel({
             e.preventDefault();
             void send(input);
           }}
+          className="rounded-xl border border-panel-border bg-panel-elevated transition-colors focus-within:border-brand/60"
         >
           <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 resize-none"
-            placeholder="Message the agent… (Enter = send, Shift+Enter = new line)"
+            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0"
+            placeholder="Describe what you want to change… (Enter = send, Shift+Enter = new line)"
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -364,13 +396,24 @@ export default function ChatPanel({
               }
             }}
           />
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="flex items-center justify-end gap-2 px-2 pb-2">
             {busy && (
-              <Button type="button" variant="outline" size="sm" onClick={() => void stop()}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-panel-border bg-transparent text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+                onClick={() => void stop()}
+              >
                 <Square /> Stop
               </Button>
             )}
-            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={busy || !input.trim()}
+              className="bg-brand text-brand-fg hover:bg-brand/90"
+            >
               <Send /> Send
             </Button>
           </div>

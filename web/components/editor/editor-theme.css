@@ -1,191 +1,249 @@
 /*
- * Light theme for the GrapesJS chrome (native block/style/layer/trait managers
- * rendered via appendTo into our docks). GrapesJS/grapesjs-mjml INJECTS its
- * dark theme inline at runtime (after the CSS bundle), so the overrides need
- * higher specificity than its single classes — hence the `:root ` prefix
- * (0,2,0 > 0,1,0), independent of stylesheet load order.
+ * GrapesJS chrome theme. Native block/style/layer/trait managers render via
+ * appendTo into our docks inside the DARK NAVY left sidebar (wrapper
+ * `.editor-dark`) — styled dark & scoped under `.editor-dark`, which keeps the
+ * mail canvas (outside `.editor-dark`) on its light backdrop.
+ *
+ * GrapesJS injects its own theme inline at runtime, so overrides need higher
+ * specificity than its single classes — `.editor-dark .gjs-x` (0,2,0) beats a
+ * single class (0,1,0). The object toolbar / RTE bar render over the canvas
+ * (not in the sidebar) and stay dark pills via global `:root` rules.
  */
 
-/* Panel backgrounds and text */
-:root .gjs-one-bg {
-  background-color: #ffffff;
+/* ── Thin, theme-matched scrollbars in the dark chrome ──────────────────── */
+.editor-dark,
+.editor-dark * {
+  scrollbar-width: thin;
+  scrollbar-color: #2f3d5e transparent;
 }
-:root .gjs-two-bg {
-  background-color: #f4f4f5; /* zinc-100 */
+.editor-dark ::-webkit-scrollbar,
+.editor-dark::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
-:root .gjs-two-color,
-:root .gjs-two-color-h:hover {
-  color: #3f3f46; /* zinc-700 */
+.editor-dark ::-webkit-scrollbar-track,
+.editor-dark::-webkit-scrollbar-track {
+  background: transparent;
 }
-:root .gjs-color-main,
-:root .gjs-color-active {
-  color: #18181b; /* zinc-900 */
+.editor-dark ::-webkit-scrollbar-thumb,
+.editor-dark::-webkit-scrollbar-thumb {
+  background-color: #2f3d5e;
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.editor-dark ::-webkit-scrollbar-thumb:hover,
+.editor-dark::-webkit-scrollbar-thumb:hover {
+  background-color: #3d4e75;
+  background-clip: content-box;
+}
+.editor-dark ::-webkit-scrollbar-corner,
+.editor-dark::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* Accent (active/selected) */
+/* ── Dark navy manager surfaces (left sidebar) ──────────────────────────── */
+.editor-dark .gjs-one-bg {
+  background-color: #101a30; /* panel */
+}
+.editor-dark .gjs-two-bg {
+  background-color: #1a2440; /* panel-elevated */
+}
+.editor-dark .gjs-two-color,
+.editor-dark .gjs-two-color-h:hover {
+  color: #cbd5e1; /* slate-300 */
+}
+.editor-dark .gjs-color-main,
+.editor-dark .gjs-color-active {
+  color: #e6ebf4; /* slate-100 */
+}
+
+/* Accent (active/selected) — violet brand */
 :root .gjs-three-bg {
-  background-color: #2563eb; /* brand */
+  background-color: #7c5cfc;
   color: #ffffff;
 }
 :root .gjs-four-color,
 :root .gjs-four-color-h:hover {
-  color: #2563eb;
+  color: #a99bff;
 }
 
-/* Blocks */
-:root .gjs-block {
-  min-height: auto;
-  padding: 10px 8px;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  background-color: #ffffff;
+/* ── Blocks (dark navy cards, 3-column grid) ─────────────────────────────── */
+.editor-dark .gjs-blocks-c {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 6px 8px 10px;
+}
+.editor-dark .gjs-block {
+  width: auto;
+  min-width: 0;
+  min-height: 62px;
+  margin: 0;
+  padding: 10px 4px;
+  border: 1px solid #2a3654;
+  border-radius: 10px;
+  background-color: #1a2440;
   box-shadow: none;
-  color: #52525b;
+  color: #aeb8cf;
   transition:
     border-color 0.12s ease,
-    box-shadow 0.12s ease;
+    box-shadow 0.12s ease,
+    background-color 0.12s ease;
 }
-:root .gjs-block:hover {
-  border-color: #2563eb;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.15);
+.editor-dark .gjs-block:hover {
+  border-color: #7c5cfc;
+  background-color: #22304f;
+  box-shadow: 0 1px 10px rgba(124, 92, 252, 0.3);
 }
-:root .gjs-block__media {
+.editor-dark .gjs-block__media {
   display: flex;
   justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
-:root .gjs-block svg {
-  width: 32px;
-  height: 32px;
-  fill: #52525b;
+.editor-dark .gjs-block svg {
+  width: 22px;
+  height: 22px;
+  fill: #aeb8cf;
 }
-:root .gjs-block-label {
-  font-size: 11px;
-  color: #52525b;
+.editor-dark .gjs-block-label {
+  font-size: 10px;
+  line-height: 1.2;
+  color: #aeb8cf;
 }
-:root .gjs-block-category .gjs-title,
-:root .gjs-blocks-c .gjs-title {
-  font-size: 11px;
-  font-weight: 600;
+.editor-dark .gjs-block-category .gjs-title,
+.editor-dark .gjs-blocks-c .gjs-title {
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #a1a1aa; /* zinc-400 */
+  letter-spacing: 0.06em;
+  color: #6b7891; /* slate-500 */
+  padding: 10px 10px 4px;
+}
+/* Category open indicator — hide the default caret for a cleaner header */
+.editor-dark .gjs-block-category .gjs-caret-icon {
+  display: none;
 }
 
-/* Form fields in the managers (style/traits) */
-:root .gjs-field,
-:root .gjs-sm-field,
-:root .gjs-clm-field {
-  background-color: #ffffff;
-  border: 1px solid #e4e4e7;
+/* ── Form fields (style/traits) ──────────────────────────────────────────── */
+.editor-dark .gjs-field,
+.editor-dark .gjs-sm-field,
+.editor-dark .gjs-clm-field {
+  background-color: #1a2440;
+  border: 1px solid #263250;
   border-radius: 6px;
-  color: #18181b;
+  color: #e6ebf4;
 }
-:root .gjs-field input,
-:root .gjs-field select,
-:root .gjs-field textarea,
-:root .gjs-sm-field input,
-:root .gjs-clm-field input {
-  color: #18181b;
+.editor-dark .gjs-field input,
+.editor-dark .gjs-field select,
+.editor-dark .gjs-field textarea,
+.editor-dark .gjs-sm-field input,
+.editor-dark .gjs-clm-field input {
+  color: #e6ebf4;
 }
-:root .gjs-field-arrow-u,
-:root .gjs-field-arrow-d {
-  border-bottom-color: #52525b;
-  border-top-color: #52525b;
+.editor-dark .gjs-field-arrow-u,
+.editor-dark .gjs-field-arrow-d {
+  border-bottom-color: #8b96ac;
+  border-top-color: #8b96ac;
 }
 
-/*
- * Unified manager typography (traits + styles):
- * same label/field sizes, weights and colors in both sections of the Settings panel.
- */
-
-/* Property labels (Href/Alt and Width/Padding/…) — one scale */
-:root .gjs-sm-label,
-:root .gjs-trt-trait .gjs-label,
-:root .gjs-label {
+/* Unified manager typography (traits + styles) */
+.editor-dark .gjs-sm-label,
+.editor-dark .gjs-trt-trait .gjs-label,
+.editor-dark .gjs-label {
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
   letter-spacing: normal;
   text-transform: none;
-  color: #71717a; /* zinc-500 */
+  color: #8b96ac;
 }
-
-/* Property rows — consistent horizontal padding (aligned with section headers) */
-:root .gjs-sm-properties,
-:root .gjs-traits-c {
+.editor-dark .gjs-sm-properties,
+.editor-dark .gjs-traits-c {
   padding: 6px 12px;
 }
-:root .gjs-trt-trait {
+.editor-dark .gjs-trt-trait {
   padding: 4px 0;
 }
-:root .gjs-sm-property {
+.editor-dark .gjs-sm-property {
   margin-bottom: 6px;
   padding: 0;
 }
-
-/* Fields — uniform height and text size */
-:root .gjs-field,
-:root .gjs-sm-field {
+.editor-dark .gjs-field,
+.editor-dark .gjs-sm-field {
   min-height: 28px;
   font-size: 12px;
 }
-:root .gjs-field input,
-:root .gjs-field select,
-:root .gjs-field textarea,
-:root .gjs-sm-field input,
-:root .gjs-sm-field select {
+.editor-dark .gjs-field input,
+.editor-dark .gjs-field select,
+.editor-dark .gjs-field textarea,
+.editor-dark .gjs-sm-field input,
+.editor-dark .gjs-sm-field select {
   font-size: 12px;
 }
 
-/* Style/trait sector headers — consistent with section headers (Attributes/Style) */
-:root .gjs-sm-sector-title,
-:root .gjs-trt-header {
+/* Sector headers */
+.editor-dark .gjs-sm-sector-title,
+.editor-dark .gjs-trt-header {
   padding: 8px 10px;
-  background-color: #fafafa;
-  color: #52525b; /* zinc-600 */
-  border-bottom: 1px solid #e4e4e7;
+  background-color: #16203a;
+  color: #cbd5e1;
+  border-bottom: 1px solid #263250;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-:root .gjs-sm-sector,
-:root .gjs-trt-trait {
-  border-bottom: 1px solid #f4f4f5;
+.editor-dark .gjs-sm-sector,
+.editor-dark .gjs-trt-trait {
+  border-bottom: 1px solid #1a2440;
 }
 
 /* Layers */
-:root .gjs-layer-title {
-  color: #3f3f46;
+.editor-dark .gjs-layer-title {
+  color: #cbd5e1;
 }
-:root .gjs-layer.gjs-selected > .gjs-layer-item {
-  background-color: #eff6ff; /* blue-50 */
+.editor-dark .gjs-layer.gjs-selected > .gjs-layer-item {
+  background-color: rgba(124, 92, 252, 0.22);
 }
 
 /* Selector bar (component classes) */
-:root .gjs-clm-tags {
-  background-color: #ffffff;
-  color: #3f3f46;
+.editor-dark .gjs-clm-tags {
+  background-color: #1a2440;
+  color: #cbd5e1;
 }
 
-/*
- * Hide the native device-switcher panel above the canvas — GrapesJS re-adds it
- * despite panels:{defaults:[]}. We have our own Desktop/Mobile switch in the top bar.
- */
+/* ── Drop placeholder (was green) → violet ───────────────────────────────── */
+:root .gjs-placeholder {
+  border-color: #7c5cfc;
+}
+:root .gjs-placeholder.horizontal {
+  border-color: #7c5cfc;
+}
+:root .gjs-placeholder-int {
+  background-color: #7c5cfc;
+  border-color: #7c5cfc;
+}
+
+/* ── Canvas backdrop stays light (React container provides bg-surface-muted) ─ */
+/* overflow: visible lets the RTE bar for text near the canvas edge escape
+   instead of being clipped. */
+:root .gjs-cv-canvas {
+  overflow: visible;
+  background-color: transparent;
+}
+
+/* Hide the native device-switcher panel (we have our own toggle in the header). */
 :root .gjs-pn-devices-c {
   display: none;
 }
 
-/*
- * Toolbar of the selected object (context menu) — a dark, rounded pill with
- * clear hover states instead of the default blue bar.
- */
+/* ── Object toolbar (context menu) — dark rounded pill ───────────────────── */
 :root .gjs-toolbar {
-  background-color: #18181b; /* zinc-900 */
+  background-color: #101a30;
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
 }
 :root .gjs-toolbar-items {
   display: flex;
@@ -200,48 +258,36 @@
   height: 26px;
   padding: 0;
   border-radius: 6px;
-  color: #d4d4d8; /* zinc-300 */
+  color: #cbd5e1;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-toolbar-item:hover {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 :root .gjs-toolbar-item svg {
   width: 15px;
   height: 15px;
 }
-/* Accent on the "sparkles" button (comments/AI) */
+/* Accent on the "sparkles" (comment/AI) button — violet */
 :root .gjs-toolbar-item[data-role="sparkles"] {
-  color: #fcd34d; /* amber-300 */
+  color: #a99bff;
 }
 :root .gjs-toolbar-item[data-role="sparkles"]:hover {
-  background-color: rgba(252, 211, 77, 0.18);
-  color: #fde68a;
+  background-color: rgba(124, 92, 252, 0.3);
+  color: #c9bdff;
 }
 
-/*
- * Text-editing bar (RTE) — the same dark pill as the object toolbar, with
- * extras: font, size, text/background color.
- */
-/*
- * The RTE bar can be positioned above the selection, and for text near the
- * left edge it sticks out of the canvas — the default overflow:hidden on
- * .gjs-cv-canvas clipped it (it hid "under" the sidebar). Let the tools escape
- * the canvas; the canvas/iframe fills the container anyway, so content doesn't leak.
- */
-:root .gjs-cv-canvas {
-  overflow: visible;
-}
+/* ── RTE bar — same dark pill, with font/size/color extras ───────────────── */
 :root .gjs-rte-toolbar {
   z-index: 100;
-  background-color: #18181b; /* zinc-900 */
+  background-color: #101a30;
   border: none;
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
 }
 :root .gjs-rte-actionbar {
   display: flex;
@@ -253,19 +299,19 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: auto; /* grows with content (selects) instead of a fixed 26px → no more overlap */
+  width: auto;
   min-width: 26px;
   height: 26px;
   padding: 0 4px;
   border: none;
   border-radius: 6px;
-  color: #d4d4d8; /* zinc-300 */
+  color: #cbd5e1;
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-rte-action:hover {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 :root .gjs-rte-action svg {
@@ -280,7 +326,7 @@
   max-width: 92px;
   padding: 0 2px;
   background: transparent;
-  color: #e4e4e7;
+  color: #e6ebf4;
   border: none;
   font-size: 12px;
   text-overflow: ellipsis;
@@ -288,7 +334,7 @@
   cursor: pointer;
 }
 :root .gjs-rte-select option {
-  color: #18181b; /* the dropdown list is rendered natively */
+  color: #18181b;
 }
 :root .gjs-rte-color {
   width: 18px;

@@ -47,10 +47,17 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-2xl p-10">
-      <h1 className="text-2xl font-bold">MJML Editor Spike</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        MJML email editor + AI agent (Vercel AI SDK for Python).
-      </p>
+      <div className="flex items-center gap-3">
+        <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-brand-fg">
+          <Mail className="size-5" />
+        </span>
+        <div>
+          <h1 className="text-2xl font-bold">MJML Editor</h1>
+          <p className="text-sm text-muted-foreground">
+            MJML email editor + AI agent.
+          </p>
+        </div>
+      </div>
 
       <div className="mt-6 flex gap-2">
         <Input
@@ -61,7 +68,11 @@ export default function Home() {
             if (e.key === "Enter") void create();
           }}
         />
-        <Button onClick={() => void create()} disabled={creating}>
+        <Button
+          className="bg-brand text-brand-fg hover:bg-brand/90"
+          onClick={() => void create()}
+          disabled={creating}
+        >
           {creating ? (
             <>
               <Spinner /> Creating…
