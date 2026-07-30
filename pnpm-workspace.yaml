@@ -5,3 +5,7 @@ packages:
 # tsup (bundler) and vitest both depend on it.
 allowBuilds:
   esbuild: true
+  # Next.js image optimisation; ships prebuilt native binaries.
+  sharp: true
+  # Native resolver used by eslint-config-next.
+  unrs-resolver: true

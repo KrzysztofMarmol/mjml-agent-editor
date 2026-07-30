@@ -28,16 +28,13 @@ emits. Tests on both sides fail if either drifts from it.
 # 1. Supabase (requires Docker)
 npx supabase start
 
-# 2. Build the contract, then the agent
+# 2. Build the packages the app consumes
 pnpm install
 pnpm build
 
-cp apps/example/.env.example apps/example/.env   # SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
-pnpm --filter @mjml-agent-editor/example start
-
-# 3. Frontend
-cd web && cp .env.example .env.local             # point NEXT_PUBLIC_AGENT_URL at the agent
-npm install && npm run dev
+# 3. Configure and run
+cp apps/example/.env.example apps/example/.env.local   # Supabase keys + ANTHROPIC_API_KEY
+pnpm --filter @mjml-agent-editor/example dev
 ```
 
 Open http://localhost:3000. To run the Python backend instead, see `agent-python/README.md`.
@@ -56,3 +53,4 @@ Open http://localhost:3000. To run the Python backend instead, see `agent-python
 ## Documentation
 
 - [`docs/agent-contract.md`](docs/agent-contract.md) — what a backend must implement.
+- [`packages/conformance/README.md`](packages/conformance/README.md) — the suite both backends pass.

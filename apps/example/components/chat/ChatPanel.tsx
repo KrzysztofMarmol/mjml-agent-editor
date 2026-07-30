@@ -183,7 +183,8 @@ export default function ChatPanel({
   };
   const { messages, sendMessage, status, stop } = useChat({
     transport: new DefaultChatTransport({
-      api: `${process.env.NEXT_PUBLIC_AGENT_URL ?? "http://localhost:8000"}/api/chat`,
+      // Same-origin: the agent is a route handler in this app, not a separate service.
+      api: "/api/chat",
       body: { docId },
     }),
     onFinish: onAgentFinish,

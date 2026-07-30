@@ -1,48 +1,38 @@
-# Example wiring
+# Example application
 
-Reference implementation of the ports from `@mjml-agent-editor/core`, plus a dev server
-that exposes the TypeScript agent on the endpoint the existing frontend already calls.
+The reference wiring: the MJML editor, the agent as a route handler, and Supabase adapters
+behind the `agent-core` ports.
 
-This is an intermediate shape. `web/` has not been folded into the monorepo yet, so the
-agent runs as a standalone process and the frontend reaches it cross-origin. Once `web/`
-becomes this app, `createChatHandler` moves into a Next.js route handler, and both the
-standalone server and its CORS handling disappear — the handler is already a plain
-`(Request) => Promise<Response>` for that reason.
-
-## What is here
-
-| File                       | Purpose                                                           |
-| -------------------------- | ----------------------------------------------------------------- |
-| `src/supabase-adapters.ts` | `DocumentStore`, `CommentStore` and a placeholder `ImageProvider` |
-| `src/server.ts`            | Node HTTP server exposing `POST /api/chat` and `GET /api/health`  |
-
-Image generation is a **placeholder** provider by default. The spike inferred placeholder
-mode from the _absence_ of `OPENAI_API_KEY`, so a misconfigured deployment silently
-started paying for the most expensive call in the system. Choosing a real provider is now
-an explicit act.
-
-## Running it
+## Running
 
 ```bash
-npx supabase start                 # from the repo root
-cp apps/example/.env.example apps/example/.env
-# fill in SUPABASE_SERVICE_ROLE_KEY (npx supabase status) and ANTHROPIC_API_KEY
+npx supabase start                      # from the repo root, needs Docker
+pnpm install && pnpm build              # builds the packages this app consumes
 
-pnpm --filter @mjml-agent-editor/core build
-pnpm --filter @mjml-agent-editor/agent-node build
-pnpm --filter @mjml-agent-editor/example start
+cp apps/example/.env.example apps/example/.env.local
+# fill in SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY (npx supabase status)
+# and ANTHROPIC_API_KEY
+
+pnpm --filter @mjml-agent-editor/example dev
 ```
 
-Then point the frontend at it and start it:
+## Notable wiring
 
-```bash
-# web/.env.local
-NEXT_PUBLIC_AGENT_URL=http://localhost:8001
-```
+**The agent is same-origin.** `app/api/chat/route.ts` is four lines because
+`createChatHandler` already returns `(Request) => Promise<Response>`. It previously ran as a
+separate process on its own port, which meant CORS configuration, a second deployment
+target, and — on Vercel — a 120 s ceiling on proxied requests that a long agent turn can
+exceed. None of that applies now.
 
-```bash
-cd web && npm install && npm run dev
-```
+**`mjml` is in `serverExternalPackages`.** It resolves and reads its own files at import
+time, and once a bundler rewrites those paths it throws `EBADF: bad file descriptor` while
+Next collects page data — a build failure whose stack never mentions mjml. See
+`next.config.ts`.
 
-If the frontend does not land on port 3000, update `ALLOWED_ORIGIN` to match — the
-browser's preflight is checked against it exactly.
+**The service-role key never reaches the browser.** Only the route handler reads it. The
+browser gets the anon key through `NEXT_PUBLIC_*`, which is also why the current schema's
+`grant all to anon` is a real hole rather than a theoretical one: closing it is Phase 4.
+
+**Images are placeholders by default.** The spike inferred that mode from a missing
+`OPENAI_API_KEY`, so a misconfigured deployment silently began paying for the most expensive
+call in the system. Pass a different `ImageProvider` to generate real ones.
