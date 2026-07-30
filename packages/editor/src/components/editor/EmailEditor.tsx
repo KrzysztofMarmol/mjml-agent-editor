@@ -417,20 +417,29 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }, 400);
     };
 
-    // Highlight for the section being edited by the agent — animation injected
-    // into the canvas document (GrapesJS iframe). Violet to match the brand.
+    // Highlight for the section the agent is editing. The canvas is an iframe with its
+    // own document, so the host's stylesheet does not reach it and these rules have to be
+    // injected. The colour is still read from the shared token rather than written out
+    // again — the literal that used to live here was the pre-redesign violet and had
+    // silently drifted from the brand for as long as the redesign had been in place.
     const ensureHighlightStyles = () => {
       const cdoc = editor.Canvas.getDocument();
       if (!cdoc || cdoc.getElementById("agent-edit-style")) return;
+
+      const accent =
+        getComputedStyle(document.documentElement)
+          .getPropertyValue("--mjml-editor-accent")
+          .trim() || "#7c5cfc";
+
       const style = cdoc.createElement("style");
       style.id = "agent-edit-style";
       style.textContent = `
         @keyframes agentEditPulse {
-          0%, 100% { outline-color: rgba(124, 58, 237, 0.25); }
-          50%      { outline-color: rgba(124, 58, 237, 0.95); }
+          0%, 100% { outline-color: color-mix(in srgb, ${accent} 25%, transparent); }
+          50%      { outline-color: color-mix(in srgb, ${accent} 95%, transparent); }
         }
         .agent-editing {
-          outline: 3px solid rgba(124, 58, 237, 0.9) !important;
+          outline: 3px solid color-mix(in srgb, ${accent} 90%, transparent) !important;
           outline-offset: -3px;
           animation: agentEditPulse 1s ease-in-out infinite;
           transition: outline-color 0.2s;

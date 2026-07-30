@@ -12,20 +12,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Theme tokens — used by the app UI and the editor chrome overrides. */
-  --brand: #7c5cfc; /* indigo-violet */
-  --brand-fg: #ffffff;
-  --brand-soft: #ede9fe; /* violet-100 */
+  /* Panel and brand tokens come from @mjml-agent-editor/editor/styles.css, so the
+     chrome and the components around it stay one vocabulary. Override any
+     --mjml-editor-* token to restyle both. */
   --surface: #ffffff;
   --surface-muted: #f3eee4; /* warm cream canvas backdrop */
-  /* Dark navy chrome (header + side panels) — applied explicitly, NOT via global
-     .dark, so the mail canvas in the center stays light. */
-  --panel: #101a30; /* navy */
-  --panel-elevated: #1a2440; /* elevated navy (cards/fields) */
-  --panel-fg: #e8ecf5; /* slate-100 */
-  --panel-muted-fg: #8791a8; /* slate-400 */
-  --panel-border: #2a3654; /* navy border */
-  --panel-hover: #22304f; /* hover on navy */
   --border: oklch(0.922 0 0); /* zinc-200 */
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

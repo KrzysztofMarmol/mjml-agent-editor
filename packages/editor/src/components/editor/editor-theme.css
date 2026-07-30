@@ -1,20 +1,84 @@
 /*
- * GrapesJS chrome theme. Native block/style/layer/trait managers render via
- * appendTo into our docks inside the DARK NAVY left sidebar (wrapper
- * `.editor-dark`) — styled dark & scoped under `.editor-dark`, which keeps the
- * mail canvas (outside `.editor-dark`) on its light backdrop.
+ * Editor chrome theme.
  *
- * GrapesJS injects its own theme inline at runtime, so overrides need higher
- * specificity than its single classes — `.editor-dark .gjs-x` (0,2,0) beats a
- * single class (0,1,0). The object toolbar / RTE bar render over the canvas
- * (not in the sidebar) and stay dark pills via global `:root` rules.
+ * Every colour below is a custom property, so a host restyles the editor by redefining
+ * these rather than by forking the stylesheet. Import this file and then override any
+ * token in your own `:root` — later declarations win.
+ *
+ * Before this, the file carried eighteen hardcoded hex values and no `var()` at all,
+ * which made "apply your own styling" untrue in practice.
  */
+:root {
+  /* Deepest chrome surface: sidebar and panel backgrounds. */
+  --mjml-editor-panel: #101a30;
+  /* Recessed areas inside a panel. */
+  --mjml-editor-panel-sunken: #16203a;
+  /* Cards, fields and anything raised off the panel. */
+  --mjml-editor-panel-elevated: #1a2440;
+  /* Hover state for elevated surfaces. */
+  --mjml-editor-panel-raised: #22304f;
+  /* Default divider. */
+  --mjml-editor-border: #263250;
+  /* Divider that needs to read against elevated surfaces. */
+  --mjml-editor-border-strong: #2a3654;
+  /* Primary text on the chrome. */
+  --mjml-editor-fg: #e6ebf4;
+  /* Text that must sit on the accent colour. */
+  --mjml-editor-fg-strong: #ffffff;
+  /* Secondary text. */
+  --mjml-editor-fg-muted: #aeb8cf;
+  /* Labels and inactive tabs. */
+  --mjml-editor-fg-subtle: #8b96ac;
+  /* Placeholders. */
+  --mjml-editor-fg-faint: #6b7891;
+  /* Text on the light canvas, not on the chrome. */
+  --mjml-editor-fg-on-light: #18181b;
+  /* Icons and controls needing more contrast than fg-muted. */
+  --mjml-editor-neutral: #cbd5e1;
+  /* Scrollbar thumb. */
+  --mjml-editor-scrollbar: #2f3d5e;
+  /* Scrollbar thumb, hovered. */
+  --mjml-editor-scrollbar-hover: #3d4e75;
+  /* Brand colour: selection, active state, the agent's edit pulse. */
+  --mjml-editor-accent: #7c5cfc;
+  /* Accent text on a dark surface. */
+  --mjml-editor-accent-soft: #a99bff;
+  /* Accent text needing the least weight. */
+  --mjml-editor-accent-softer: #c9bdff;
+  /* Drop shadow under floating chrome. */
+  --mjml-editor-shadow: rgba(3, 8, 20, 0.4);
+}
+
+/*
+ * The Tailwind-facing names the packaged React components are classed against
+ * (`bg-panel`, `text-brand`, …), defined here as aliases so one vocabulary drives both
+ * the GrapesJS chrome and the components around it.
+ *
+ * Without this the package was not self-contained: overriding --mjml-editor-* repainted
+ * the GrapesJS sidebar while the header and chat panel stayed on whatever the host
+ * happened to define, because those components read the host's tokens. A host that
+ * defined none of them got an unstyled header and no warning.
+ *
+ * A host that wants these to diverge from the editor chrome can still redefine them
+ * after importing this file.
+ */
+:root {
+  --panel: var(--mjml-editor-panel);
+  --panel-elevated: var(--mjml-editor-panel-elevated);
+  --panel-hover: var(--mjml-editor-panel-raised);
+  --panel-fg: var(--mjml-editor-fg);
+  --panel-muted-fg: var(--mjml-editor-fg-subtle);
+  --panel-border: var(--mjml-editor-border-strong);
+  --brand: var(--mjml-editor-accent);
+  --brand-fg: var(--mjml-editor-fg-strong);
+  --brand-soft: var(--mjml-editor-accent-softer);
+}
 
 /* ── Thin, theme-matched scrollbars in the dark chrome ──────────────────── */
 .editor-dark,
 .editor-dark * {
   scrollbar-width: thin;
-  scrollbar-color: #2f3d5e transparent;
+  scrollbar-color: var(--mjml-editor-scrollbar) transparent;
 }
 .editor-dark ::-webkit-scrollbar,
 .editor-dark::-webkit-scrollbar {
@@ -27,14 +91,14 @@
 }
 .editor-dark ::-webkit-scrollbar-thumb,
 .editor-dark::-webkit-scrollbar-thumb {
-  background-color: #2f3d5e;
+  background-color: var(--mjml-editor-scrollbar);
   border-radius: 999px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 .editor-dark ::-webkit-scrollbar-thumb:hover,
 .editor-dark::-webkit-scrollbar-thumb:hover {
-  background-color: #3d4e75;
+  background-color: var(--mjml-editor-scrollbar-hover);
   background-clip: content-box;
 }
 .editor-dark ::-webkit-scrollbar-corner,
@@ -44,28 +108,28 @@
 
 /* ── Dark navy manager surfaces (left sidebar) ──────────────────────────── */
 .editor-dark .gjs-one-bg {
-  background-color: #101a30; /* panel */
+  background-color: var(--mjml-editor-panel); /* panel */
 }
 .editor-dark .gjs-two-bg {
-  background-color: #1a2440; /* panel-elevated */
+  background-color: var(--mjml-editor-panel-elevated); /* panel-elevated */
 }
 .editor-dark .gjs-two-color,
 .editor-dark .gjs-two-color-h:hover {
-  color: #cbd5e1; /* slate-300 */
+  color: var(--mjml-editor-neutral); /* slate-300 */
 }
 .editor-dark .gjs-color-main,
 .editor-dark .gjs-color-active {
-  color: #e6ebf4; /* slate-100 */
+  color: var(--mjml-editor-fg); /* slate-100 */
 }
 
 /* Accent (active/selected) — violet brand */
 :root .gjs-three-bg {
-  background-color: #7c5cfc;
-  color: #ffffff;
+  background-color: var(--mjml-editor-accent);
+  color: var(--mjml-editor-fg-strong);
 }
 :root .gjs-four-color,
 :root .gjs-four-color-h:hover {
-  color: #a99bff;
+  color: var(--mjml-editor-accent-soft);
 }
 
 /* ── Blocks (dark navy cards, 3-column grid) ─────────────────────────────── */
@@ -81,20 +145,20 @@
   min-height: 62px;
   margin: 0;
   padding: 10px 4px;
-  border: 1px solid #2a3654;
+  border: 1px solid var(--mjml-editor-border-strong);
   border-radius: 10px;
-  background-color: #1a2440;
+  background-color: var(--mjml-editor-panel-elevated);
   box-shadow: none;
-  color: #aeb8cf;
+  color: var(--mjml-editor-fg-muted);
   transition:
     border-color 0.12s ease,
     box-shadow 0.12s ease,
     background-color 0.12s ease;
 }
 .editor-dark .gjs-block:hover {
-  border-color: #7c5cfc;
-  background-color: #22304f;
-  box-shadow: 0 1px 10px rgba(124, 92, 252, 0.3);
+  border-color: var(--mjml-editor-accent);
+  background-color: var(--mjml-editor-panel-raised);
+  box-shadow: 0 1px 10px color-mix(in srgb, var(--mjml-editor-accent) 30%, transparent);
 }
 .editor-dark .gjs-block__media {
   display: flex;
@@ -104,12 +168,12 @@
 .editor-dark .gjs-block svg {
   width: 22px;
   height: 22px;
-  fill: #aeb8cf;
+  fill: var(--mjml-editor-fg-muted);
 }
 .editor-dark .gjs-block-label {
   font-size: 10px;
   line-height: 1.2;
-  color: #aeb8cf;
+  color: var(--mjml-editor-fg-muted);
 }
 .editor-dark .gjs-block-category .gjs-title,
 .editor-dark .gjs-blocks-c .gjs-title {
@@ -117,7 +181,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #6b7891; /* slate-500 */
+  color: var(--mjml-editor-fg-faint); /* slate-500 */
   padding: 10px 10px 4px;
 }
 /* Category open indicator — hide the default caret for a cleaner header */
@@ -129,22 +193,22 @@
 .editor-dark .gjs-field,
 .editor-dark .gjs-sm-field,
 .editor-dark .gjs-clm-field {
-  background-color: #1a2440;
-  border: 1px solid #263250;
+  background-color: var(--mjml-editor-panel-elevated);
+  border: 1px solid var(--mjml-editor-border);
   border-radius: 6px;
-  color: #e6ebf4;
+  color: var(--mjml-editor-fg);
 }
 .editor-dark .gjs-field input,
 .editor-dark .gjs-field select,
 .editor-dark .gjs-field textarea,
 .editor-dark .gjs-sm-field input,
 .editor-dark .gjs-clm-field input {
-  color: #e6ebf4;
+  color: var(--mjml-editor-fg);
 }
 .editor-dark .gjs-field-arrow-u,
 .editor-dark .gjs-field-arrow-d {
-  border-bottom-color: #8b96ac;
-  border-top-color: #8b96ac;
+  border-bottom-color: var(--mjml-editor-fg-subtle);
+  border-top-color: var(--mjml-editor-fg-subtle);
 }
 
 /* Unified manager typography (traits + styles) */
@@ -156,7 +220,7 @@
   line-height: 1.4;
   letter-spacing: normal;
   text-transform: none;
-  color: #8b96ac;
+  color: var(--mjml-editor-fg-subtle);
 }
 .editor-dark .gjs-sm-properties,
 .editor-dark .gjs-traits-c {
@@ -186,9 +250,9 @@
 .editor-dark .gjs-sm-sector-title,
 .editor-dark .gjs-trt-header {
   padding: 8px 10px;
-  background-color: #16203a;
-  color: #cbd5e1;
-  border-bottom: 1px solid #263250;
+  background-color: var(--mjml-editor-panel-sunken);
+  color: var(--mjml-editor-neutral);
+  border-bottom: 1px solid var(--mjml-editor-border);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -196,33 +260,33 @@
 }
 .editor-dark .gjs-sm-sector,
 .editor-dark .gjs-trt-trait {
-  border-bottom: 1px solid #1a2440;
+  border-bottom: 1px solid var(--mjml-editor-panel-elevated);
 }
 
 /* Layers */
 .editor-dark .gjs-layer-title {
-  color: #cbd5e1;
+  color: var(--mjml-editor-neutral);
 }
 .editor-dark .gjs-layer.gjs-selected > .gjs-layer-item {
-  background-color: rgba(124, 92, 252, 0.22);
+  background-color: color-mix(in srgb, var(--mjml-editor-accent) 22%, transparent);
 }
 
 /* Selector bar (component classes) */
 .editor-dark .gjs-clm-tags {
-  background-color: #1a2440;
-  color: #cbd5e1;
+  background-color: var(--mjml-editor-panel-elevated);
+  color: var(--mjml-editor-neutral);
 }
 
 /* ── Drop placeholder (was green) → violet ───────────────────────────────── */
 :root .gjs-placeholder {
-  border-color: #7c5cfc;
+  border-color: var(--mjml-editor-accent);
 }
 :root .gjs-placeholder.horizontal {
-  border-color: #7c5cfc;
+  border-color: var(--mjml-editor-accent);
 }
 :root .gjs-placeholder-int {
-  background-color: #7c5cfc;
-  border-color: #7c5cfc;
+  background-color: var(--mjml-editor-accent);
+  border-color: var(--mjml-editor-accent);
 }
 
 /* ── Canvas backdrop stays light (React container provides bg-surface-muted) ─ */
@@ -240,10 +304,10 @@
 
 /* ── Object toolbar (context menu) — dark rounded pill ───────────────────── */
 :root .gjs-toolbar {
-  background-color: #101a30;
+  background-color: var(--mjml-editor-panel);
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
+  box-shadow: 0 6px 16px var(--mjml-editor-shadow);
 }
 :root .gjs-toolbar-items {
   display: flex;
@@ -258,14 +322,14 @@
   height: 26px;
   padding: 0;
   border-radius: 6px;
-  color: #cbd5e1;
+  color: var(--mjml-editor-neutral);
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-toolbar-item:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--mjml-editor-fg-strong) 12%, transparent);
+  color: var(--mjml-editor-fg-strong);
 }
 :root .gjs-toolbar-item svg {
   width: 15px;
@@ -273,21 +337,21 @@
 }
 /* Accent on the "sparkles" (comment/AI) button — violet */
 :root .gjs-toolbar-item[data-role="sparkles"] {
-  color: #a99bff;
+  color: var(--mjml-editor-accent-soft);
 }
 :root .gjs-toolbar-item[data-role="sparkles"]:hover {
-  background-color: rgba(124, 92, 252, 0.3);
-  color: #c9bdff;
+  background-color: color-mix(in srgb, var(--mjml-editor-accent) 30%, transparent);
+  color: var(--mjml-editor-accent-softer);
 }
 
 /* ── RTE bar — same dark pill, with font/size/color extras ───────────────── */
 :root .gjs-rte-toolbar {
   z-index: 100;
-  background-color: #101a30;
+  background-color: var(--mjml-editor-panel);
   border: none;
   border-radius: 9px;
   padding: 3px;
-  box-shadow: 0 6px 16px rgba(3, 8, 20, 0.4);
+  box-shadow: 0 6px 16px var(--mjml-editor-shadow);
 }
 :root .gjs-rte-actionbar {
   display: flex;
@@ -305,28 +369,28 @@
   padding: 0 4px;
   border: none;
   border-radius: 6px;
-  color: #cbd5e1;
+  color: var(--mjml-editor-neutral);
   transition:
     background-color 0.12s ease,
     color 0.12s ease;
 }
 :root .gjs-rte-action:hover {
-  background-color: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--mjml-editor-fg-strong) 12%, transparent);
+  color: var(--mjml-editor-fg-strong);
 }
 :root .gjs-rte-action svg {
   width: 15px;
   height: 15px;
 }
 :root .gjs-rte-action.gjs-rte-active {
-  background-color: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background-color: color-mix(in srgb, var(--mjml-editor-fg-strong) 18%, transparent);
+  color: var(--mjml-editor-fg-strong);
 }
 :root .gjs-rte-select {
   max-width: 92px;
   padding: 0 2px;
   background: transparent;
-  color: #e6ebf4;
+  color: var(--mjml-editor-fg);
   border: none;
   font-size: 12px;
   text-overflow: ellipsis;
@@ -334,7 +398,7 @@
   cursor: pointer;
 }
 :root .gjs-rte-select option {
-  color: #18181b;
+  color: var(--mjml-editor-fg-on-light);
 }
 :root .gjs-rte-color {
   width: 18px;

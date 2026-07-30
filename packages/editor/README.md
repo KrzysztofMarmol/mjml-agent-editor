@@ -24,7 +24,31 @@ const EmailEditor = dynamic(
 );
 ```
 
-## Styling
+## Theming
+
+Every colour is a CSS custom property. Restyle the editor by redefining tokens; do not fork
+the stylesheet:
+
+```css
+:root {
+  --mjml-editor-panel: #14261f;
+  --mjml-editor-accent: #f59e0b;
+}
+```
+
+That covers the GrapesJS chrome _and_ the React components around it — the header, chat
+panel and comment pins are classed against Tailwind names (`bg-panel`, `text-brand`) that
+`styles.css` defines as aliases of the same tokens. Verified by overriding eleven tokens in
+a running editor: the whole surface repainted, no component touched.
+
+The full token list, with what each one is for, is the `:root` block at the top of
+`src/components/editor/editor-theme.css`.
+
+The canvas iframe is the one place this cannot reach — it has its own document, so the
+agent's edit-pulse rules are injected by script. That injection reads
+`--mjml-editor-accent` from the host document rather than carrying its own colour.
+
+## Stylesheet wiring
 
 The components are Tailwind-classed, and Tailwind only emits classes it can see. Point it at
 the package from your CSS entry, or the editor renders unstyled with nothing in the build
