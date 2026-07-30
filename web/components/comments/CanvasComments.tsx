@@ -98,10 +98,11 @@ export default function CanvasComments({
       const el = cdoc.querySelector(`.${k}`) as HTMLElement | null;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      // top-right corner of the element, in the overlay's coordinate space
+      // Just past the element's right edge (into the canvas margin) so the pin
+      // doesn't overlap GrapesJS's element toolbar or get clipped.
       next[k] = {
         top: fRect.top + r.top - cRect.top + 4,
-        left: fRect.left + r.left - cRect.left + r.width - 14,
+        left: fRect.left + r.left - cRect.left + r.width + 8,
       };
     });
     if (JSON.stringify(positionsRef.current) !== JSON.stringify(next)) {
