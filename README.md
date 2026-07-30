@@ -4,19 +4,18 @@ An MJML email editor with an AI agent that generates an email from a description
 generates images, edits individual sections, and applies fixes from comments left on the
 canvas.
 
-> Migrating out of its spike shape into a monorepo. `web/` is still the original app on its
-> own npm toolchain; it becomes `apps/example` in a later step.
-
 ## Layout
 
-| Path                  | What it is                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `packages/agent-core` | The contract: tool schemas, the system prompt, MJML document addressing, storage ports. No framework, no I/O. |
-| `packages/agent-node` | Default agent implementation (TypeScript, Vercel AI SDK).                                                     |
-| `agent-python`        | Second implementation (FastAPI), proving the contract is a contract.                                          |
-| `apps/example`        | Supabase adapters plus a dev server exposing the agent.                                                       |
-| `web/`                | The Next.js editor: GrapesJS-MJML canvas, chat panel on `useChat`, canvas comments.                           |
-| `supabase/`           | Local Postgres (documents, comments) and Storage, via `npx supabase start`.                                   |
+| Path                      | What it is                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `packages/agent-core`     | The contract: tool schemas, the system prompt, MJML document addressing, storage ports. No framework, no I/O. |
+| `packages/agent-node`     | Default agent implementation (TypeScript, Vercel AI SDK).                                                     |
+| `packages/editor`         | The React editor: GrapesJS-MJML canvas, chat panel on `useChat`, canvas comments.                             |
+| `packages/store-supabase` | Supabase adapter for the `DocumentStore` / `CommentStore` ports.                                              |
+| `packages/conformance`    | The suite any agent backend must pass, runnable against a URL.                                                |
+| `agent-python`            | Second implementation (FastAPI), proving the contract is a contract.                                          |
+| `apps/example`            | The complete application, and the thing to clone if you want a working editor.                                |
+| `supabase/`               | Local Postgres (documents, comments) and Storage, via `npx supabase start`.                                   |
 
 Both agent implementations read tool names, descriptions, argument schemas and the system
 prompt from `packages/agent-core/contract/tools.json`, which the core package's build
@@ -50,7 +49,21 @@ Open http://localhost:3000. To run the Python backend instead, see `agent-python
 - Section comments live in the `comments` table; "Apply changes from comments" runs the
   agent, which reads the open comments, fixes the sections and resolves them.
 
+## Using it in your own project
+
+Clone `apps/example` if you want a working application. Install `@mjml-agent-editor/editor`
+and `@mjml-agent-editor/agent-node` if you want the editor inside something you already have;
+neither package talks to a database — the host injects a `DocumentStore` and a `CommentStore`,
+and every colour is a CSS custom property. See
+[`packages/editor/README.md`](packages/editor/README.md).
+
 ## Documentation
 
 - [`docs/agent-contract.md`](docs/agent-contract.md) — what a backend must implement.
 - [`packages/conformance/README.md`](packages/conformance/README.md) — the suite both backends pass.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to run the checks CI runs, and why the generated
+  contract artifact needs a `git diff` rather than a test.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

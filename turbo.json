@@ -3,7 +3,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      // Turborepo runs tasks in strict env mode: a variable the shell exports is invisible
+      // to the task unless it is listed here. `apps/example` builds its Supabase clients and
+      // agent handler at module scope, so Next.js collecting page data for /api/chat throws
+      // on a missing variable rather than deferring it to request time.
+      // `NEXT_PUBLIC_*` is not listed: Turborepo infers it from the Next.js framework.
+      "env": ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY", "AGENT_MODEL"]
     },
     "typecheck": {
       "dependsOn": ["^build"]
