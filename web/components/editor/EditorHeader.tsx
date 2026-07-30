@@ -18,6 +18,7 @@ import {
   Smartphone,
   MoreVertical,
   ArrowLeft,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -36,6 +37,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -280,7 +282,10 @@ export default function EditorHeader({
               <Eye /> Preview
             </Button>
           </DialogTrigger>
-          <DialogContent className="flex !max-w-none h-screen w-screen flex-col gap-0 rounded-none border-0 bg-zinc-100 p-0 sm:rounded-none">
+          <DialogContent
+            showCloseButton={false}
+            className="flex !max-w-none h-screen w-screen flex-col gap-0 rounded-none border-0 bg-zinc-100 p-0 sm:rounded-none"
+          >
             <div className="flex h-12 shrink-0 items-center justify-between border-b bg-white px-4">
               <DialogTitle className="text-sm">Preview — {name}</DialogTitle>
               <div className="flex items-center gap-2">
@@ -306,6 +311,11 @@ export default function EditorHeader({
                 >
                   <Download /> Export HTML
                 </Button>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon" aria-label="Close preview">
+                    <X />
+                  </Button>
+                </DialogClose>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-6">
