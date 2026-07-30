@@ -64,15 +64,23 @@ def get_model() -> ai.Model:
     base_url, default_model, key_env = _OPENAI_COMPAT.get(provider, ("", "", ""))
     base_url = os.environ.get("AGENT_BASE_URL", base_url)
     model_id = os.environ.get("AGENT_MODEL") or default_model
-    # Ignore a leftover "provider:model" id (e.g. "anthropic:claude-haiku-4-5") from an
-    # earlier configuration — OpenAI-compatible model ids carry no "provider:" prefix,
-    # and passing one through produces an opaque 404 from the backend.
+    # One variable, two meanings: AGENT_MODEL belongs to whichever backend AGENT_PROVIDER
+    # selected, so flipping the provider and forgetting the model leaves an id addressed
+    # to the wrong vendor. The backend answers with a 404 that names neither variable, so
+    # fall back to the preset default instead. Two spellings of a leftover id reach here:
     #
-    # A colon alone is not enough to identify one: OpenRouter ids such as
-    # "deepseek/deepseek-r1:free" are legitimate. The prefix is only a provider name
-    # when it precedes the first slash, and only a preset can supply a replacement.
+    #   - "anthropic:claude-haiku-4-5" — the "provider:model" form this SDK resolves. A
+    #     colon alone does not prove it: OpenRouter ids such as
+    #     "deepseek/deepseek-r1:free" are legitimate, and there the prefix follows a slash.
+    #   - "claude-haiku-4-5" — the TypeScript backend accepts a bare id, so a shared .env
+    #     can hold one.
+    #
+    # This is a guard against a stale config, not model-id validation: an id belonging to
+    # some third vendor still goes through and still fails at the backend.
     head = model_id.split(":", 1)[0]
-    if default_model and ":" in model_id and "/" not in head:
+    looks_provider_prefixed = ":" in model_id and "/" not in head
+    looks_anthropic = model_id.startswith("claude-")
+    if default_model and (looks_provider_prefixed or looks_anthropic):
         model_id = default_model
     api_key = os.environ.get("AGENT_API_KEY") or (os.environ.get(key_env, "") if key_env else "")
 

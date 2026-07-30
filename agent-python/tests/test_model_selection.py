@@ -68,6 +68,18 @@ def test_leftover_provider_prefix_falls_back_to_the_preset_default(
     assert email_agent.get_model().id == "deepseek-chat"
 
 
+def test_bare_anthropic_id_falls_back_to_the_preset_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The prefix-less spelling is what the TypeScript backend accepts, so a shared .env
+    can carry it. DeepSeek's reply to it names neither variable, so catch it here."""
+    monkeypatch.setenv("AGENT_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.setenv("AGENT_MODEL", "claude-haiku-4-5")
+
+    assert email_agent.get_model().id == "deepseek-chat"
+
+
 def test_a_colon_inside_a_namespaced_id_is_not_a_provider_prefix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

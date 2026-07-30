@@ -86,15 +86,24 @@ export function resolveModelFromEnv(env: Record<string, string | undefined>): La
   const apiKey = env["AGENT_API_KEY"] ?? (preset ? (env[preset.keyEnv] ?? "") : "");
   let modelId = env["AGENT_MODEL"] || (preset?.defaultModel ?? "");
 
-  // Ignore a leftover "provider:model" id (e.g. "anthropic:claude-haiku-4-5") from an
-  // earlier configuration — OpenAI-compatible ids carry no "provider:" prefix, and
-  // passing one through produces an opaque 404 from the backend.
+  // One variable, two meanings: AGENT_MODEL belongs to whichever backend AGENT_PROVIDER
+  // selected, so flipping the provider and forgetting the model leaves an id addressed to
+  // the wrong vendor. The backend answers with a 404 that names neither variable
+  // ("supported API model names are …, but you passed claude-haiku-4-5"), so fall back to
+  // the preset default instead. Two spellings of a leftover id reach here:
   //
-  // A colon alone is not enough to identify one: OpenRouter ids such as
-  // "deepseek/deepseek-r1:free" are legitimate. The prefix is only a provider name when
-  // it precedes the first slash, and only a preset can supply a replacement.
+  //  - "anthropic:claude-haiku-4-5" — the Python side's "provider:model" form. A colon
+  //    alone does not prove it: OpenRouter ids such as "deepseek/deepseek-r1:free" are
+  //    legitimate, and there the prefix follows a slash.
+  //  - "claude-haiku-4-5" — this package strips the prefix, so a bare Anthropic id is a
+  //    valid thing to find in a .env file.
+  //
+  // This is a guard against a stale config, not model-id validation: an id belonging to
+  // some third vendor still goes through and still fails at the backend.
   const head = modelId.split(":", 1)[0] ?? "";
-  if (preset && modelId.includes(":") && !head.includes("/")) {
+  const looksProviderPrefixed = modelId.includes(":") && !head.includes("/");
+  const looksAnthropic = modelId.startsWith("claude-");
+  if (preset && (looksProviderPrefixed || looksAnthropic)) {
     modelId = preset.defaultModel;
   }
 

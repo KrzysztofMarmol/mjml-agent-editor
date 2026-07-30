@@ -67,6 +67,19 @@ describe("resolveModelFromEnv", () => {
     expect(model.modelId).toBe("deepseek-chat");
   });
 
+  it("drops a bare Anthropic id too, not just the prefixed spelling", () => {
+    // This is the one that actually got through: DeepSeek answered "the supported API
+    // model names are deepseek-v4-pro or deepseek-v4-flash, but you passed
+    // claude-haiku-4-5" — a message naming neither AGENT_PROVIDER nor AGENT_MODEL.
+    const model = resolved({
+      AGENT_PROVIDER: "deepseek",
+      DEEPSEEK_API_KEY: "test-key",
+      AGENT_MODEL: "claude-haiku-4-5",
+    });
+
+    expect(model.modelId).toBe("deepseek-chat");
+  });
+
   it("keeps a colon that belongs to a namespaced id", () => {
     // OpenRouter's free tier is spelled "vendor/model:free".
     const model = resolved({
