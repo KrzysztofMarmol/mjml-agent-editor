@@ -250,6 +250,7 @@ export default function EmailEditor({
 
   const onEditor = async (editor: Editor) => {
     editorRef.current = editor;
+
     // Build the breadcrumb chain from a component up to (but excluding) mj-body.
     const buildCrumbs = (c: Component | undefined) => {
       const chain: Component[] = [];
@@ -263,8 +264,16 @@ export default function EmailEditor({
       setCrumbs(chain);
     };
 
+    // GrapesJS find() by MJML tag is unreliable — walk the tree instead.
+    const findByTag = (tag: string): Component | undefined => {
+      let found: Component | undefined;
+      editor.getWrapper()?.onAll((c) => {
+        if (!found && (c.get("tagName") === tag || c.get("type") === tag)) found = c;
+      });
+      return found;
+    };
     const bodyWidth = (): string => {
-      const body = editor.getWrapper()?.find("mj-body")[0];
+      const body = findByTag("mj-body");
       return String((body?.getAttributes?.() as Record<string, unknown>)?.width ?? "600px");
     };
     const snapshot = (): EditorState => ({
@@ -341,7 +350,8 @@ export default function EmailEditor({
     // next selection as coming from the canvas (→ open Settings). Selecting via
     // the Layers tree leaves the source as "layers" (set by the sidebar).
     editor.on("load", () => {
-      editor.Canvas.getBody()?.addEventListener(
+      const body = editor.Canvas.getBody();
+      body?.addEventListener(
         "mousedown",
         () => {
           selectionSource.current = "canvas";
@@ -499,8 +509,7 @@ export default function EmailEditor({
         notifyState();
       },
       setContentWidth: (w) => {
-        const body = editor.getWrapper()?.find("mj-body")[0];
-        body?.addAttributes({ width: w });
+        findByTag("mj-body")?.addAttributes({ width: w });
         notifyState();
       },
       onEditorState: (cb) => {

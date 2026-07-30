@@ -226,6 +226,8 @@
 }
 
 /* ── Canvas backdrop stays light (React container provides bg-surface-muted) ─ */
+/* overflow: visible lets the RTE bar for text near the canvas edge escape
+   instead of being clipped. */
 :root .gjs-cv-canvas {
   overflow: visible;
   background-color: transparent;
