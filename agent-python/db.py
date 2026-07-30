@@ -29,7 +29,9 @@ def get_document_mjml(doc_id: str) -> str:
 
 
 def set_document_mjml(doc_id: str, mjml: str) -> None:
-    client().table("documents").update({"mjml": mjml, "updated_at": _now()}).eq("id", doc_id).execute()
+    client().table("documents").update({"mjml": mjml, "updated_at": _now()}).eq(
+        "id", doc_id
+    ).execute()
 
 
 def list_open_comments(doc_id: str) -> list[dict]:
@@ -46,7 +48,9 @@ def list_open_comments(doc_id: str) -> list[dict]:
 
 
 def resolve_comment(comment_id: str) -> None:
-    client().table("comments").update({"status": "resolved", "resolved_at": _now()}).eq("id", comment_id).execute()
+    client().table("comments").update({"status": "resolved", "resolved_at": _now()}).eq(
+        "id", comment_id
+    ).execute()
 
 
 def upload_image(name: str, data: bytes, content_type: str = "image/png") -> str:

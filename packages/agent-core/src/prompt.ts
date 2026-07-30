@@ -1,14 +1,20 @@
-"""Email agent definition (Vercel AI SDK for Python)."""
+/**
+ * The agent's system prompt — contract, not implementation.
+ *
+ * It states the document rules both backends enforce (stable `sec-<id>` anchors,
+ * validated writes, the comment workflow), so it belongs beside the tool schemas rather
+ * than inside one backend. It is emitted into `contract/tools.json` for the Python
+ * implementation to read.
+ *
+ * One block from the spike is deliberately absent: the demand for single-line MJML with
+ * single-quoted attributes. That works around the Vercel AI SDK **for Python** replacing
+ * malformed tool-call argument JSON with `{}`. It is a property of one SDK, not of the
+ * task, and it cost output quality while occupying roughly a quarter of the prompt.
+ * Backends that need it append `LEGACY_JSON_ARGUMENT_HINT` to the affected tool
+ * descriptions; the TypeScript one was measured not to. See `docs/agent-contract.md`.
+ */
 
-from __future__ import annotations
-
-import os
-
-import ai
-import tools
-
-SYSTEM = """\
-You are a marketing-email designer agent. You work on an MJML document shared
+export const SYSTEM_PROMPT = `You are a marketing-email designer agent. You work on an MJML document shared
 with the user's visual editor (GrapesJS). Respond in the user's language (match
 the language of the conversation), concisely — the user sees the result in the
 editor, so do not paste MJML into your replies.
@@ -23,14 +29,6 @@ DOCUMENT RULES:
   Use set_document only when creating an email from scratch.
 - Write tools validate MJML — if you get a validation error, fix the
   source and try again.
-
-MJML ARGUMENT FORMAT (IMPORTANT — otherwise the call breaks):
-- Pass MJML in tool arguments on a SINGLE line — no literal newlines
-  inside the value (they break the call's JSON).
-- Write attributes with SINGLE QUOTES, not double quotes: background-color='#2e7d32',
-  css-class='sec-cta'. Single quotes do not clash with the JSON double quotes.
-- If a tool returns an error about an empty argument / invalid JSON — retry
-  the call following the rules above.
 
 GENERATING AN EMAIL FROM SCRATCH (description + data from the user):
 1. Design the structure: hero, content/product sections, CTA, footer.
@@ -50,13 +48,12 @@ APPLYING FIXES FROM COMMENTS:
 3. Apply the change requested by the comment via set_section (pass the whole
    section with the fix applied).
 4. After a successful change mark the comment with resolve_comment(id).
-5. Finally, briefly summarize what you changed for each comment.
-"""
+5. Finally, briefly summarize what you changed for each comment.`;
 
-
-def get_model() -> ai.Model:
-    return ai.get_model(os.environ.get("AGENT_MODEL", "anthropic:claude-sonnet-5"))
-
-
-def build_agent(doc_id: str) -> ai.Agent:
-    return ai.Agent(tools=tools.build_tools(doc_id))
+/**
+ * Appended by implementations whose SDK cannot carry multi-line tool arguments.
+ * Kept here so both backends word it identically.
+ */
+export const LEGACY_JSON_ARGUMENT_HINT =
+  "Pass MJML on a SINGLE line (no literal newlines) and write attributes with single " +
+  "quotes, e.g. background-color='#2e7d32', so the tool-call JSON stays valid.";

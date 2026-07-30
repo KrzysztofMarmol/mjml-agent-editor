@@ -81,4 +81,15 @@ describe("committed contract artifact", () => {
   it("matches the TypeScript source", () => {
     expect(committedContract).toEqual(toolsAsJson());
   });
+
+  it("carries the system prompt, so both backends share one copy", () => {
+    const prompt = toolsAsJson().system_prompt;
+    expect(prompt.length).toBeGreaterThan(500);
+    // The invariant every backend enforces; if it ever leaves the prompt, say so loudly.
+    expect(prompt).toContain("sec-");
+  });
+
+  it("keeps the Python-only argument workaround out of the shared prompt", () => {
+    expect(toolsAsJson().system_prompt).not.toContain("SINGLE line");
+  });
 });

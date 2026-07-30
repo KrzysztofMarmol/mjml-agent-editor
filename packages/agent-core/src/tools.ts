@@ -14,6 +14,8 @@
  * `LEGACY_JSON_ARGUMENT_HINT` themselves; see `docs/agent-contract.md`.
  */
 
+import { SYSTEM_PROMPT } from "./prompt.js";
+
 /** Minimal JSON Schema shape used for tool arguments. */
 export interface ToolInputSchema {
   readonly type: "object";
@@ -216,24 +218,17 @@ export function isToolName(value: string): value is ToolName {
   return (TOOL_NAMES as readonly string[]).includes(value);
 }
 
-/**
- * Appended to argument descriptions by implementations whose SDK cannot carry
- * multi-line strings through tool-call JSON. The Python spike needed it; whether the
- * TypeScript implementation does is an open question tracked in `docs/agent-contract.md`.
- */
-export const LEGACY_JSON_ARGUMENT_HINT =
-  "Pass MJML on a SINGLE line (no literal newlines) and write attributes with single " +
-  "quotes, e.g. background-color='#2e7d32', so the tool-call JSON stays valid.";
-
 /** Serialisable form of the contract, consumed by non-TypeScript implementations. */
 export function toolsAsJson(): {
   version: number;
+  system_prompt: string;
   tools: Array<{ name: string; description: string; input_schema: ToolInputSchema }>;
   mutating_tools: string[];
   section_id_argument: Record<string, string>;
 } {
   return {
     version: 1,
+    system_prompt: SYSTEM_PROMPT,
     tools: TOOL_LIST.map((tool) => ({
       name: tool.name,
       description: tool.description,

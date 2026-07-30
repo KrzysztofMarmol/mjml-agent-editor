@@ -1,0 +1,38 @@
+[project]
+name = "mjml-agent-editor-python"
+version = "0.1.0"
+description = "FastAPI implementation of the MJML editing agent contract."
+requires-python = ">=3.12"
+dependencies = [
+    "ai[anthropic]>=0.3.0",
+    "fastapi>=0.139.2",
+    "openai>=2.46.0",
+    "python-dotenv>=1.2.2",
+    "supabase>=2.31.0",
+    "uvicorn[standard]>=0.51.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "ruff>=0.9.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# `dotenv.load_dotenv()` has to run before the modules that read the environment at
+# import time (tools.py resolves the contract path, db.py builds its client), so the
+# imports below it are deliberately not at the top.
+"main.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The service is a flat set of modules rather than a package, so tests import them
+# from the project root.
+pythonpath = ["."]
