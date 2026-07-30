@@ -6,16 +6,16 @@ import { toast } from "sonner";
 import { Plus, Mail } from "lucide-react";
 
 import { createDocument, listDocuments, type DocumentSummary } from "@/lib/documents";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
 import {
+  Button,
   Empty,
+  EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-  EmptyDescription,
-} from "@/components/ui/empty";
+  Input,
+  Spinner,
+} from "@mjml-agent-editor/editor/ui";
 
 export default function Home() {
   const router = useRouter();
@@ -53,9 +53,7 @@ export default function Home() {
         </span>
         <div>
           <h1 className="text-2xl font-bold">MJML Editor</h1>
-          <p className="text-sm text-muted-foreground">
-            MJML email editor + AI agent.
-          </p>
+          <p className="text-sm text-muted-foreground">MJML email editor + AI agent.</p>
         </div>
       </div>
 

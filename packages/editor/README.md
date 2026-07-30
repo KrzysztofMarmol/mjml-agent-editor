@@ -3,9 +3,43 @@
 The React MJML editor: GrapesJS canvas, agent chat panel, and comments pinned to elements
 on the canvas.
 
-> Being extracted. This currently holds the data-access boundary and shared constants; the
-> components still live in `apps/example` and move here next. Splitting it that way keeps
-> each step verifiable — the inversion is a behaviour change, the move is mechanical.
+## Entry points
+
+| Import                                 | Contains                                                     | Notes                                                  |
+| -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
+| `@mjml-agent-editor/editor`            | stores, `EditorHeader`, `ChatPanel`, `CanvasComments`, types | Safe to import anywhere                                |
+| `@mjml-agent-editor/editor/ui`         | the shadcn primitives and `cn`                               | Light; no canvas                                       |
+| `@mjml-agent-editor/editor/canvas`     | `EmailEditor`                                                | **Browser only** — GrapesJS touches `window` at import |
+| `@mjml-agent-editor/editor/styles.css` | editor chrome stylesheet                                     | Import from your Tailwind entry                        |
+
+The split is not cosmetic. With a single barrel, a layout file importing a tooltip provider
+pulls `EmailEditor` — and therefore GrapesJS — into the server bundle, and the Next.js build
+dies with `window is not defined` while prerendering an unrelated page. Load the canvas
+through a client-only dynamic import:
+
+```tsx
+const EmailEditor = dynamic(
+  () => import("@mjml-agent-editor/editor/canvas").then((m) => m.EmailEditor),
+  { ssr: false },
+);
+```
+
+## Styling
+
+The components are Tailwind-classed, and Tailwind only emits classes it can see. Point it at
+the package from your CSS entry, or the editor renders unstyled with nothing in the build
+warning about it:
+
+```css
+@import "grapesjs/dist/css/grapes.min.css";
+@import "@mjml-agent-editor/editor/styles.css";
+@source "../../node_modules/@mjml-agent-editor/editor/dist";
+```
+
+## Routing
+
+The package has no router dependency. `EditorHeader` takes a `homeLink` node, so a Next.js
+host passes `<Link href="/">` and anything else passes an anchor.
 
 ## Data access
 

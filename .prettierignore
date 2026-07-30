@@ -5,10 +5,6 @@ dist
 # fight the emitter on every build.
 packages/agent-core/contract/
 
-# The Next.js app came from the pre-monorepo `web/` tree; formatting it wholesale now would
-# bury the editor extraction in a whitespace diff. Formatted once that lands.
-apps/example/
-
 # Python: formatted and linted by ruff, not Prettier.
 agent-python/
 node_modules

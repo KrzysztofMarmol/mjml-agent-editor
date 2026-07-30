@@ -15,10 +15,22 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js",
+      "require": "./dist/ui.cjs"
+    },
+    "./canvas": {
+      "types": "./dist/canvas.d.ts",
+      "import": "./dist/canvas.js",
+      "require": "./dist/canvas.cjs"
+    },
+    "./styles.css": "./src/components/editor/editor-theme.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/components/editor/editor-theme.css"
   ],
   "scripts": {
     "build": "tsup",
@@ -26,7 +38,21 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mjml-agent-editor/core": "workspace:*"
+    "@ai-sdk/react": "^3.0.232",
+    "@grapesjs/react": "^2.0.0",
+    "@mjml-agent-editor/core": "workspace:*",
+    "@shadcn/react": "^0.2.1",
+    "ai": "^6.0.230",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "grapesjs": "^0.22.16",
+    "grapesjs-mjml": "^1.0.8",
+    "lucide-react": "^1.25.0",
+    "radix-ui": "^1.6.2",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {
     "react": "^19",

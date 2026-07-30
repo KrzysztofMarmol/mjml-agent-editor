@@ -4,17 +4,24 @@ import dynamic from "next/dynamic";
 import { useCallback, useRef, useState } from "react";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
-import { EditorStoreProvider } from "@mjml-agent-editor/editor";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import {
+  ChatPanel,
+  EditorHeader,
+  EditorStoreProvider,
+  type EditorApi,
+} from "@mjml-agent-editor/editor";
+import { Button, cn } from "@mjml-agent-editor/editor/ui";
+
 import { editorStores } from "@/lib/stores";
-import ChatPanel from "@/components/chat/ChatPanel";
-import EditorHeader from "@/components/editor/EditorHeader";
-import type { EditorApi } from "@/components/editor/EmailEditor";
-import { Button } from "@/components/ui/button";
 
 // GrapesJS touches window at import time — client side only.
-const EmailEditor = dynamic(() => import("@/components/editor/EmailEditor"), { ssr: false });
+const EmailEditor = dynamic(
+  () => import("@mjml-agent-editor/editor/canvas").then((m) => m.EmailEditor),
+  { ssr: false },
+);
 
 export default function EditorWorkspace({ docId }: { docId: string }) {
   const editorApi = useRef<EditorApi | null>(null);
@@ -40,7 +47,19 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
     // One place decides where the editor's data comes from.
     <EditorStoreProvider stores={editorStores}>
       <div className="flex h-screen flex-col">
-        <EditorHeader docId={docId} api={api} openCount={openCount} />
+        <EditorHeader
+          docId={docId}
+          api={api}
+          openCount={openCount}
+          homeLink={
+            <Link
+              href="/"
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+            >
+              <ArrowLeft className="size-4" /> All emails
+            </Link>
+          }
+        />
 
         <div className="relative flex min-h-0 flex-1">
           <div className="min-w-0 flex-1">
