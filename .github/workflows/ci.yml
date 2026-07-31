@@ -1,9 +1,12 @@
 name: CI
 
 on:
+  # Every branch, not just main. Development happens on a long-lived branch while the
+  # monorepo settles, and a workflow that only watches main would sit idle through exactly
+  # the period it is most needed.
   push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
