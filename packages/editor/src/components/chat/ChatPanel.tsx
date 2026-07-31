@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type ToolUIPart, type UIMessage } from "ai";
+import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -79,6 +79,17 @@ type Props = {
    * looking at an empty panel for.
    */
   initialMessages?: UIMessage[];
+  /**
+   * Where the panel sends turns. Defaults to `POST /api/chat` in this application.
+   *
+   * Supplying one replaces the endpoint entirely, which is how a host reaches an agent that
+   * is not a same-origin route — and how the scripted demo drives this panel from a
+   * recorded transcript without making any request at all.
+   *
+   * Memoize it. A transport carrying state — a playback position, an open connection —
+   * restarts if it is rebuilt on every render.
+   */
+  transport?: ChatTransport<UIMessage>;
   /** Flushes unsaved editor changes before the agent starts. */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
@@ -164,6 +175,7 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
 export default function ChatPanel({
   docId,
   initialMessages,
+  transport,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -185,11 +197,13 @@ export default function ChatPanel({
   };
   const { messages, sendMessage, status, stop } = useChat({
     messages: initialMessages,
-    transport: new DefaultChatTransport({
-      // Same-origin: the agent is a route handler in this app, not a separate service.
-      api: "/api/chat",
-      body: { docId },
-    }),
+    transport:
+      transport ??
+      new DefaultChatTransport({
+        // Same-origin: the agent is a route handler in this app, not a separate service.
+        api: "/api/chat",
+        body: { docId },
+      }),
     onFinish: onAgentFinish,
     onError: (e) => {
       console.error("chat error:", e);
