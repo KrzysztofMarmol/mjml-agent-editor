@@ -36,3 +36,9 @@ supabase/.branches/
 # turbo build cache
 .turbo/
 web/.turbo/
+
+# Leftovers from the pre-monorepo layout. The directory survives in working copies that
+# predate the move because it still holds untracked .env files and node_modules; nothing
+# in it belongs to the repository any more.
+/web/
+/agent/

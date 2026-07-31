@@ -1,7 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type ToolUIPart } from "ai";
+import { DefaultChatTransport, type ToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -69,6 +69,16 @@ const SECTION_ARG: Record<string, string> = {
 
 type Props = {
   docId: string;
+  /**
+   * Conversation to start from, oldest first.
+   *
+   * Only useful to a host that stores the conversation server-side. Without it the panel
+   * mounts empty, which is right when the browser is the only place the history ever
+   * lived — and wrong, invisibly, when it is not: the agent still receives the stored
+   * history on the next turn, so the model remembers a conversation the visitor is
+   * looking at an empty panel for.
+   */
+  initialMessages?: UIMessage[];
   /** Flushes unsaved editor changes before the agent starts. */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
@@ -153,6 +163,7 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
 
 export default function ChatPanel({
   docId,
+  initialMessages,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -173,6 +184,7 @@ export default function ChatPanel({
     return times.current.get(id)!;
   };
   const { messages, sendMessage, status, stop } = useChat({
+    messages: initialMessages,
     transport: new DefaultChatTransport({
       // Same-origin: the agent is a route handler in this app, not a separate service.
       api: "/api/chat",

@@ -179,9 +179,6 @@ importers:
       '@shadcn/react':
         specifier: ^0.2.1
         version: 0.2.1(@types/react@19.2.17)(react@19.2.4)
-      ai:
-        specifier: ^6.0.230
-        version: 6.0.238(zod@4.4.3)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -222,6 +219,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.17)
+      ai:
+        specifier: ^6.0.230
+        version: 6.0.238(zod@4.4.3)
       react:
         specifier: 19.2.4
         version: 19.2.4

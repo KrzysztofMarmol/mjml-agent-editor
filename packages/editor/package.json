@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "React MJML editor with an agent chat panel and canvas comments.",
   "keywords": [
     "mjml",
@@ -66,7 +66,6 @@
     "@grapesjs/react": "^2.0.0",
     "@mjml-agent-editor/core": "workspace:*",
     "@shadcn/react": "^0.2.1",
-    "ai": "^6.0.230",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "grapesjs": "^0.22.16",
@@ -80,13 +79,15 @@
   },
   "peerDependencies": {
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "ai": "^6.0.230"
   },
   "devDependencies": {
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "react": "19.2.4",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "ai": "^6.0.230"
   }
 }
