@@ -1,0 +1,24 @@
+{
+  "name": "@mjml-agent-editor/conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runs the shared agent scenarios against any running backend.",
+  "type": "module",
+  "scripts": {
+    "conformance": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mjml-agent-editor/agent-node": "workspace:*",
+    "@mjml-agent-editor/core": "workspace:*",
+    "@mjml-agent-editor/store-supabase": "workspace:*",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

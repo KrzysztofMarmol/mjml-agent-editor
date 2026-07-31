@@ -1,0 +1,25 @@
+{
+  "name": "mjml-agent-editor",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI-agent-driven MJML email editor \u2014 reusable packages plus a working example app.",
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:conformance": "pnpm --filter @mjml-agent-editor/conformance run conformance"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}
