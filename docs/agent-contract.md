@@ -34,10 +34,13 @@ Failures _after_ streaming has begun must be emitted as an error part inside the
 by dropping the connection — a truncated chunked response surfaces in the browser as an opaque
 "network error" with nothing to show the user.
 
-> **Not yet specified: history.** Today the client re-sends the whole conversation on every
-> request. Phase 4 moves history server-side (a `sessionId` plus a `chat_messages` table), which
-> will change this request shape. It is deliberately not designed here — there is no point
-> fixing an interface before the second consumer exists to constrain it.
+> **History is a host concern, not a wire concern.** The request shape above still carries
+> `messages`, and a backend that stores conversations server-side must treat that list as
+> untrusted: take the newest user message from it and load the rest from its own store. The
+> TypeScript implementation does exactly that when given a `ChatSession` — see the asymmetry
+> table below — which is why moving history into Postgres in the demo changed no wire format
+> and required no editor change. A client that can dictate the history can put words in the
+> model's mouth, so this is a security property, not a storage detail.
 
 ## Authorization
 
@@ -48,9 +51,37 @@ any visitor could read and delete any document.
 
 ## Ports
 
-Backends never talk to a database or an image service directly. They receive `DocumentStore`,
-`CommentStore`, `ImageProvider` and `MjmlCompiler` (`packages/agent-core/src/ports.ts`). This is
-what lets the same agent run against Supabase, plain Postgres or an in-memory store.
+The TypeScript backend never talks to a database or an image service directly. It receives
+`DocumentStore`, `CommentStore`, `ImageProvider` and `MjmlCompiler`
+(`packages/agent-core/src/ports.ts`), which is what lets the same agent run against Supabase,
+plain Postgres or an in-memory store.
+
+The Python backend does not do this — it reaches for Supabase and OpenAI itself. See below.
+
+## Where the two backends differ
+
+The contract is the wire format and the behavioural rules; everything either backend does to
+_honour_ them is its own business. That has produced a real capability gap, and pretending the
+two are interchangeable would send an adopter down the wrong path.
+
+| Capability                            | `agent-node`                              | `agent-python`                                            |
+| ------------------------------------- | ----------------------------------------- | --------------------------------------------------------- |
+| Document and comment storage          | injected `DocumentStore` / `CommentStore` | Supabase, hardwired (`db.py` reads the service-role key)  |
+| Images                                | injected `ImageProvider`                  | OpenAI + Supabase Storage, behind `IMAGE_MODE`            |
+| MJML compilation                      | `import mjml` in-process                  | shells out to the mjml v4 CLI — needs Node on the machine |
+| Server-side history                   | `ChatSession` (`load` / `save`)           | none: the conversation comes from the request body        |
+| Refusing a turn before the model runs | `authorize` hook                          | none                                                      |
+| Token accounting                      | `onUsage` hook                            | none                                                      |
+| Multi-line MJML in tool arguments     | works                                     | needs the single-line hint (see below)                    |
+
+The first three rows are what "ports" buys and Python does not have: **the Python backend can
+only be pointed at Supabase**, and swapping its storage means editing it. The next three are
+what the demo needs to survive being public — per-account scoping, limits, a spend ledger — so
+the live demo runs on the TypeScript backend, and the Python one stays a proof that the contract
+is a contract rather than a description of one implementation.
+
+None of this is visible from the editor, which is the part that matters: both answer the same
+`POST /api/chat`, and the conformance suite runs unchanged against either.
 
 ## Behavioural rules
 
@@ -70,7 +101,7 @@ documents in production.
    defaults to the process working directory — into every validation message. Strip it: those
    messages reach both the model's context and the chat panel.
 
-## Open question: multi-line tool arguments
+## Settled: multi-line tool arguments
 
 The spike spent roughly a quarter of its system prompt demanding single-line MJML with
 single-quoted attributes, plus a retry hint (`_EMPTY_ARG_HINT` in `agent/tools.py`). That was a
@@ -78,15 +109,15 @@ workaround for the Vercel AI SDK **for Python** replacing malformed tool-call ar
 `{}`. It is a property of that SDK, not of the task, and it costs output quality — forbidding
 newlines inside an `mjml` argument makes the model write worse markup.
 
-The TypeScript implementation therefore ships the clean prompt by default. **This has not been
-confirmed against a live model yet** — only against mocked streams. Until it is:
+Confirmed against a live model: asked for multi-line MJML through the TypeScript SDK, the model
+produced fourteen newlines, they arrived intact, and the result compiled. So the constraint
+belongs to the implementation that needs it and not to the contract:
 
-- `buildSystemPrompt({ legacyJsonArgumentHint: true })` restores the old instructions,
-- `LEGACY_JSON_ARGUMENT_HINT` in agent-core holds the wording, so both backends share it.
-
-If live testing shows the TypeScript SDK handles multi-line arguments (expected — it parses
-streamed arguments incrementally), the Python backend should keep the hint and the contract
-should stay clean, since the constraint belongs to the implementation that needs it.
+- the TypeScript backend ships the clean prompt,
+- the Python backend adds the hint on its MJML-taking tools,
+- `LEGACY_JSON_ARGUMENT_HINT` in agent-core holds the wording so both share one copy, and
+  `buildSystemPrompt({ legacyJsonArgumentHint: true })` restores it on the TypeScript side for
+  anyone pointing it at an SDK with the same defect.
 
 ## Conformance
 
