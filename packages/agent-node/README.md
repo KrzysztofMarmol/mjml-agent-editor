@@ -71,6 +71,32 @@ createChatHandler({
 });
 ```
 
+### `onUsage` — what the turn cost
+
+The other half of `authorize`: the guard decides whether a turn may start, and this is
+where the number it will decide on next time comes from. Called once per turn with totals
+across every step, which is the figure that matters — the expensive turn is the one that
+took twenty tool-calling rounds, not one.
+
+```ts
+createChatHandler({
+  ...,
+  onUsage: (usage) =>
+    db.recordSpend({
+      documentId: usage.documentId,
+      model: usage.modelId,
+      input: usage.inputTokens,
+      output: usage.outputTokens,
+      cached: usage.cachedInputTokens,
+    }),
+});
+```
+
+A rejection is logged and swallowed: the turn already happened and its result is already
+streaming, so failing the response would lose work the user is watching arrive. That makes
+a persistent failure here something to alert on — a ledger that quietly undercounts is a
+budget that never trips.
+
 ### What neither of these covers
 
 Row-level scoping. `docId` comes from the client, so a host serving more than one visitor
