@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose something the project should do and does not.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do that this makes hard? Describe the situation rather than
+        the solution — the solution is easier to judge once the problem is on the table.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: Optional. A sketch is fine; it does not have to be a design.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where it belongs
+      description: >
+        Anything touching the agent's tools or the request format has to work on both
+        backends — see docs/agent-contract.md.
+      options:
+        - The shared contract (affects both backends)
+        - One backend only
+        - The editor package
+        - The example application
+        - Documentation
+        - Not sure
+    validations:
+      required: true

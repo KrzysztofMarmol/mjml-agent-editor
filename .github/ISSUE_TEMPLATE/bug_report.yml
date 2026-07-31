@@ -1,0 +1,53 @@
+name: Bug report
+description: Something behaves differently from what the docs or code promise.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: `docs/known-issues.md` lists the soft spots we already know about.
+        If yours is there, you can skip the rest and say so in one line.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - packages/agent-core (contract, MJML addressing, tool schemas)
+        - packages/agent-node (TypeScript backend)
+        - agent-python (FastAPI backend)
+        - packages/editor (canvas, chat panel, comments)
+        - apps/example (the example application)
+        - Build, CI or tooling
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: mjml
+    attributes:
+      label: The MJML involved
+      description: >
+        If the document matters, paste the smallest version that still shows the problem.
+        Section ids (`sec-…`) are useful — most addressing bugs are about a specific one.
+      render: xml
+
+  - type: input
+    id: model
+    attributes:
+      label: Model and provider
+      description: e.g. AGENT_PROVIDER=deepseek, deepseek-chat. Agent behaviour varies by backend.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, pnpm version, OS. `node -v && pnpm -v` covers it.
