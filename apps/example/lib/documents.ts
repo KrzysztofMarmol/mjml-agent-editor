@@ -6,7 +6,7 @@
  * application's own concern: the index page.
  */
 
-import { STARTER_MJML } from "@mjml-agent-editor/editor";
+import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { createDocument as insertDocument } from "@mjml-agent-editor/store-supabase";
 
 import { supabase } from "./supabase";

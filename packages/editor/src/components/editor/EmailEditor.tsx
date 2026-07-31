@@ -5,7 +5,8 @@ import GjsEditor, { Canvas, useEditorMaybe } from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
 import { useRef, useState, type ReactNode } from "react";
 
-import { STARTER_MJML, useDocumentStore, type CommentTarget } from "../../index.js";
+import { STARTER_MJML } from "@mjml-agent-editor/core";
+import { useDocumentStore, type CommentTarget } from "../../index.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
