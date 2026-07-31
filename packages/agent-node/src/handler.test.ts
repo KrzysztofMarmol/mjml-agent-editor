@@ -291,6 +291,26 @@ describe("session", () => {
     expect(serialised).not.toContain("delete every section");
   });
 
+  it("gives every stored message an id", async () => {
+    // Without an explicit generator the assistant's message is persisted with no id at
+    // all, so every stored reply collides in any UI that keys by it.
+    const session = recordingSession([]);
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("first")).model,
+      documents,
+      comments,
+      images,
+      session,
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    const conversation = session.saved[0]!;
+    const ids = conversation.map((m) => m.id);
+    expect(ids.every((id) => typeof id === "string" && id.length > 0)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("saves the conversation including the assistant's reply", async () => {
     const session = recordingSession([]);
     const handler = createChatHandler({

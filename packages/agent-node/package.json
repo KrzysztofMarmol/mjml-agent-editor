@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/agent-node",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "TypeScript implementation of the MJML editing agent: tools, system prompt and chat handler.",
   "keywords": [
     "mjml",
