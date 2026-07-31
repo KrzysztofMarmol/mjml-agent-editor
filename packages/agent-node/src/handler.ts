@@ -19,6 +19,7 @@ import type {
 } from "@mjml-agent-editor/core";
 import {
   convertToModelMessages,
+  generateId,
   stepCountIs,
   streamText,
   type LanguageModel,
@@ -237,6 +238,14 @@ export function createChatHandler(options: ChatHandlerOptions) {
       ...(session
         ? {
             originalMessages: conversation,
+            // Without this the assistant's message is stored with no id. The SDK only
+            // assigns one when `originalMessages` is given *and* the last of them is
+            // already an assistant message — which it never is here, because the turn
+            // starts from the user. Every stored reply then shares the same absent id, and
+            // a UI that keys by it collides: React reports "two children with the same
+            // key" and may drop or duplicate messages. Silent, and only visible after a
+            // reload.
+            generateMessageId: generateId,
             onFinish: ({ messages }) => session.save(body.docId, messages),
           }
         : {}),
