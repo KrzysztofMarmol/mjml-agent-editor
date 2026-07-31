@@ -84,7 +84,7 @@ const SECTION_ARG: Record<string, string> = {
  */
 type MessageBlock =
   | { readonly kind: "tools"; readonly tools: ToolUIPart[] }
-  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "text"; readonly text: string; readonly narration: boolean }
   | { readonly kind: "reasoning"; readonly text: string };
 
 /**
@@ -98,6 +98,12 @@ type MessageBlock =
  * configuration emits them, so nothing was visibly wrong; point the host at a reasoning
  * model and half of every answer would vanish with no error. Silence is the worst way for a
  * UI to be wrong.
+ *
+ * Text is also marked narration or answer. The SDK offers nothing to distinguish them —
+ * `TextUIPart` carries `state?: "streaming" | "done"`, which is a lifecycle and not a role,
+ * and `step-start` is a marker with no fields — but the structure decides it: a sentence with
+ * another tool call after it was introducing that call, and the last one is the reply. Four
+ * identical bubbles per turn buried the answer among the commentary.
  */
 function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
   const blocks: MessageBlock[] = [];
@@ -124,7 +130,17 @@ function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
       // While streaming, the SDK appends an empty text part; rendering it produced an empty
       // bubble above "Agent is working…".
       if (!part.text.trim()) continue;
-      blocks.push({ kind: "text", text: part.text });
+      blocks.push({ kind: "text", text: part.text, narration: false });
+    }
+  }
+
+  // One backward pass: everything before the last tool call was leading up to it.
+  let seenTools = false;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const block = blocks[i]!;
+    if (block.kind === "tools") seenTools = true;
+    else if (block.kind === "text" && seenTools) {
+      blocks[i] = { kind: "text", text: block.text, narration: true };
     }
   }
 
@@ -421,6 +437,20 @@ export default function ChatPanel({
                                 }
                                 if (block.kind === "reasoning") {
                                   return <ReasoningBlock key={i} text={block.text} />;
+                                }
+                                // Narration gets no bubble. It is the trail of what the agent
+                                // was doing, and giving it the same weight as the reply is
+                                // what made the reply hard to find.
+                                if (block.narration && !isUser) {
+                                  return (
+                                    <div
+                                      key={i}
+                                      data-slot="narration"
+                                      className="px-1 text-xs leading-relaxed text-panel-muted-fg [&_a]:text-brand [&_code]:!bg-white/10 [&_p]:my-0.5"
+                                    >
+                                      <Markdown>{block.text}</Markdown>
+                                    </div>
+                                  );
                                 }
                                 return (
                                   <Bubble

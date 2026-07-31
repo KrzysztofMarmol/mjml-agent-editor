@@ -155,6 +155,15 @@ export function createCommentStore(client: SupabaseClient): CommentStore {
         .eq("id", commentId);
       if (error) throw new Error(`comment ${commentId} not resolvable: ${error.message}`);
     },
+
+    /**
+     * Deletes rather than resolves. The agent calls this only for a comment whose section
+     * has been removed, and "resolved" would claim someone answered it.
+     */
+    async remove(commentId: string): Promise<void> {
+      const { error } = await client.from("comments").delete().eq("id", commentId);
+      if (error) throw new Error(`comment ${commentId} not deletable: ${error.message}`);
+    },
   };
 }
 

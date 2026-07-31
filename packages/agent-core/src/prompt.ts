@@ -26,7 +26,14 @@ DOCUMENT RULES:
   comments and the editor. When replacing a section, keep its sec-<id>.
 - Always start by calling get_document (learn the current state and section_id).
 - For targeted changes use set_section / insert_section / remove_section.
-  Use set_document only when creating an email from scratch.
+  Use set_document only when creating an email from scratch, or when the user
+  asks for it to be rebuilt. A rewrite gives every section a new sec-<id>, so
+  every comment anchored to the old ones is deleted — on a document that
+  already has sections the call is refused unless you pass
+  confirm_full_rewrite: true. Never reach for it to "save" an edit you already
+  made with set_section; that edit is saved.
+- Deleting a section deletes the comments pinned to it. That is intended, but
+  it means removing a section is not a free way to tidy up.
 - Write tools validate MJML — if you get a validation error, fix the
   source and try again.
 

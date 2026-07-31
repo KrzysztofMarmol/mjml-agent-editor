@@ -74,6 +74,23 @@ class InMemoryComments implements CommentStore {
       );
     return Promise.resolve();
   }
+
+  remove(commentId: string): Promise<void> {
+    this.removed.push(commentId);
+    this.comments = this.comments.filter((candidate) => candidate.id !== commentId);
+    return Promise.resolve();
+  }
+
+  removed: string[] = [];
+
+  get ids(): string[] {
+    return this.comments.map((comment) => comment.id);
+  }
+}
+
+/** A store from a host that never implemented the optional delete. */
+class CommentsWithoutRemove extends InMemoryComments {
+  override remove = undefined as unknown as (commentId: string) => Promise<void>;
 }
 
 class StubImages implements ImageProvider {
@@ -169,17 +186,21 @@ describe("agent tools", () => {
   });
 
   describe("set_document", () => {
+    const REBUILT = `<mjml><mj-body><mj-section><mj-column><mj-text>New</mj-text></mj-column></mj-section></mj-body></mjml>`;
+
     it("saves valid MJML and assigns missing section ids", async () => {
       const output = await run(tools, "set_document", {
-        mjml: `<mjml><mj-body><mj-section><mj-column><mj-text>New</mj-text></mj-column></mj-section></mj-body></mjml>`,
+        mjml: REBUILT,
+        confirm_full_rewrite: true,
       });
-      expect(output).toBe("OK, saved.");
+      expect(output).toContain("OK, saved.");
       expect(documents.mjml).toMatch(/css-class="sec-[0-9a-f]{8}"/);
     });
 
     it("refuses to save MJML that does not compile", async () => {
       const output = await run(tools, "set_document", {
         mjml: `<mjml><mj-body><mj-bogus /></mj-body></mjml>`,
+        confirm_full_rewrite: true,
       });
       expect(output).toContain("validation failed");
       expect(documents.saveCount).toBe(0);
@@ -187,8 +208,86 @@ describe("agent tools", () => {
     });
 
     it("rejects an empty argument", async () => {
-      expect(await run(tools, "set_document", { mjml: "   " })).toContain("was empty");
+      expect(
+        await run(tools, "set_document", { mjml: "   ", confirm_full_rewrite: true }),
+      ).toContain("was empty");
       expect(documents.saveCount).toBe(0);
+    });
+
+    /**
+     * The behaviour this guard exists for: `ensureSectionIds` only fills in ids that are
+     * missing, so a rewrite renumbers every section and detaches every comment. The model
+     * reaches for this tool out of habit after an edit it has already saved.
+     */
+    it("refuses to replace a document that already has sections without confirmation", async () => {
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT,
+        confirm_full_rewrite: false,
+      });
+      expect(output).toContain("ERROR:");
+      expect(output).toContain("aaa");
+      expect(output).toContain("bbb");
+      expect(output).toContain("confirm_full_rewrite");
+      expect(documents.saveCount).toBe(0);
+      expect(documents.mjml).toBe(VALID_DOC);
+    });
+
+    it("says how many open comments a rewrite would destroy", async () => {
+      await comments.add(DOCUMENT_ID, { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
+      await comments.add(DOCUMENT_ID, { sectionId: "bbb", objectId: null, objectLabel: null }, "y");
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT,
+        confirm_full_rewrite: false,
+      });
+      expect(output).toContain("2 open comment(s)");
+    });
+
+    it("creates from scratch without confirmation when there is nothing to lose", async () => {
+      await run(tools, "remove_section", { section_id: "aaa" });
+      await run(tools, "remove_section", { section_id: "bbb" });
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT,
+        confirm_full_rewrite: false,
+      });
+      expect(output).toContain("OK, saved.");
+    });
+
+    it("deletes the comments a confirmed rewrite orphaned", async () => {
+      await comments.add(DOCUMENT_ID, { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
+      await comments.add(DOCUMENT_ID, { sectionId: "bbb", objectId: null, objectLabel: null }, "y");
+
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT,
+        confirm_full_rewrite: true,
+      });
+
+      expect(output).toContain("Removed 2 comment(s)");
+      expect(comments.ids).toEqual([]);
+      expect(comments.resolved).toEqual([]); // deleted, not marked answered
+    });
+
+    it("tells the caller when the host's store cannot delete", async () => {
+      const withoutRemove = new CommentsWithoutRemove();
+      await withoutRemove.add(
+        DOCUMENT_ID,
+        { sectionId: "aaa", objectId: null, objectLabel: null },
+        "x",
+      );
+      const limited = createAgentTools({
+        documentId: DOCUMENT_ID,
+        documents,
+        comments: withoutRemove,
+        images,
+        compiler: createMjmlCompiler(),
+      });
+
+      const output = await run(limited, "set_document", {
+        mjml: REBUILT,
+        confirm_full_rewrite: true,
+      });
+
+      expect(output).toContain("cannot delete them");
+      expect(withoutRemove.ids).toEqual(["c1"]);
     });
   });
 
@@ -245,6 +344,16 @@ describe("agent tools", () => {
       expect(await run(tools, "remove_section", { section_id: "aaa" })).toBe("OK, saved.");
       expect(documents.mjml).not.toContain("Welcome");
       expect(documents.mjml).toContain("Buy");
+    });
+
+    it("takes that section's comments with it and leaves the others alone", async () => {
+      await comments.add(DOCUMENT_ID, { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
+      await comments.add(DOCUMENT_ID, { sectionId: "bbb", objectId: null, objectLabel: null }, "y");
+
+      const output = await run(tools, "remove_section", { section_id: "aaa" });
+
+      expect(output).toContain("Removed 1 comment(s)");
+      expect(comments.ids).toEqual(["c2"]);
     });
 
     it("reports an unknown id without saving", async () => {

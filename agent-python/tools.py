@@ -77,6 +77,26 @@ def _validated_save(doc_id: str, mjml: str) -> str:
     return "OK, saved."
 
 
+def _prune_orphaned_comments(doc_id: str, saved_mjml: str) -> str:
+    """Deletes comments left pointing at sections the document no longer contains.
+
+    Called after the two writes that can drop a section — set_document, which reassigns
+    every id, and remove_section. set_section forces the target id onto its replacement
+    and insert_section only adds, so neither can orphan anything.
+    """
+    live = {
+        section["section_id"]
+        for section in mjml_doc.list_sections(saved_mjml)
+        if section["section_id"] != "?"
+    }
+    orphans = [c for c in db.list_comments(doc_id) if c["section_id"] not in live]
+    if not orphans:
+        return ""
+    for orphan in orphans:
+        db.delete_comment(orphan["id"])
+    return f" Removed {len(orphans)} comment(s) whose section no longer exists."
+
+
 def build_tools(doc_id: str) -> list[ai.AgentTool]:
     @_described("get_document")
     async def get_document() -> str:
@@ -91,13 +111,36 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         return section or f"ERROR: no section with id '{section_id}'"
 
     @_described("set_document")
-    async def set_document(mjml: str = "") -> str:
+    async def set_document(mjml: str = "", confirm_full_rewrite: bool = False) -> str:
         if not mjml.strip():
             return _EMPTY_ARG_HINT
+        # ensure_section_ids only fills in ids that are missing; it never preserves the
+        # ones the document had. A rewrite therefore renumbers every section and detaches
+        # every comment anchored to it, and the model reaches for this tool out of habit
+        # after an edit it has already saved.
+        existing = [
+            section["section_id"]
+            for section in mjml_doc.list_sections(db.get_document_mjml(doc_id))
+            if section["section_id"] != "?"
+        ]
+        if existing and not confirm_full_rewrite:
+            open_count = len(db.list_open_comments(doc_id))
+            return (
+                f"ERROR: this document already has {len(existing)} section(s) "
+                f"({', '.join(existing)}). Replacing the whole document reassigns every id "
+                f"and deletes the {open_count} open comment(s) anchored to them. For a "
+                "targeted change use set_section, insert_section or remove_section. If the "
+                "user really asked for the email to be rebuilt from scratch, call this "
+                "again with confirm_full_rewrite: true."
+            )
         try:
-            return _validated_save(doc_id, mjml_doc.ensure_section_ids(mjml))
+            saved = mjml_doc.ensure_section_ids(mjml)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
+        result = _validated_save(doc_id, saved)
+        if not result.startswith("OK"):
+            return result
+        return f"{result}{_prune_orphaned_comments(doc_id, saved)}"
 
     @_described("set_section")
     async def set_section(section_id: str = "", mjml: str = "") -> str:
@@ -130,7 +173,12 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         updated = mjml_doc.remove_section(doc, section_id)
         if updated is None:
             return f"ERROR: no section with id '{section_id}'"
-        return _validated_save(doc_id, updated)
+        result = _validated_save(doc_id, updated)
+        if not result.startswith("OK"):
+            return result
+        # A section removed on request takes its comments with it — the same rule as a
+        # rewrite, reached from the other direction.
+        return f"{result}{_prune_orphaned_comments(doc_id, updated)}"
 
     @_described("generate_image")
     async def generate_image(prompt: str, size: str = "1536x1024") -> str:

@@ -73,6 +73,7 @@ two are interchangeable would send an adopter down the wrong path.
 | Refusing a turn before the model runs | `authorize` hook                          | none                                                      |
 | Token accounting                      | `onUsage` hook                            | none                                                      |
 | Multi-line MJML in tool arguments     | works                                     | needs the single-line hint (see below)                    |
+| Deleting an orphaned comment          | optional `CommentStore.remove`            | `db.delete_comment`, hardwired to Supabase                |
 
 The first three rows are what "ports" buys and Python does not have: **the Python backend can
 only be pointed at Supabase**, and swapping its storage means editing it. The next three are
@@ -100,6 +101,17 @@ documents in production.
 5. **Compiler messages must not leak host paths.** `mjml` interpolates its `filePath` — which
    defaults to the process working directory — into every validation message. Strip it: those
    messages reach both the model's context and the chat panel.
+6. **`set_document` is refused on a document that already has sections** unless
+   `confirm_full_rewrite` is true. `ensureSectionIds` only fills in ids that are _missing_; it
+   never preserves existing ones, so a rewrite renumbers every section and detaches every
+   comment anchored to it. Rule 2 is enforced in code for `set_section` and was merely
+   requested here — and the model reaches for this tool by habit after an edit it has already
+   saved, which is how the asymmetry was found.
+7. **A section that disappears takes its comments with it.** After `set_document` and
+   `remove_section`, comments pointing at sections the document no longer contains are
+   deleted, not marked resolved: nobody answered them, so recording them as answered would
+   corrupt the only list that says what actually was. A backend whose store cannot delete must
+   say so in the tool result rather than leave the orphans unmentioned.
 
 ## Settled: multi-line tool arguments
 

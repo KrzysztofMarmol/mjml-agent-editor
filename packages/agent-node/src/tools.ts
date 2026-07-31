@@ -42,6 +42,13 @@ interface SectionIdInput {
 }
 interface MjmlInput {
   mjml: string;
+  /**
+   * Required rather than optional, because every property of every tool schema is: strict
+   * tool use rejects a schema whose `required` does not list them all, and
+   * `agent-core/src/tools.test.ts` pins that invariant. Making the model state its intent on
+   * every call is the better shape anyway.
+   */
+  confirm_full_rewrite: boolean;
 }
 interface SetSectionInput {
   section_id: string;
@@ -93,6 +100,38 @@ export function createAgentTools(context: AgentToolContext) {
     return "OK, saved.";
   };
 
+  /**
+   * Deletes comments left pointing at sections the document no longer contains.
+   *
+   * Called after the two writes that can drop a section — `set_document`, which reassigns
+   * every id, and `remove_section`. `set_section` forces the target id onto its replacement
+   * and `insert_section` only adds, so neither can orphan anything and neither pays for the
+   * extra read.
+   *
+   * Not folded into `saveValidated` for that reason: it would put a comment listing on every
+   * write to save work on two of them.
+   */
+  const pruneOrphanedComments = async (savedMjml: string): Promise<string> => {
+    const live = new Set(
+      listSections(savedMjml)
+        .map((section) => section.sectionId)
+        .filter((id): id is string => id !== null),
+    );
+    const orphans = (await comments.list(documentId)).filter(
+      (comment) => !live.has(comment.sectionId),
+    );
+    if (orphans.length === 0) return "";
+
+    // A host whose store cannot delete says so rather than leaving the caller to assume it
+    // happened. Silence here is how the orphans got created in the first place.
+    if (!comments.remove) {
+      return ` ${orphans.length} comment(s) now point at sections that no longer exist; this host cannot delete them.`;
+    }
+
+    for (const orphan of orphans) await comments.remove(orphan.id);
+    return ` Removed ${orphans.length} comment(s) whose section no longer exists.`;
+  };
+
   return {
     get_document: tool<Record<string, never>, string>({
       description: TOOLS.get_document.description,
@@ -119,10 +158,33 @@ export function createAgentTools(context: AgentToolContext) {
     set_document: tool<MjmlInput, string>({
       description: TOOLS.set_document.description,
       inputSchema: schemaOf<MjmlInput>("set_document"),
-      execute: async ({ mjml }) => {
+      execute: async ({ mjml, confirm_full_rewrite }) => {
         if (!mjml.trim()) return "ERROR: `mjml` was empty — pass the complete document.";
         try {
-          return await saveValidated(ensureSectionIds(mjml));
+          // The guard exists because `ensureSectionIds` only fills in ids that are missing;
+          // it never preserves the ones the document had. A rewrite therefore renumbers
+          // every section and detaches every comment — and the model reaches for this tool
+          // by habit after an edit it has already saved.
+          const existing = listSections(await currentMjml()).filter(
+            (section) => section.sectionId !== null,
+          );
+          if (existing.length > 0 && confirm_full_rewrite !== true) {
+            const open = (await comments.listOpen(documentId)).length;
+            const ids = existing.map((section) => section.sectionId).join(", ");
+            return (
+              `ERROR: this document already has ${existing.length} section(s) (${ids}). ` +
+              "Replacing the whole document reassigns every id and deletes the " +
+              `${open} open comment(s) anchored to them. For a targeted change use ` +
+              "set_section, insert_section or remove_section. If the user really asked for " +
+              "the email to be rebuilt from scratch, call this again with " +
+              "confirm_full_rewrite: true."
+            );
+          }
+
+          const saved = ensureSectionIds(mjml);
+          const result = await saveValidated(saved);
+          if (!result.startsWith("OK")) return result;
+          return `${result}${await pruneOrphanedComments(saved)}`;
         } catch (error) {
           return describeError(error);
         }
@@ -169,7 +231,11 @@ export function createAgentTools(context: AgentToolContext) {
       execute: async ({ section_id }) => {
         const updated = removeSection(await currentMjml(), section_id);
         if (updated === null) return `ERROR: no section with id '${section_id}'`;
-        return await saveValidated(updated);
+        const result = await saveValidated(updated);
+        if (!result.startsWith("OK")) return result;
+        // A section removed on request takes its comments with it — the same rule as a
+        // rewrite, reached from the other direction.
+        return `${result}${await pruneOrphanedComments(updated)}`;
       },
     }),
 

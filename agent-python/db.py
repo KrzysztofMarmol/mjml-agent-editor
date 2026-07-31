@@ -47,10 +47,31 @@ def list_open_comments(doc_id: str) -> list[dict]:
     return res.data
 
 
+def list_comments(doc_id: str) -> list[dict]:
+    """Every comment, open or not — orphan detection has to see the resolved ones too."""
+    res = (
+        client()
+        .table("comments")
+        .select("id, section_id, status")
+        .eq("document_id", doc_id)
+        .execute()
+    )
+    return res.data
+
+
 def resolve_comment(comment_id: str) -> None:
     client().table("comments").update({"status": "resolved", "resolved_at": _now()}).eq(
         "id", comment_id
     ).execute()
+
+
+def delete_comment(comment_id: str) -> None:
+    """Deletes rather than resolves.
+
+    Used only for a comment whose section no longer exists. "Resolved" would claim
+    someone answered it; nobody did, the question evaporated with the section.
+    """
+    client().table("comments").delete().eq("id", comment_id).execute()
 
 
 def upload_image(name: str, data: bytes, content_type: str = "image/png") -> str:
