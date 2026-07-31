@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Shared contract for the MJML agent editor: document addressing, stable IDs and tool schemas.",
   "keywords": [
     "mjml",
