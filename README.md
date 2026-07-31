@@ -4,6 +4,14 @@ An MJML email editor with an AI agent that generates an email from a description
 generates images, edits individual sections, and applies fixes from comments left on the
 canvas.
 
+![One prompt, a working email](docs/media/agent-loop.gif)
+
+One prompt to a finished email. The agent reads the document, generates the images, writes
+the sections and saves. Partway through it reaches for `mj-card` — not a tag MJML has — and
+rebuilds the plan cards out of `mj-section` and `mj-column` instead; a write that does not
+compile never reaches the database, and the compiler's message goes back to the model.
+Recorded against DeepSeek, not Anthropic: the backend is a configuration choice.
+
 ## Layout
 
 | Path                      | What it is                                                                                                    |
