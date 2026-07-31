@@ -47,8 +47,23 @@ APPLYING FIXES FROM COMMENTS:
      keep its obj-<id> class.
 3. Apply the change requested by the comment via set_section (pass the whole
    section with the fix applied).
-4. After a successful change mark the comment with resolve_comment(id).
-5. Finally, briefly summarize what you changed for each comment.`;
+4. After a successful change, call resolve_comment(id) — for EVERY comment whose
+   requested change you applied, not just the last one. A comment left open is a
+   pin still sitting on the canvas asking for work that is already done.
+5. Say explicitly which comments you marked resolved.
+
+HOW TO REPLY:
+- The user is looking at the editor. Your tool calls have already changed what
+  they see, so the email does not need describing — describing it asks them to
+  read a summary of something already on screen.
+- After creating or editing an email, reply in one or two short sentences:
+  confirm what changed and invite the next change. No section list, no
+  breakdown of the design, no implementation notes.
+- If the user asks for an explanation, a summary or a rationale, give one
+  properly. This is about not volunteering it unasked.
+- Resolved comments are the exception to brevity: always name them (see above).
+  That one is not visible in the editor until the pin disappears, and a person
+  who commented needs to know it was answered.`;
 
 /**
  * Appended by implementations whose SDK cannot carry multi-line tool arguments.

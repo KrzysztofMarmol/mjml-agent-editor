@@ -5,6 +5,7 @@ import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessa
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  Brain,
   Check,
   Loader2,
   TriangleAlert,
@@ -66,6 +67,69 @@ const SECTION_ARG: Record<string, string> = {
   remove_section: "section_id",
   insert_section: "after_section_id",
 };
+
+/**
+ * One rendered unit of a message, in the order it happened.
+ *
+ * A multi-step turn interleaves narration and tool calls — "I'll check the document",
+ * `get_document`, "now I'll write the hero", `set_section`. `message.parts` records that
+ * order faithfully; this preserves it.
+ *
+ * The panel used to filter the same array twice, once for tools and once for text, and
+ * render the two results as separate blocks. Every tool call therefore appeared above every
+ * sentence, so a reader saw "Saving whole email" before the sentence that preceded it by
+ * three steps — effects before their causes, in a product whose whole promise is watching
+ * the agent work. With one text part and a couple of tools that reads as a deliberate
+ * summary, which is why it survived this long.
+ */
+type MessageBlock =
+  | { readonly kind: "tools"; readonly tools: ToolUIPart[] }
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "reasoning"; readonly text: string };
+
+/**
+ * Groups a message's parts into consecutive runs.
+ *
+ * Adjacent tool calls collapse into one activity block — a turn that generates three images
+ * back to back should not produce three boxes — but a run that is interrupted by text
+ * starts a new one, which is what restores the sequence.
+ *
+ * Reasoning parts were previously dropped on the floor. No model in the template's default
+ * configuration emits them, so nothing was visibly wrong; point the host at a reasoning
+ * model and half of every answer would vanish with no error. Silence is the worst way for a
+ * UI to be wrong.
+ */
+function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
+  const blocks: MessageBlock[] = [];
+
+  for (const part of parts) {
+    if (part.type.startsWith("tool-")) {
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "tools") last.tools.push(part as ToolUIPart);
+      else blocks.push({ kind: "tools", tools: [part as ToolUIPart] });
+      continue;
+    }
+
+    if (part.type === "reasoning") {
+      const text = part.text;
+      if (!text.trim()) continue;
+      const last = blocks[blocks.length - 1];
+      if (last?.kind === "reasoning")
+        blocks[blocks.length - 1] = { kind: "reasoning", text: `${last.text}${text}` };
+      else blocks.push({ kind: "reasoning", text });
+      continue;
+    }
+
+    if (part.type === "text") {
+      // While streaming, the SDK appends an empty text part; rendering it produced an empty
+      // bubble above "Agent is working…".
+      if (!part.text.trim()) continue;
+      blocks.push({ kind: "text", text: part.text });
+    }
+  }
+
+  return blocks;
+}
 
 type Props = {
   docId: string;
@@ -148,8 +212,11 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
 
   return (
     <div className="space-y-1 rounded-lg border border-panel-border bg-panel-elevated/60 p-2">
+      {/* Collapsed by default. Finished steps are history — worth being able to check, not
+      worth occupying the panel above every answer. What is still running stays visible
+      below, outside this. */}
       {finished.length > 0 && (
-        <Collapsible defaultOpen>
+        <Collapsible>
           <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-fg hover:text-panel-fg">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
             <span>
@@ -168,6 +235,29 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
       {running.map((t, i) => (
         <ToolMarker key={`r${i}`} tool={t} />
       ))}
+    </div>
+  );
+}
+
+/**
+ * The model's own reasoning, collapsed.
+ *
+ * Shown rather than hidden, because a turn that spends thirty seconds thinking and says
+ * nothing looks broken. Collapsed rather than expanded, because it is not the answer.
+ */
+function ReasoningBlock({ text }: { text: string }) {
+  return (
+    <div className="rounded-lg border border-panel-border bg-panel-elevated/60 p-2">
+      <Collapsible>
+        <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-muted-fg hover:text-panel-fg">
+          <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
+          <Brain className="size-3.5 shrink-0" />
+          <span>Reasoning</span>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-1.5 pl-1 text-xs whitespace-pre-wrap text-panel-muted-fg">
+          {text}
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
@@ -305,15 +395,8 @@ export default function ChatPanel({
                 messages.map((message, mi) => {
                   const isUser = message.role === "user";
                   const isLast = mi === messages.length - 1;
-                  const toolParts = message.parts.filter((p) =>
-                    p.type.startsWith("tool-"),
-                  ) as ToolUIPart[];
-                  // Skip empty text parts — while streaming, the SDK appends an
-                  // empty text part that used to render as an empty bubble
-                  // (an unwanted gap above "Agent is working…").
-                  const textParts = message.parts.filter(
-                    (p) => p.type === "text" && p.text.trim() !== "",
-                  );
+                  const blocks = toBlocks(message.parts);
+                  const hasText = blocks.some((block) => block.kind === "text");
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
                       <div className={cn("flex w-full gap-2", isUser && "flex-row-reverse")}>
@@ -330,40 +413,43 @@ export default function ChatPanel({
                         >
                           <Message align={isUser ? "end" : "start"}>
                             <MessageContent>
-                              {toolParts.length > 0 && <ToolActivity tools={toolParts} />}
-                              {textParts.map((part, i) => (
-                                <Bubble
-                                  key={i}
-                                  variant={isUser ? "default" : "muted"}
-                                  align={isUser ? "end" : "start"}
-                                  className={cn(
-                                    isUser
-                                      ? "[&_[data-slot=bubble-content]]:bg-brand [&_[data-slot=bubble-content]]:text-brand-fg"
-                                      : "[&_[data-slot=bubble-content]]:border [&_[data-slot=bubble-content]]:border-panel-border [&_[data-slot=bubble-content]]:bg-panel-elevated [&_[data-slot=bubble-content]]:text-panel-fg [&_code]:!bg-white/12 [&_pre]:!bg-white/10 [&_a]:text-brand",
-                                  )}
-                                >
-                                  <BubbleContent
-                                    className={isUser ? "whitespace-pre-wrap" : undefined}
+                              {/* In the order they happened, so narration stays attached to
+                              the step it introduced. */}
+                              {blocks.map((block, i) => {
+                                if (block.kind === "tools") {
+                                  return <ToolActivity key={i} tools={block.tools} />;
+                                }
+                                if (block.kind === "reasoning") {
+                                  return <ReasoningBlock key={i} text={block.text} />;
+                                }
+                                return (
+                                  <Bubble
+                                    key={i}
+                                    variant={isUser ? "default" : "muted"}
+                                    align={isUser ? "end" : "start"}
+                                    className={cn(
+                                      isUser
+                                        ? "[&_[data-slot=bubble-content]]:bg-brand [&_[data-slot=bubble-content]]:text-brand-fg"
+                                        : "[&_[data-slot=bubble-content]]:border [&_[data-slot=bubble-content]]:border-panel-border [&_[data-slot=bubble-content]]:bg-panel-elevated [&_[data-slot=bubble-content]]:text-panel-fg [&_code]:!bg-white/12 [&_pre]:!bg-white/10 [&_a]:text-brand",
+                                    )}
                                   >
-                                    {isUser && part.type === "text" ? (
-                                      part.text
-                                    ) : part.type === "text" ? (
-                                      <Markdown>{part.text}</Markdown>
-                                    ) : null}
-                                  </BubbleContent>
-                                </Bubble>
-                              ))}
+                                    <BubbleContent
+                                      className={isUser ? "whitespace-pre-wrap" : undefined}
+                                    >
+                                      {isUser ? block.text : <Markdown>{block.text}</Markdown>}
+                                    </BubbleContent>
+                                  </Bubble>
+                                );
+                              })}
                               {/* Busy indicator as part of the assistant's current turn —
                               tight spacing (gap-2.5). Hidden once text is already
-                              streaming (textParts not empty) — keeps things clean. */}
-                              {isLast &&
-                                !isUser &&
-                                busy &&
-                                !toolRunning &&
-                                textParts.length === 0 && <BusyMarker />}
+                              streaming — keeps things clean. */}
+                              {isLast && !isUser && busy && !toolRunning && !hasText && (
+                                <BusyMarker />
+                              )}
                             </MessageContent>
                           </Message>
-                          {(textParts.length > 0 || toolParts.length > 0) && (
+                          {blocks.length > 0 && (
                             <span className="px-1 text-[10px] text-panel-muted-fg">
                               {timeFor(message.id)}
                             </span>
