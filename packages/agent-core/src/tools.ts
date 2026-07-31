@@ -82,15 +82,26 @@ export const TOOLS: Readonly<Record<ToolName, ToolDefinition>> = {
     name: "set_document",
     description:
       "Replaces the ENTIRE document with new MJML source. Use only when creating an email " +
-      "from scratch; for targeted edits use set_section, insert_section or remove_section. " +
-      "The document must be complete (<mjml><mj-body>...</mj-body></mjml>). Sections without " +
-      "a sec-* class are assigned one automatically. Rejected if the MJML does not compile.",
+      "from scratch or rebuilding it on request; for targeted edits use set_section, " +
+      "insert_section or remove_section. A rewrite reassigns every sec-* id, so the comments " +
+      "anchored to them are deleted — on a document that already has sections this call is " +
+      "REFUSED unless confirm_full_rewrite is true. The document must be complete " +
+      "(<mjml><mj-body>...</mj-body></mjml>). Sections without a sec-* class are assigned one " +
+      "automatically. Rejected if the MJML does not compile.",
     inputSchema: {
       type: "object",
       properties: {
         mjml: { type: "string", description: "Complete MJML document." },
+        confirm_full_rewrite: {
+          type: "boolean",
+          description:
+            "true only when the user asked for the email to be rebuilt from scratch; false " +
+            "otherwise. Must be true to replace a document that already has sections, " +
+            "because the rewrite deletes every comment anchored to a section id it does not " +
+            "preserve.",
+        },
       },
-      required: ["mjml"],
+      required: ["mjml", "confirm_full_rewrite"],
       additionalProperties: false,
     },
   },

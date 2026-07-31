@@ -60,6 +60,18 @@ export interface CommentStore {
   listOpen(documentId: string): Promise<SectionComment[]>;
   add(documentId: string, target: CommentTarget, body: string): Promise<void>;
   resolve(commentId: string): Promise<void>;
+  /**
+   * Deletes a comment outright, as opposed to `resolve`, which records that it was answered.
+   *
+   * Used for one thing: a comment whose section no longer exists. Marking that resolved
+   * would be a lie — nobody answered it, the question evaporated — and it would pollute the
+   * one list a person consults to see what was actually addressed.
+   *
+   * Optional, because only a store the agent is given ever needs it. A browser-side or
+   * in-memory store serves the editor, which has no way to reach this; requiring it there
+   * would mean writing a delete endpoint that nothing calls.
+   */
+  remove?(commentId: string): Promise<void>;
 }
 
 export interface GenerateImageRequest {
