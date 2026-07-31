@@ -86,6 +86,30 @@ satisfying the two interfaces works, including an in-memory object.
 
 Forgetting the provider throws with an explanation rather than failing on a null read.
 
+## Reaching the agent
+
+`ChatPanel` posts to `/api/chat` on the same origin by default, which is what
+`createChatHandler` from `@mjml-agent-editor/agent-node` mounts. Pass a `transport` to send
+turns somewhere else — a different path, another service, or nowhere at all:
+
+```tsx
+import { DefaultChatTransport } from "ai";
+
+const transport = useMemo(
+  () => new DefaultChatTransport({ api: "https://agent.example.com/chat", body: { docId } }),
+  [docId],
+);
+
+<ChatPanel docId={docId} transport={transport} {...handlers} />;
+```
+
+Any `ChatTransport<UIMessage>` works, so a transport that emits a recorded stream of
+`UIMessageChunk`s drives the whole panel — streaming text, tool markers, section highlights
+— without a single request. That is how the demo's scripted showcase runs with no agent
+behind it.
+
+Memoize it. A transport holding state restarts if it is rebuilt on every render.
+
 ## A note on field names
 
 The ports are camelCase (`sectionId`, `objectId`, `projectData`); Postgres columns are
