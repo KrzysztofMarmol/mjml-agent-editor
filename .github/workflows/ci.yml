@@ -16,11 +16,18 @@ jobs:
   typescript:
     runs-on: ubuntu-latest
     env:
-      # apps/example builds a Supabase client at module scope, so the build needs these to
-      # be syntactically valid URLs/keys. Nothing is contacted: no page fetches at build
-      # time, and the values are obvious placeholders rather than a real project.
+      # apps/example builds its Supabase clients and resolves the agent model at module
+      # scope, so Next.js collecting page data for /api/chat throws on any of these being
+      # absent. Nothing is contacted at build time; every value is an obvious placeholder.
+      #
+      # These must stay in step with the `env` list in turbo.json — Turborepo runs tasks in
+      # strict env mode, so a variable set here is invisible to the task unless it is
+      # declared there as well.
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      ANTHROPIC_API_KEY: ci-placeholder-anthropic-key
     steps:
       - uses: actions/checkout@v5
 
