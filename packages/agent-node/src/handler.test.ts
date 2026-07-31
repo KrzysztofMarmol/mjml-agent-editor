@@ -340,3 +340,68 @@ describe("session", () => {
     await response.text();
   });
 });
+
+describe("onUsage", () => {
+  it("reports totals for the whole turn, not one step", async () => {
+    const seen: unknown[] = [];
+    const handler = createChatHandler({
+      // Two steps: a tool call, then the reply. A budget cares about the sum.
+      model: modelReplaying(toolCallTurn("get_document", {}), textTurn("done")).model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(seen).toHaveLength(1);
+    const usage = seen[0] as {
+      documentId: string;
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+    };
+    expect(usage.documentId).toBe("doc-7");
+    // USAGE is per step and the mock replays two steps.
+    expect(usage.inputTokens).toBeGreaterThan(0);
+    expect(usage.outputTokens).toBeGreaterThan(0);
+  });
+
+  it("does not break the response when the ledger write fails", async () => {
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("still fine")).model,
+      documents,
+      comments,
+      images,
+      onUsage: () => Promise.reject(new Error("database down")),
+    });
+
+    const response = await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }));
+
+    expect(response.status).toBe(200);
+    // The turn already happened; losing the user's answer over a failed ledger row would
+    // be the wrong trade.
+    await expect(response.text()).resolves.toContain("still fine");
+  });
+
+  it("is not called at all when the request is rejected", async () => {
+    let called = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("never")).model,
+      documents,
+      comments,
+      images,
+      authorize: () => Response.json({ error: "paused" }, { status: 503 }),
+      onUsage: () => {
+        called = true;
+      },
+    });
+
+    await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }));
+
+    expect(called).toBe(false);
+  });
+});

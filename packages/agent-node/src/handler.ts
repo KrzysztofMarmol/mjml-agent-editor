@@ -22,6 +22,7 @@ import {
   stepCountIs,
   streamText,
   type LanguageModel,
+  type LanguageModelUsage,
   type UIMessage,
 } from "ai";
 
@@ -48,6 +49,25 @@ export interface ChatSession {
   load(docId: string): Promise<UIMessage[]>;
   /** The whole conversation after this turn, including the assistant's reply. */
   save(docId: string, messages: UIMessage[]): Promise<void>;
+}
+
+/**
+ * What one completed turn consumed.
+ *
+ * A turn is a whole tool-calling loop, not one model call, so these are totals across
+ * every step — which is the number that matters for a budget, since the interesting cost
+ * is a turn that took twenty rounds rather than one.
+ */
+export interface TurnUsage {
+  /** The document the turn was about, so a ledger row can point at something. */
+  readonly documentId: string;
+  readonly modelId: string;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cachedInputTokens: number;
+  readonly totalTokens: number;
+  /** The SDK's own usage object, for anything the fields above flatten away. */
+  readonly raw: LanguageModelUsage;
 }
 
 export interface ChatHandlerOptions extends SystemPromptOptions {
@@ -81,6 +101,17 @@ export interface ChatHandlerOptions extends SystemPromptOptions {
    * acceptable for a local example and not for anything reachable from the internet.
    */
   readonly session?: ChatSession;
+  /**
+   * Called once per completed turn with what it consumed. This is the other half of
+   * `authorize`: the guard decides whether a turn may start, and this is where the number
+   * it will decide on next time comes from.
+   *
+   * A rejection here is logged and swallowed. The turn has already happened and its
+   * result is already streaming, so failing the response would lose work the user is
+   * watching arrive — but a persistent failure means a spend ledger that undercounts, so
+   * treat errors from it as something to alert on rather than something benign.
+   */
+  readonly onUsage?: (usage: TurnUsage) => void | Promise<void>;
 }
 
 /** Request body the frontend sends. Matches the spike's `ChatRequest`. */
@@ -173,6 +204,28 @@ export function createChatHandler(options: ChatHandlerOptions) {
         compiler,
       }),
       stopWhen: stepCountIs(maxSteps),
+      ...(options.onUsage
+        ? {
+            onFinish: async ({ usage }) => {
+              try {
+                await options.onUsage?.({
+                  documentId: body.docId,
+                  modelId:
+                    typeof options.model === "string" ? options.model : options.model.modelId,
+                  // Every field is optional on the SDK type — a provider that reports no
+                  // usage produces zeros rather than NaN in someone's ledger.
+                  inputTokens: usage.inputTokens ?? 0,
+                  outputTokens: usage.outputTokens ?? 0,
+                  cachedInputTokens: usage.cachedInputTokens ?? 0,
+                  totalTokens: usage.totalTokens ?? 0,
+                  raw: usage,
+                });
+              } catch (error) {
+                console.error("onUsage failed", error);
+              }
+            },
+          }
+        : {}),
     });
 
     const session = options.session;
