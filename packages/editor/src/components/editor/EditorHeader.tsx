@@ -29,6 +29,7 @@ import { Input } from "../ui/input";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { Badge } from "../ui/badge";
+import { useLabels } from "../../stores.js";
 import { Spinner } from "../ui/spinner";
 import { Separator } from "../ui/separator";
 import { Popover, PopoverTrigger, PopoverContent } from "../ui/popover";
@@ -42,13 +43,6 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 
-const SAVE_LABEL: Record<SaveStatus, string> = {
-  idle: "",
-  saving: "Saving…",
-  saved: "Saved",
-  error: "Save failed",
-};
-
 const WIDTHS = ["600px", "640px", "680px", "720px"];
 
 const DEVICE_ICON: Record<string, ReactNode> = {
@@ -57,15 +51,16 @@ const DEVICE_ICON: Record<string, ReactNode> = {
 };
 
 function SaveBadge({ status }: { status: SaveStatus }) {
+  const labels = useLabels();
   if (status === "idle") return null;
   if (status === "saving")
     return (
       <span className="flex items-center gap-1 text-xs text-panel-muted-fg">
-        <Spinner className="size-3" /> {SAVE_LABEL.saving}
+        <Spinner className="size-3" /> {labels.saving}
       </span>
     );
-  if (status === "error") return <Badge variant="destructive">{SAVE_LABEL.error}</Badge>;
-  return <span className="text-xs text-emerald-400">✓ {SAVE_LABEL.saved}</span>;
+  if (status === "error") return <Badge variant="destructive">{labels.saveFailed}</Badge>;
+  return <span className="text-xs text-emerald-400">✓ {labels.saved}</span>;
 }
 
 function slugify(name: string): string {
@@ -108,6 +103,7 @@ export default function EditorHeader({
 }) {
   // Injected by the host rather than imported, so the header carries no database.
   const documents = useDocumentStore();
+  const labels = useLabels();
   const [name, setName] = useState("");
   const [state, setState] = useState<EditorState>({
     device: "Desktop",
@@ -138,7 +134,7 @@ export default function EditorHeader({
     try {
       await documents.save(docId, { name: n });
     } catch {
-      toast.error("Failed to rename.");
+      toast.error(labels.renameFailed);
     }
   };
 
@@ -154,7 +150,7 @@ export default function EditorHeader({
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-indigo-400 text-brand-fg shadow-sm">
         <Mail className="size-4" />
       </span>
-      <span className="hidden text-sm font-semibold sm:inline">MJML Editor</span>
+      <span className="hidden text-sm font-semibold sm:inline">{labels.appName}</span>
       <Separator orientation="vertical" className="mx-1 !h-5 bg-panel-border" />
       <Input
         value={name}
@@ -162,7 +158,7 @@ export default function EditorHeader({
         onBlur={() => void commitName()}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         className="h-8 w-44 border-transparent bg-transparent text-sm font-medium text-panel-fg hover:border-panel-border focus-visible:border-panel-border"
-        aria-label="Email name"
+        aria-label={labels.emailNameAria}
       />
 
       <Separator orientation="vertical" className="mx-1 !h-5 bg-panel-border" />
@@ -200,7 +196,7 @@ export default function EditorHeader({
             <Undo2 />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Undo</TooltipContent>
+        <TooltipContent>{labels.undo}</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -214,7 +210,7 @@ export default function EditorHeader({
             <Redo2 />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Redo</TooltipContent>
+        <TooltipContent>{labels.redo}</TooltipContent>
       </Tooltip>
 
       {/* Content width */}
@@ -226,7 +222,7 @@ export default function EditorHeader({
             size="sm"
             className={cn(darkGhost, "gap-1.5 rounded-md border border-panel-border max-xl:hidden")}
           >
-            <span className="text-panel-muted-fg">Content width</span>
+            <span className="text-panel-muted-fg">{labels.contentWidth}</span>
             {state.contentWidth}
             <ChevronDown className="size-3.5" />
           </Button>
@@ -288,7 +284,7 @@ export default function EditorHeader({
               className={cn(darkGhost, "gap-1.5")}
               onClick={() => setPreview(api?.getCompiledHtml() ?? "")}
             >
-              <Eye /> Preview
+              <Eye /> {labels.preview}
             </Button>
           </DialogTrigger>
           <DialogContent
@@ -298,7 +294,9 @@ export default function EditorHeader({
             className="flex !max-w-none h-screen w-screen flex-col gap-0 rounded-none border-0 bg-zinc-100 p-0 sm:rounded-none"
           >
             <div className="flex h-12 shrink-0 items-center justify-between border-b bg-white px-4">
-              <DialogTitle className="text-sm">Preview — {name}</DialogTitle>
+              <DialogTitle className="text-sm">
+                {labels.preview} — {name}
+              </DialogTitle>
               <div className="flex items-center gap-2">
                 {devices.length > 0 && (
                   <ToggleGroup
@@ -323,7 +321,7 @@ export default function EditorHeader({
                   <Download /> Export HTML
                 </Button>
                 <DialogClose asChild>
-                  <Button variant="ghost" size="icon" aria-label="Close preview">
+                  <Button variant="ghost" size="icon" aria-label={labels.closePreview}>
                     <X />
                   </Button>
                 </DialogClose>
@@ -331,7 +329,7 @@ export default function EditorHeader({
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-6">
               <iframe
-                title="Email preview"
+                title={labels.previewFrameTitle}
                 srcDoc={preview}
                 className={cn(
                   "mx-auto block h-full min-h-[80vh] rounded-md border bg-white shadow-sm",
@@ -356,7 +354,7 @@ export default function EditorHeader({
           </DialogTrigger>
           <DialogContent className="flex !max-w-4xl flex-col">
             <DialogHeader>
-              <DialogTitle>Source code</DialogTitle>
+              <DialogTitle>{labels.sourceCode}</DialogTitle>
             </DialogHeader>
             <Tabs defaultValue="mjml" className="min-h-0 flex-1">
               <TabsList>
@@ -387,7 +385,7 @@ export default function EditorHeader({
                       size="sm"
                       onClick={() => {
                         void navigator.clipboard?.writeText(code[kind]);
-                        toast.success(`${kind.toUpperCase()} copied.`);
+                        toast.success(labels.copied(kind.toUpperCase()));
                       }}
                     >
                       <Copy /> Copy
@@ -412,14 +410,14 @@ export default function EditorHeader({
               onClick={() => download(`${base}.html`, api?.getCompiledHtml() ?? "", "text/html")}
               className="flex w-full flex-col rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
             >
-              <span className="font-medium">Export HTML</span>
+              <span className="font-medium">{labels.exportHtml}</span>
               <span className="text-xs text-muted-foreground">{base}.html</span>
             </button>
             <button
               onClick={() => download(`${base}.mjml`, api?.getMjml() ?? "", "text/plain")}
               className="flex w-full flex-col rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
             >
-              <span className="font-medium">Export MJML</span>
+              <span className="font-medium">{labels.exportMjml}</span>
               <span className="text-xs text-muted-foreground">{base}.mjml</span>
             </button>
           </PopoverContent>

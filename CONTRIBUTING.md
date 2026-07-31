@@ -79,6 +79,30 @@ Publishing is close to irreversible: unpublishing is only allowed within 72 hour
 name and version stay reserved afterwards regardless. Run `pnpm release:dry` first, every
 time.
 
+## Does this belong in a package at all?
+
+The packages are meant to be installable by strangers, so they hold the core and nothing
+else. Almost every change raises the same question, so decide it with a test rather than by
+feel:
+
+> **Could another adopter reasonably want the opposite?**
+> If yes, it belongs in the host — `apps/example`, or whatever application you are building.
+> If wanting the opposite would mean corrupted documents or a broken editor↔agent contract,
+> it belongs in a package.
+
+In the packages: document addressing and `sec-*` ids, MJML validation before every write,
+tool schemas, the stream protocol, the ports, the invariants both backends enforce, the React
+components.
+
+In the host: copy and tone, limits, budgets, auth, model choice, styling decisions.
+
+Worked example, from a mistake actually made. `set_document` refusing an unconfirmed rewrite
+is a package concern — wanting the opposite means deleted comments. "Reply in one or two
+sentences and do not describe the design" was briefly added to `SYSTEM_PROMPT` and did not
+belong there: a host building an internal tool may legitimately want the full breakdown that
+a consumer product finds tedious. `createChatHandler` takes a `systemPrompt` for exactly that,
+and every string the editor renders goes through `labels`.
+
 ## Adding to the editor package
 
 `packages/editor` has three entry points and the split is load-bearing: `./canvas` is browser

@@ -2,8 +2,11 @@ export {
   EditorStoreProvider,
   useCommentStore,
   useDocumentStore,
+  useLabels,
   type EditorStores,
 } from "./stores.js";
+
+export { DEFAULT_LABELS, mergeLabels, type EditorLabels } from "./labels.js";
 
 /**
  * Re-exported from `core`, where it moved so a server could import it. Kept here because

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "../../lib/utils";
+import { useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "../ui/empty";
@@ -33,18 +34,6 @@ import {
   MessageScrollerItem,
   MessageScrollerButton,
 } from "../ui/message-scroller";
-
-const TOOL_LABELS: Record<string, string> = {
-  get_document: "Reading document",
-  get_section: "Reading section",
-  set_document: "Saving whole email",
-  set_section: "Replacing section",
-  insert_section: "Adding section",
-  remove_section: "Removing section",
-  generate_image: "Generating image",
-  list_open_comments: "Reading comments",
-  resolve_comment: "Resolving comment",
-};
 
 const APPLY_COMMENTS_PROMPT =
   "Apply changes based on all open section comments. " +
@@ -183,6 +172,7 @@ type Props = {
 };
 
 function ToolMarker({ tool }: { tool: ToolUIPart }) {
+  const labels = useLabels();
   const name = tool.type.slice(5);
   const done = tool.state === "output-available";
   const failed = tool.state === "output-error";
@@ -198,7 +188,7 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
         )}
       </MarkerIcon>
       <MarkerContent>
-        {TOOL_LABELS[name] ?? name}
+        {labels.toolLabels[name] ?? name}
         {failed && tool.errorText ? `: ${tool.errorText}` : ""}
       </MarkerContent>
     </Marker>
@@ -208,18 +198,20 @@ function ToolMarker({ tool }: { tool: ToolUIPart }) {
 // "Agent is working…" indicator — rendered either inside the current assistant
 // message (tight under the steps) or standalone when the assistant hasn't started writing yet.
 function BusyMarker() {
+  const labels = useLabels();
   return (
     <Marker className="text-panel-fg">
       <MarkerIcon>
         <Loader2 className="animate-spin" />
       </MarkerIcon>
-      <MarkerContent>Agent is working…</MarkerContent>
+      <MarkerContent>{labels.agentWorking}</MarkerContent>
     </Marker>
   );
 }
 
 // Tool activity: in-progress tasks visible; finished and failed ones collapsed underneath.
 function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
+  const labels = useLabels();
   const running = tools.filter((t) => t.state !== "output-available" && t.state !== "output-error");
   const finished = tools.filter(
     (t) => t.state === "output-available" || t.state === "output-error",
@@ -235,11 +227,7 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
         <Collapsible>
           <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-fg hover:text-panel-fg">
             <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
-            <span>
-              {failedCount > 0
-                ? `Completed steps (${finished.length}, ${failedCount} failed)`
-                : `Completed steps (${finished.length})`}
-            </span>
+            <span>{labels.completedSteps(finished.length, failedCount)}</span>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 space-y-0.5 pl-1">
             {finished.map((t, i) => (
@@ -262,13 +250,14 @@ function ToolActivity({ tools }: { tools: ToolUIPart[] }) {
  * nothing looks broken. Collapsed rather than expanded, because it is not the answer.
  */
 function ReasoningBlock({ text }: { text: string }) {
+  const labels = useLabels();
   return (
     <div className="rounded-lg border border-panel-border bg-panel-elevated/60 p-2">
       <Collapsible>
         <CollapsibleTrigger className="group/col flex w-full items-center gap-1.5 text-left text-xs font-medium text-panel-muted-fg hover:text-panel-fg">
           <ChevronRight className="size-3.5 shrink-0 transition-transform group-data-[state=open]/col:rotate-90" />
           <Brain className="size-3.5 shrink-0" />
-          <span>Reasoning</span>
+          <span>{labels.reasoning}</span>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-1.5 pl-1 text-xs whitespace-pre-wrap text-panel-muted-fg">
           {text}
@@ -288,6 +277,7 @@ export default function ChatPanel({
   onSectionEditStart,
   onSectionEditEnd,
 }: Props) {
+  const labels = useLabels();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // Per-message timestamp, stamped when the message first renders.
@@ -313,7 +303,7 @@ export default function ChatPanel({
     onFinish: onAgentFinish,
     onError: (e) => {
       console.error("chat error:", e);
-      toast.error("Agent chat error.");
+      toast.error(labels.chatError);
     },
   });
 
@@ -400,11 +390,8 @@ export default function ChatPanel({
                     <EmptyMedia variant="icon">
                       <MessageSquare />
                     </EmptyMedia>
-                    <EmptyTitle>Start a conversation with the agent</EmptyTitle>
-                    <EmptyDescription>
-                      Describe the email (goal, tone, content) and paste your data — the agent will
-                      design the sections and images.
-                    </EmptyDescription>
+                    <EmptyTitle>{labels.chatEmptyTitle}</EmptyTitle>
+                    <EmptyDescription>{labels.chatEmptyDescription}</EmptyDescription>
                   </EmptyHeader>
                 </Empty>
               ) : (
@@ -504,7 +491,7 @@ export default function ChatPanel({
           disabled={busy}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
-          <Sparkles /> Apply changes from comments
+          <Sparkles /> {labels.applyComments}
         </Button>
         <form
           onSubmit={(e) => {
@@ -517,7 +504,7 @@ export default function ChatPanel({
             ref={taRef}
             rows={2}
             className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0"
-            placeholder="Describe what you want to change… (Enter = send, Shift+Enter = new line)"
+            placeholder={labels.chatPlaceholder}
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -539,7 +526,7 @@ export default function ChatPanel({
                 className="border-panel-border bg-transparent text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
                 onClick={() => void stop()}
               >
-                <Square /> Stop
+                <Square /> {labels.stop}
               </Button>
             )}
             <Button
@@ -548,7 +535,7 @@ export default function ChatPanel({
               disabled={busy || !input.trim()}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
-              <Send /> Send
+              <Send /> {labels.send}
             </Button>
           </div>
         </form>
