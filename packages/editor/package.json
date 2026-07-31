@@ -1,12 +1,33 @@
 {
   "name": "@mjml-agent-editor/editor",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "React MJML editor with an agent chat panel and canvas comments.",
+  "keywords": [
+    "mjml",
+    "email-editor",
+    "grapesjs",
+    "react",
+    "ai-agent",
+    "comments"
+  ],
   "license": "MIT",
+  "author": "Krzysztof Marmol",
+  "homepage": "https://github.com/KrzysztofMarmol/mjml-agent-editor/tree/main/packages/editor#readme",
+  "bugs": {
+    "url": "https://github.com/KrzysztofMarmol/mjml-agent-editor/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrzysztofMarmol/mjml-agent-editor.git",
+    "directory": "packages/editor"
+  },
   "type": "module",
   "sideEffects": [
     "*.css"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -32,6 +53,9 @@
     "dist",
     "src/components/editor/editor-theme.css"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

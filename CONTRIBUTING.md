@@ -55,6 +55,30 @@ twice. If you add one, make sure it fails against a backend that does nothing: a
 whose only assertion is "the document still compiles" passes against a dead endpoint, which is
 worse than no scenario at all.
 
+## Releasing to npm
+
+Four packages publish under the `@mjml-agent-editor` scope; `conformance` is marked private
+and is skipped automatically.
+
+```bash
+pnpm build            # dist/ and contract/tools.json must be current
+pnpm test
+pnpm release:dry      # prints exactly what would be uploaded
+pnpm release
+```
+
+Bump the version in all four `package.json` files together and keep them in step. They
+depend on each other through `workspace:*`, which pnpm rewrites to the concrete version at
+publish time — so publishing one package against a version of another that never reached the
+registry installs as broken for everyone else.
+
+`publishConfig.access` is `public` in each. Without it npm treats a scoped package as
+private and fails with a billing error rather than a permissions one.
+
+Publishing is close to irreversible: unpublishing is only allowed within 72 hours, and the
+name and version stay reserved afterwards regardless. Run `pnpm release:dry` first, every
+time.
+
 ## Adding to the editor package
 
 `packages/editor` has three entry points and the split is load-bearing: `./canvas` is browser

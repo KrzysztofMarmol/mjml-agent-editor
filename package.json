@@ -15,7 +15,9 @@
     "test": "turbo run test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:conformance": "pnpm --filter @mjml-agent-editor/conformance run conformance"
+    "test:conformance": "pnpm --filter @mjml-agent-editor/conformance run conformance",
+    "release:dry": "pnpm -r --filter=\"./packages/*\" publish --dry-run --no-git-checks",
+    "release": "pnpm -r --filter=\"./packages/*\" publish --access public"
   },
   "devDependencies": {
     "prettier": "^3.4.2",

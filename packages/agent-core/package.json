@@ -1,10 +1,30 @@
 {
   "name": "@mjml-agent-editor/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Shared contract for the MJML agent editor: document addressing, stable IDs and tool schemas.",
+  "keywords": [
+    "mjml",
+    "email",
+    "ai-agent",
+    "tool-schemas",
+    "contract"
+  ],
   "license": "MIT",
+  "author": "Krzysztof Marmol",
+  "homepage": "https://github.com/KrzysztofMarmol/mjml-agent-editor/tree/main/packages/agent-core#readme",
+  "bugs": {
+    "url": "https://github.com/KrzysztofMarmol/mjml-agent-editor/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KrzysztofMarmol/mjml-agent-editor.git",
+    "directory": "packages/agent-core"
+  },
   "type": "module",
   "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,6 +39,9 @@
     "dist",
     "contract"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup && node scripts/emit-tools-json.mjs",
     "dev": "tsup --watch",
