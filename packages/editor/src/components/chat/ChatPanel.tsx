@@ -136,6 +136,29 @@ function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
   return blocks;
 }
 
+/**
+ * The host's own sentence, when a refusal carried one.
+ *
+ * A rejected turn arrives here as an `Error` whose message is the response body verbatim,
+ * and the contract says a refusal is `{"error": "..."}` written for a person to read — "the
+ * agent is still working on this email", "this account has used its 25 messages". Falling
+ * back to a generic "agent chat error" throws away the only part the reader can act on.
+ *
+ * Anything else — a network failure, an error part mid-stream — has no such body and keeps
+ * the generic label, because a raw exception message is not something to put in front of a
+ * visitor.
+ */
+function refusal(error: unknown): string | null {
+  const body = error instanceof Error ? error.message : "";
+  if (!body.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === "string" && parsed.error.trim() !== "" ? parsed.error : null;
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   docId: string;
   /**
@@ -159,6 +182,19 @@ type Props = {
    * restarts if it is rebuilt on every render.
    */
   transport?: ChatTransport<UIMessage>;
+  /**
+   * Re-attach to a turn that is already running for this document.
+   *
+   * Only meaningful to a host whose server keeps streaming after the browser lets go — one
+   * that drains the response itself rather than leaving it to the tab that asked. There the
+   * visitor can leave mid-turn and come back to it still running, and without this the
+   * panel mounts showing the stored conversation as it was before the turn started, with no
+   * sign that anything is happening.
+   *
+   * The panel asks on mount only. `GET {api}/{docId}/stream` is what answers, and `204`
+   * means there was nothing to re-attach to — which is the ordinary case and not an error.
+   */
+  resume?: boolean;
   /** Flushes unsaved editor changes before the agent starts. */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
@@ -271,6 +307,7 @@ export default function ChatPanel({
   docId,
   initialMessages,
   transport,
+  resume,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -292,7 +329,13 @@ export default function ChatPanel({
     return times.current.get(id)!;
   };
   const { messages, sendMessage, status, stop } = useChat({
+    // The document is the conversation, so it is also the chat's identity. Left to itself
+    // the SDK invents a fresh id per mount, which is fine until something has to be found
+    // again across one: the reconnect below is addressed as `{api}/{id}/stream`, and an id
+    // the server never saw addresses nothing.
+    id: docId,
     messages: initialMessages,
+    resume,
     transport:
       transport ??
       new DefaultChatTransport({
@@ -303,7 +346,7 @@ export default function ChatPanel({
     onFinish: onAgentFinish,
     onError: (e) => {
       console.error("chat error:", e);
-      toast.error(labels.chatError);
+      toast.error(refusal(e) ?? labels.chatError);
     },
   });
 
