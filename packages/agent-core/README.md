@@ -55,6 +55,14 @@ The nine tool definitions (`get_document`, `set_section`, `insert_section`, `gen
 because the build rewrites it, the check that catches drift is `git diff` after a build
 rather than a unit test.
 
+## The starter document
+
+`STARTER_MJML` is the MJML a brand-new email begins as. It lives here rather than in the
+editor package because the code that needs it is the code that *creates* a document, and
+that runs on a server — `@mjml-agent-editor/editor` ships with a `"use client"` banner, so
+importing the constant from there in a route handler gives you a client reference instead
+of a string. The editor still re-exports it for browser callers.
+
 ## Documentation
 
 - [`docs/agent-contract.md`](../../docs/agent-contract.md) — what a backend must implement

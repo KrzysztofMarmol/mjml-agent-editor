@@ -26,6 +26,8 @@ export type {
 
 export { LEGACY_JSON_ARGUMENT_HINT, SYSTEM_PROMPT } from "./prompt.js";
 
+export { STARTER_MJML } from "./starter.js";
+
 export {
   DEFAULT_IMAGE_SIZE,
   IMAGE_SIZES,
