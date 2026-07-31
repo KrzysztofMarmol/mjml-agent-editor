@@ -136,6 +136,29 @@ function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
   return blocks;
 }
 
+/**
+ * The host's own sentence, when a refusal carried one.
+ *
+ * A rejected turn arrives here as an `Error` whose message is the response body verbatim,
+ * and the contract says a refusal is `{"error": "..."}` written for a person to read — "the
+ * agent is still working on this email", "this account has used its 25 messages". Falling
+ * back to a generic "agent chat error" throws away the only part the reader can act on.
+ *
+ * Anything else — a network failure, an error part mid-stream — has no such body and keeps
+ * the generic label, because a raw exception message is not something to put in front of a
+ * visitor.
+ */
+function refusal(error: unknown): string | null {
+  const body = error instanceof Error ? error.message : "";
+  if (!body.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown };
+    return typeof parsed.error === "string" && parsed.error.trim() !== "" ? parsed.error : null;
+  } catch {
+    return null;
+  }
+}
+
 type Props = {
   docId: string;
   /**
@@ -323,7 +346,7 @@ export default function ChatPanel({
     onFinish: onAgentFinish,
     onError: (e) => {
       console.error("chat error:", e);
-      toast.error(labels.chatError);
+      toast.error(refusal(e) ?? labels.chatError);
     },
   });
 

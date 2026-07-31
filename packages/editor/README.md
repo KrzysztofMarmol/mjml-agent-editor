@@ -147,6 +147,32 @@ behind it.
 
 Memoize it. A transport holding state restarts if it is rebuilt on every render.
 
+## Turns that outlive the panel
+
+By default a turn lives as long as the request carrying it: unmount the panel and the
+stream is cancelled, which also cancels the turn. A host can decide otherwise by draining
+the agent's response itself and handing the browser a copy — then leaving a document stops
+watching a turn instead of ending it.
+
+`resume` is the other half of that. It asks the panel, on mount, to re-attach to a turn
+already running for this document:
+
+```tsx
+<ChatPanel docId={docId} initialMessages={stored} resume={aTurnIsRunning} {...handlers} />
+```
+
+The request goes to `GET {api}/{docId}/stream`, so the host needs a route there that
+answers with the turn so far — followed by the rest of it as it arrives — or **`204`** when
+there is nothing running, which is the ordinary case and not an error.
+
+Two things worth knowing when you build that route. The conversation a host stores through
+`ChatSession` is written when a turn ends, so while one is in flight the history stops short
+of the message that started it; keep that message somewhere and put it back into
+`initialMessages`, or the reply arrives under no question. And a refusal answered as
+`{"error": "..."}` — the shape the agent contract already uses — is shown to the visitor as
+written, so a host's own sentence about limits or a document that is already busy reaches
+them intact.
+
 ## A note on field names
 
 The ports are camelCase (`sectionId`, `objectId`, `projectData`); Postgres columns are
