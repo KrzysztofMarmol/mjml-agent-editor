@@ -60,10 +60,22 @@ warning about it:
 @source "../../node_modules/@mjml-agent-editor/editor/dist";
 ```
 
-## Routing
+## Routing and branding
 
 The package has no router dependency. `EditorHeader` takes a `homeLink` node, so a Next.js
 host passes `<Link href="/">` and anything else passes an anchor.
+
+`logo` works the same way. A brand mark belongs to the host, so the header renders whatever
+node it is given and falls back to a generic envelope:
+
+```tsx
+<EditorHeader
+  docId={id}
+  api={api}
+  openCount={n}
+  logo={<img src="/logo.png" alt="" className="size-8" />}
+/>
+```
 
 ## Data access
 

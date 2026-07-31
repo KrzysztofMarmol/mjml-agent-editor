@@ -90,6 +90,7 @@ export default function EditorHeader({
   api,
   openCount,
   homeLink,
+  logo,
 }: {
   docId: string;
   api: EditorApi | null;
@@ -100,6 +101,14 @@ export default function EditorHeader({
    * so the package does not depend on a router.
    */
   homeLink?: ReactNode;
+  /**
+   * The mark shown before the application name. Defaults to a generic envelope.
+   *
+   * A brand asset is the host's, not the package's — the same reasoning as `homeLink`. The
+   * default exists so the header does not look broken out of the box, not as a suggestion
+   * that anyone ship it.
+   */
+  logo?: ReactNode;
 }) {
   // Injected by the host rather than imported, so the header carries no database.
   const documents = useDocumentStore();
@@ -147,9 +156,11 @@ export default function EditorHeader({
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-panel-border bg-panel px-3 text-panel-fg">
       {/* Logo + document name */}
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-indigo-400 text-brand-fg shadow-sm">
-        <Mail className="size-4" />
-      </span>
+      {logo ?? (
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-indigo-400 text-brand-fg shadow-sm">
+          <Mail className="size-4" />
+        </span>
+      )}
       <span className="hidden text-sm font-semibold sm:inline">{labels.appName}</span>
       <Separator orientation="vertical" className="mx-1 !h-5 bg-panel-border" />
       <Input
