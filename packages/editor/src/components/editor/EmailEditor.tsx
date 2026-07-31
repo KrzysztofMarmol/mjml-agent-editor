@@ -6,7 +6,7 @@ import grapesjsMJML from "grapesjs-mjml";
 import { useRef, useState, type ReactNode } from "react";
 
 import { STARTER_MJML } from "@mjml-agent-editor/core";
-import { useDocumentStore, type CommentTarget } from "../../index.js";
+import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -182,7 +182,7 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
-function setupRichText(editor: Editor) {
+function setupRichText(editor: Editor, labels: EditorLabels) {
   const rte = editor.RichTextEditor as any;
   if (!rte || rte.__customActions) return;
   rte.__customActions = true;
@@ -190,7 +190,7 @@ function setupRichText(editor: Editor) {
     (action.btn?.querySelector(sel) as HTMLInputElement | HTMLSelectElement | null)?.value ?? "";
 
   rte.add("fontName", {
-    icon: `<select class="gjs-rte-select" title="Font"><option value="">Font</option>${RTE_FONTS.map(
+    icon: `<select class="gjs-rte-select" title="${labels.rteFont}"><option value="">${labels.rteFont}</option>${RTE_FONTS.map(
       (f) => `<option value="${f}">${f}</option>`,
     ).join("")}</select>`,
     event: "change",
@@ -201,7 +201,7 @@ function setupRichText(editor: Editor) {
   });
 
   rte.add("fontSize", {
-    icon: `<select class="gjs-rte-select" title="Size"><option value="">Size</option>${RTE_SIZES.map(
+    icon: `<select class="gjs-rte-select" title="${labels.rteSize}"><option value="">${labels.rteSize}</option>${RTE_SIZES.map(
       (s) => `<option value="${s}px">${s}</option>`,
     ).join("")}</select>`,
     event: "change",
@@ -212,13 +212,13 @@ function setupRichText(editor: Editor) {
   });
 
   rte.add("forecolor", {
-    icon: `<input type="color" class="gjs-rte-color" title="Text color" value="#000000">`,
+    icon: `<input type="color" class="gjs-rte-color" title="${labels.rteTextColor}" value="#000000">`,
     event: "change",
     result: (r: any, action: any) => r.exec("foreColor", val(action, "input")),
   });
 
   rte.add("hilitecolor", {
-    icon: `<input type="color" class="gjs-rte-color" title="Background color" value="#ffff00">`,
+    icon: `<input type="color" class="gjs-rte-color" title="${labels.rteBackgroundColor}" value="#ffff00">`,
     event: "change",
     result: (r: any, action: any) => r.exec("hiliteColor", val(action, "input")),
   });
@@ -228,6 +228,7 @@ function setupRichText(editor: Editor) {
 export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCountChange }: Props) {
   // Injected by the host rather than imported, so the editor carries no database.
   const documents = useDocumentStore();
+  const labels = useLabels();
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -325,7 +326,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       },
     });
 
-    setupRichText(editor);
+    setupRichText(editor, labels);
 
     // Group the palette blocks into categories (the plugin ships them flat).
     const blockCategory = (label: string): string => {
@@ -389,7 +390,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         setSave("saved");
       } catch (e) {
         setSave("error");
-        toast.error("Failed to save changes.");
+        toast.error(labels.documentSaveFailed);
         throw e;
       }
     };
@@ -471,7 +472,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       const doc = await documents.get(docId);
       loadMjml(doc.mjml);
     } catch (e) {
-      toast.error("Failed to load the document.");
+      toast.error(labels.documentLoadFailed);
       console.error(e);
     } finally {
       setLoading(false);
@@ -620,6 +621,7 @@ function LeftSidebar({
   markLayersSource: () => void;
 }) {
   const editor = useEditorMaybe();
+  const labels = useLabels();
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [blockSearch, setBlockSearch] = useState("");
 
@@ -692,7 +694,7 @@ function LeftSidebar({
           <Input
             value={blockSearch}
             onChange={(e) => filterBlocks(e.target.value)}
-            placeholder="Search blocks…"
+            placeholder={labels.searchBlocks}
             className="h-8 border-panel-border bg-panel-elevated pr-10 pl-7 text-sm text-panel-fg placeholder:text-panel-muted-fg"
           />
           <kbd className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 rounded border border-panel-border bg-panel px-1 py-0.5 font-mono text-[10px] text-panel-muted-fg">
@@ -704,10 +706,10 @@ function LeftSidebar({
 
       {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
-        <CollapseSection title="Attributes">
+        <CollapseSection title={labels.attributes}>
           <div id="gjs-traits" />
         </CollapseSection>
-        <CollapseSection title="Style">
+        <CollapseSection title={labels.style}>
           <div id="gjs-styles" />
         </CollapseSection>
       </div>
@@ -719,7 +721,7 @@ function LeftSidebar({
         onMouseDownCapture={markLayersSource}
       >
         <label className="flex items-center justify-between gap-2 border-b border-panel-border px-3 py-2 text-xs text-panel-muted-fg">
-          <span>Expand all</span>
+          <span>{labels.expandAll}</span>
           <Switch
             checked={layersExpanded}
             onCheckedChange={toggleLayers}
@@ -740,10 +742,11 @@ function Breadcrumb({
   crumbs: Component[];
   onSelect: (c: Component) => void;
 }) {
+  const labels = useLabels();
   return (
     <div className="flex h-9 shrink-0 items-center gap-0.5 border-t border-border bg-surface px-3 text-xs text-muted-foreground">
       {crumbs.length === 0 ? (
-        <span className="text-muted-foreground/60">Select an element…</span>
+        <span className="text-muted-foreground/60">{labels.selectAnElement}</span>
       ) : (
         crumbs.map((c, i) => (
           <span key={i} className="flex items-center gap-0.5">

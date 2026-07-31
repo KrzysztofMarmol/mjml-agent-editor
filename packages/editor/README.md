@@ -86,6 +86,31 @@ satisfying the two interfaces works, including an in-memory object.
 
 Forgetting the provider throws with an explanation rather than failing on a null read.
 
+## Copy
+
+Every word the editor renders comes from a dictionary with English defaults, so a host
+building in another language overrides rather than forks:
+
+```tsx
+<EditorStoreProvider
+  stores={stores}
+  labels={{
+    appName: "Edytor MJML",
+    send: "Wyślij",
+    agentWorking: "Agent pracuje…",
+    toolLabels: { set_section: "Podmieniam sekcję" },
+  }}
+>
+```
+
+Overrides are shallow-merged, so anything omitted stays English. `toolLabels` is the one
+exception and merges key by key — renaming one step would otherwise silently drop the other
+eight. `DEFAULT_LABELS` and the `EditorLabels` type are exported if you want to see the full
+list or build a complete translation.
+
+Values that interpolate are functions rather than format strings — `copied(kind)`,
+`completedSteps(count, failed)` — so word order belongs to the translator.
+
 ## Reaching the agent
 
 `ChatPanel` posts to `/api/chat` on the same origin by default, which is what

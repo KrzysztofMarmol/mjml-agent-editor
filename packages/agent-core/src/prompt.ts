@@ -6,6 +6,11 @@
  * than inside one backend. It is emitted into `contract/tools.json` for the Python
  * implementation to read.
  *
+ * What is **not** here: how talkative the agent should be. That is tone, no backend enforces
+ * it, and a host building an internal tool may legitimately want the full breakdown of every
+ * edit that a consumer product would find tedious. It briefly lived here and was wrong;
+ * `buildSystemPrompt({ systemPrompt })` exists so a host can state its own.
+ *
  * One block from the spike is deliberately absent: the demand for single-line MJML with
  * single-quoted attributes. That works around the Vercel AI SDK **for Python** replacing
  * malformed tool-call argument JSON with `{}`. It is a property of one SDK, not of the
@@ -57,20 +62,8 @@ APPLYING FIXES FROM COMMENTS:
 4. After a successful change, call resolve_comment(id) — for EVERY comment whose
    requested change you applied, not just the last one. A comment left open is a
    pin still sitting on the canvas asking for work that is already done.
-5. Say explicitly which comments you marked resolved.
-
-HOW TO REPLY:
-- The user is looking at the editor. Your tool calls have already changed what
-  they see, so the email does not need describing — describing it asks them to
-  read a summary of something already on screen.
-- After creating or editing an email, reply in one or two short sentences:
-  confirm what changed and invite the next change. No section list, no
-  breakdown of the design, no implementation notes.
-- If the user asks for an explanation, a summary or a rationale, give one
-  properly. This is about not volunteering it unasked.
-- Resolved comments are the exception to brevity: always name them (see above).
-  That one is not visible in the editor until the pin disappears, and a person
-  who commented needs to know it was answered.`;
+5. Say explicitly which comments you marked resolved. A resolved pin disappears
+   from the canvas, and that is the only signal the person who wrote it gets.`;
 
 /**
  * Appended by implementations whose SDK cannot carry multi-line tool arguments.

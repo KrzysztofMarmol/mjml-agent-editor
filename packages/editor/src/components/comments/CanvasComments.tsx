@@ -4,7 +4,12 @@ import { useEditorMaybe } from "@grapesjs/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, MessageSquarePlus, X } from "lucide-react";
 
-import { useCommentStore, type CommentTarget, type SectionComment } from "../../index.js";
+import {
+  useLabels,
+  useCommentStore,
+  type CommentTarget,
+  type SectionComment,
+} from "../../index.js";
 import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -35,6 +40,7 @@ export default function CanvasComments({
 }: Props) {
   // Injected by the host rather than imported, so comments carry no database.
   const commentStore = useCommentStore();
+  const labels = useLabels();
   const editor = useEditorMaybe();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [comments, setComments] = useState<SectionComment[]>([]);
@@ -260,7 +266,7 @@ export default function CanvasComments({
                 </>
               ) : (
                 <>
-                  Comment on the whole section{" "}
+                  {labels.commentOnSection}{" "}
                   <code className="font-mono">{activeTarget?.sectionId}</code>
                 </>
               )}
@@ -268,7 +274,7 @@ export default function CanvasComments({
             <button
               type="button"
               onClick={closePopover}
-              aria-label="Close"
+              aria-label={labels.closeComments}
               className="-mr-1 -mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <X className="size-4" />
@@ -276,7 +282,7 @@ export default function CanvasComments({
           </div>
           <div className="max-h-64 space-y-2 overflow-y-auto p-3">
             {activeComments.length === 0 && (
-              <p className="text-xs text-muted-foreground">No comments yet — add the first one.</p>
+              <p className="text-xs text-muted-foreground">{labels.noCommentsYet}</p>
             )}
             {activeComments.map((c) => (
               <div key={c.id} className="rounded-md border bg-muted/40 p-2 text-sm">
@@ -285,7 +291,7 @@ export default function CanvasComments({
                   onClick={() => void resolve(c.id)}
                   className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
-                  <Check className="size-3" /> Resolve
+                  <Check className="size-3" /> {labels.resolveComment}
                 </button>
               </div>
             ))}
@@ -295,7 +301,7 @@ export default function CanvasComments({
               autoFocus
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Add a comment… (⌘/Ctrl+Enter to send)"
+              placeholder={labels.addCommentPlaceholder}
               className="min-h-14 resize-none text-sm"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -306,7 +312,7 @@ export default function CanvasComments({
             />
             <div className="mt-2 flex justify-end">
               <Button size="sm" disabled={!body.trim()} onClick={() => void submit()}>
-                <MessageSquarePlus /> Add
+                <MessageSquarePlus /> {labels.addComment}
               </Button>
             </div>
           </div>
