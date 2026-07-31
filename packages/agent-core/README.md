@@ -58,7 +58,7 @@ rather than a unit test.
 ## The starter document
 
 `STARTER_MJML` is the MJML a brand-new email begins as. It lives here rather than in the
-editor package because the code that needs it is the code that *creates* a document, and
+editor package because the code that needs it is the code that _creates_ a document, and
 that runs on a server — `@mjml-agent-editor/editor` ships with a `"use client"` banner, so
 importing the constant from there in a route handler gives you a client reference instead
 of a string. The editor still re-exports it for browser callers.
