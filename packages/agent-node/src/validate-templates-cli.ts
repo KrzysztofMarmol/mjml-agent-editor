@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { basename, extname, join, resolve } from "node:path";
+import { register } from "node:module";
+import { extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import type { EmailTemplate } from "@mjml-agent-editor/core";
+import type { TemplateEntry } from "@mjml-agent-editor/core";
 
 import { validateTemplateCatalogWithCompiler } from "./template-validation.js";
 
@@ -15,43 +14,20 @@ interface CatalogModule {
   readonly TEMPLATE_CATALOG?: unknown;
 }
 
-async function loadTsModule(file: string): Promise<CatalogModule> {
-  let ts: typeof import("typescript");
-  try {
-    ts = await import("typescript");
-  } catch {
-    throw new Error("loading .ts catalogs requires the host project to install typescript");
-  }
-
-  const source = await readFile(file, "utf8");
-  const transpiled = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2022,
-      target: ts.ScriptTarget.ES2022,
-      verbatimModuleSyntax: true,
-    },
-    fileName: file,
-  });
-  const dir = join(tmpdir(), "mjml-agent-editor-template-check");
-  await mkdir(dir, { recursive: true });
-  const out = join(dir, `${basename(file, extname(file))}-${Date.now()}.mjs`);
-  await writeFile(out, transpiled.outputText);
-  return import(pathToFileURL(out).href) as Promise<CatalogModule>;
-}
-
 async function loadModule(file: string): Promise<CatalogModule> {
   const resolved = resolve(file);
-  return extname(resolved) === ".ts"
-    ? loadTsModule(resolved)
-    : ((await import(pathToFileURL(resolved).href)) as CatalogModule);
+  // Registered before the import and only when it is needed: a `.js` catalog resolves on
+  // its own, and hooks it does not need are hooks that can only get in the way.
+  if (extname(resolved) === ".ts") register(new URL("./ts-loader.js", import.meta.url));
+  return (await import(pathToFileURL(resolved).href)) as CatalogModule;
 }
 
-function catalogFrom(module: CatalogModule): readonly EmailTemplate[] {
+function catalogFrom(module: CatalogModule): readonly TemplateEntry[] {
   const value = module.TEMPLATES ?? module.TEMPLATE_CATALOG ?? module.default;
   if (!Array.isArray(value)) {
     throw new Error("template module must export TEMPLATES, TEMPLATE_CATALOG or a default array");
   }
-  return value as readonly EmailTemplate[];
+  return value as readonly TemplateEntry[];
 }
 
 async function main(argv: readonly string[]): Promise<number> {

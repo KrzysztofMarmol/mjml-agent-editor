@@ -27,6 +27,14 @@
     "test": {
       "dependsOn": ["^build"]
     },
+    // agent-node alone also needs its *own* build: the CLI test runs the built binary in a
+    // real Node process, because what it checks is module resolution and a test runner
+    // resolves modules itself. Scoped to this package rather than added to `test` above,
+    // which would pull every workspace build — including the example app, whose build wants
+    // Supabase and provider credentials — into `pnpm test`.
+    "@mjml-agent-editor/agent-node#test": {
+      "dependsOn": ["^build", "build"]
+    },
     "lint": {},
     "dev": {
       "cache": false,
