@@ -2,30 +2,48 @@ import type { MjmlCompiler } from "./ports.js";
 import { STARTER_MJML } from "./starter.js";
 import { scanSections } from "./mjml-document.js";
 
-export interface EmailTemplateMeta<TId extends string = string> {
+/**
+ * A template, as far as this package is concerned: an id and a body.
+ *
+ * Everything here reads exactly these two fields. What a template is *called* — a name, a
+ * category, a one-line description, whether it leads the list — is a host's vocabulary,
+ * and another host can reasonably want a different one without anything breaking.
+ */
+export interface TemplateEntry<TId extends string = string> {
   readonly id: TId;
-  readonly name: string;
-  readonly category: string;
-  readonly blurb: string;
-  readonly featured?: boolean;
-}
-
-export interface EmailTemplate<TId extends string = string> extends EmailTemplateMeta<TId> {
   readonly mjml: string;
 }
 
-export type TemplateCatalog<TTemplate extends EmailTemplate = EmailTemplate> = readonly TTemplate[];
+/** The subset an id lookup needs, so a client-side picker with no bodies can use one. */
+export type TemplateIdentity<TId extends string = string> = { readonly id: TId };
 
-export type TemplateId<TCatalog extends TemplateCatalog> = TCatalog[number]["id"];
+/**
+ * An off-the-shelf shape for hosts that would rather not declare their own. Every label is
+ * optional on purpose: they are a convenience, not a contract, and nothing in this package
+ * reads them.
+ */
+export interface EmailTemplateMeta<TId extends string = string> extends TemplateIdentity<TId> {
+  readonly name?: string;
+  readonly category?: string;
+  readonly blurb?: string;
+  readonly featured?: boolean;
+}
 
-export function isTemplateId<TCatalog extends TemplateCatalog>(
+export interface EmailTemplate<TId extends string = string>
+  extends EmailTemplateMeta<TId>, TemplateEntry<TId> {}
+
+export type TemplateCatalog<TTemplate extends TemplateEntry = TemplateEntry> = readonly TTemplate[];
+
+export type TemplateId<TCatalog extends readonly TemplateIdentity[]> = TCatalog[number]["id"];
+
+export function isTemplateId<TCatalog extends readonly TemplateIdentity[]>(
   catalog: TCatalog,
   value: unknown,
 ): value is TemplateId<TCatalog> {
   return typeof value === "string" && catalog.some((template) => template.id === value);
 }
 
-export function findTemplate<TCatalog extends TemplateCatalog>(
+export function findTemplate<TCatalog extends readonly TemplateIdentity[]>(
   catalog: TCatalog,
   id: string,
 ): TCatalog[number] | undefined {

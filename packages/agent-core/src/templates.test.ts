@@ -57,6 +57,26 @@ describe("template catalog helpers", () => {
       newsletter: VALID,
     });
   });
+
+  /**
+   * The half a client component is allowed to hold. A picker has labels and no bodies, and
+   * the guard it wants is this one — requiring `mjml` here would have meant either a cast
+   * or shipping every template body to the browser to narrow a string.
+   */
+  it("narrows ids against a catalog that carries no bodies", () => {
+    const labels = [{ id: "blank" }, { id: "newsletter" }] as const;
+    expect(isTemplateId(labels, "newsletter")).toBe(true);
+    expect(isTemplateId(labels, "missing")).toBe(false);
+    expect(findTemplate(labels, "blank")).toEqual({ id: "blank" });
+  });
+
+  /** Nothing here reads a name, so nothing here should demand one. */
+  it("works on a catalog that is only ids and bodies", async () => {
+    const bare = [{ id: "only", mjml: VALID }] as const;
+    expect(starterBody(bare, "only")).toBe(VALID);
+    expect(templateBodies(bare)).toEqual({ only: VALID });
+    await expect(validateTemplateCatalog(bare)).resolves.toEqual({ ok: true, issues: [] });
+  });
 });
 
 describe("template validation", () => {
