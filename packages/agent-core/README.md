@@ -65,33 +65,50 @@ of a string. The editor still re-exports it for browser callers.
 
 ## Template catalogs
 
-Hosts can offer more than one starting point without shipping MJML to the browser. Keep
-client-safe labels separate from the server route that resolves an id to a body, and use
-the helpers here for the shared contract:
+A host can offer more than one starting point without shipping MJML to the browser. The
+split that makes that true is two modules: labels the client may hold, bodies only the
+server reads. An id is the only thing that crosses.
 
 ```ts
-import {
-  findTemplate,
-  isTemplateId,
-  starterBody,
-  type EmailTemplate,
-} from "@mjml-agent-editor/core";
+// templates.ts — safe to import from a client component.
+import { isTemplateId, type TemplateIdentity } from "@mjml-agent-editor/core";
 
-const templates = [
-  { id: "blank", name: "Blank", category: "Starter", blurb: "Start empty.", mjml: STARTER_MJML },
-  { id: "newsletter", name: "Newsletter", category: "Recurring", blurb: "Monthly update.", mjml },
-] as const satisfies readonly EmailTemplate[];
+export const TEMPLATES = [
+  { id: "blank", name: "Blank", blurb: "Start empty." },
+  { id: "newsletter", name: "Newsletter", blurb: "Monthly update." },
+] as const satisfies readonly TemplateIdentity[];
 
-if (!isTemplateId(templates, body.template)) throw new Error("unknown template");
-const createdWith = starterBody(templates, body.template);
+export const isKnownTemplate = (value: unknown) => isTemplateId(TEMPLATES, value);
 ```
+
+```ts
+// template-bodies.ts — server only.
+import { starterBody, type TemplateEntry } from "@mjml-agent-editor/core";
+
+const CATALOG = [
+  { id: "blank", mjml: STARTER_MJML },
+  { id: "newsletter", mjml: NEWSLETTER },
+] as const satisfies readonly TemplateEntry[];
+
+export const bodyFor = (id?: (typeof CATALOG)[number]["id"]) => starterBody(CATALOG, id);
+```
+
+The names are the host's. This package reads only `id` and `mjml` — `TemplateIdentity` is
+the first, `TemplateEntry` is both, and `EmailTemplate` is an optional ready-made shape
+whose labels are all optional because none of them mean anything here.
+
+**`EmailTemplate` and `TemplateEntry` carry `mjml`.** Importing either into a client
+component and mapping over it puts every template body in the bundle, to render a list of
+names. That is the mistake this section exists to prevent, so keep the client on
+`TemplateIdentity`.
 
 `validateTemplateMjml` and `validateTemplateCatalog` check the invariants the editor and
 agent depend on: no handwritten `sec-*`/`obj-*` ids, no opaque tags such as `mj-hero` or
 `mj-table`, and every written `mj-section` must be visible to `scanSections`.
 
-Optional example templates live at `@mjml-agent-editor/core/examples/templates`. They are
-a separate export so applications do not accidentally bundle example MJML into client code.
+A worked catalog lives in the example app at `apps/example/lib/templates.ts`. It is not
+published: what a starting point should _say_ is a product decision, and a package that
+ships email copy is a package deciding it for you.
 
 ## Document size guard
 

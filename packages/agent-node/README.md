@@ -131,9 +131,14 @@ if (!result.ok) throw new Error(result.issues.map((issue) => issue.message).join
 The package also ships a CLI:
 
 ```sh
-mjml-agent-editor-validate-templates ./templates.mjs
+mjml-agent-editor-validate-templates ./lib/template-catalog.ts
 ```
 
-The module must export `TEMPLATES`, `TEMPLATE_CATALOG` or a default array. JavaScript
-modules work directly; TypeScript catalog files work when the host project has
-`typescript` installed.
+The module must export `TEMPLATES`, `TEMPLATE_CATALOG` or a default array of
+`{ id, mjml }`. JavaScript modules work directly. TypeScript files need `typescript`
+installed in the host project, and are loaded in place through Node's module hooks — so a
+catalog may import its bodies from a sibling module, write specifiers the way NodeNext
+wants them (`./bodies.js` for `bodies.ts`) and depend on packages, exactly as the rest of
+the project does.
+
+Requires Node 20.6 or newer, which is where `module.register` landed.
