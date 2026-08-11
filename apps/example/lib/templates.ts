@@ -1,5 +1,13 @@
-import { STARTER_MJML } from "../starter.js";
-import type { EmailTemplate } from "../templates.js";
+/**
+ * Starting points, as a host writes them.
+ *
+ * These shipped inside `@mjml-agent-editor/core` for one release, which made the package
+ * carry email copy no adopter would want verbatim. They belong to the application, and
+ * live here for the same reason the rest of this app does: to show the API in use without
+ * the packages deciding the content.
+ */
+
+import { STARTER_MJML, type EmailTemplate } from "@mjml-agent-editor/core";
 
 const NEWSLETTER = `<mjml>
   <mj-body background-color="#f4f4f5">
