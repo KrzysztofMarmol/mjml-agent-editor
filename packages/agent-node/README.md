@@ -114,3 +114,26 @@ reject foreign ids. `apps/example` does not do this — see
 
 `maxSteps` is not decoration: the spike had no ceiling, so a confused model could loop until
 the provider cut it off, re-sending the whole conversation each round.
+
+## Template validation
+
+`@mjml-agent-editor/core` owns the template invariants; this package adds the Node MJML
+compiler so CI can reject malformed starting points before they are inserted into a
+document.
+
+```ts
+import { validateTemplateCatalogWithCompiler } from "@mjml-agent-editor/agent-node";
+
+const result = await validateTemplateCatalogWithCompiler(TEMPLATES);
+if (!result.ok) throw new Error(result.issues.map((issue) => issue.message).join("\n"));
+```
+
+The package also ships a CLI:
+
+```sh
+mjml-agent-editor-validate-templates ./templates.mjs
+```
+
+The module must export `TEMPLATES`, `TEMPLATE_CATALOG` or a default array. JavaScript
+modules work directly; TypeScript catalog files work when the host project has
+`typescript` installed.

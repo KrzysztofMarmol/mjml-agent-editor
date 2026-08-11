@@ -36,6 +36,9 @@
       "require": "./dist/index.cjs"
     }
   },
+  "bin": {
+    "mjml-agent-editor-validate-templates": "./dist/validate-templates-cli.js"
+  },
   "files": [
     "dist"
   ],

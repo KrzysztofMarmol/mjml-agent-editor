@@ -63,6 +63,42 @@ that runs on a server — `@mjml-agent-editor/editor` ships with a `"use client"
 importing the constant from there in a route handler gives you a client reference instead
 of a string. The editor still re-exports it for browser callers.
 
+## Template catalogs
+
+Hosts can offer more than one starting point without shipping MJML to the browser. Keep
+client-safe labels separate from the server route that resolves an id to a body, and use
+the helpers here for the shared contract:
+
+```ts
+import {
+  findTemplate,
+  isTemplateId,
+  starterBody,
+  type EmailTemplate,
+} from "@mjml-agent-editor/core";
+
+const templates = [
+  { id: "blank", name: "Blank", category: "Starter", blurb: "Start empty.", mjml: STARTER_MJML },
+  { id: "newsletter", name: "Newsletter", category: "Recurring", blurb: "Monthly update.", mjml },
+] as const satisfies readonly EmailTemplate[];
+
+if (!isTemplateId(templates, body.template)) throw new Error("unknown template");
+const createdWith = starterBody(templates, body.template);
+```
+
+`validateTemplateMjml` and `validateTemplateCatalog` check the invariants the editor and
+agent depend on: no handwritten `sec-*`/`obj-*` ids, no opaque tags such as `mj-hero` or
+`mj-table`, and every written `mj-section` must be visible to `scanSections`.
+
+Optional example templates live at `@mjml-agent-editor/core/examples/templates`. They are
+a separate export so applications do not accidentally bundle example MJML into client code.
+
+## Document size guard
+
+`assertDocumentSize(mjml, { maxBytes })` and `DocumentTooLargeError` give hosts one typed
+way to reject oversized documents from both browser saves and agent tool calls. The package
+does not choose a limit; demos and internal tools should set their own.
+
 ## Documentation
 
 - [`docs/agent-contract.md`](../../docs/agent-contract.md) — what a backend must implement

@@ -29,6 +29,30 @@ export { LEGACY_JSON_ARGUMENT_HINT, SYSTEM_PROMPT } from "./prompt.js";
 export { STARTER_MJML } from "./starter.js";
 
 export {
+  DocumentTooLargeError,
+  assertDocumentSize,
+  documentSizeBytes,
+  type DocumentSizeLimit,
+} from "./document-size.js";
+
+export {
+  findTemplate,
+  isTemplateId,
+  starterBody,
+  templateBodies,
+  validateTemplateCatalog,
+  validateTemplateMjml,
+  type EmailTemplate,
+  type EmailTemplateMeta,
+  type TemplateCatalog,
+  type TemplateId,
+  type TemplateValidationCode,
+  type TemplateValidationIssue,
+  type TemplateValidationOptions,
+  type TemplateValidationResult,
+} from "./templates.js";
+
+export {
   DEFAULT_IMAGE_SIZE,
   IMAGE_SIZES,
   MUTATING_TOOLS,

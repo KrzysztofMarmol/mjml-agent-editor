@@ -33,6 +33,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./examples/templates": {
+      "types": "./dist/examples/templates.d.ts",
+      "import": "./dist/examples/templates.js",
+      "require": "./dist/examples/templates.cjs"
     }
   },
   "files": [
