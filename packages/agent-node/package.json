@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/agent-node",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "TypeScript implementation of the MJML editing agent: tools, system prompt and chat handler.",
   "keywords": [
     "mjml",
@@ -34,6 +34,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./ts-loader": {
+      "import": "./dist/ts-loader.js"
     }
   },
   "bin": {

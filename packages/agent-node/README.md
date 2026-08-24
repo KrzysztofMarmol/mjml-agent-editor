@@ -142,3 +142,21 @@ wants them (`./bodies.js` for `bodies.ts`) and depend on packages, exactly as th
 the project does.
 
 Requires Node 20.6 or newer, which is where `module.register` landed.
+
+### Loading a catalog yourself
+
+Most projects that validate templates have rules of their own on top of these — an image
+host, alt text, the fonts their editor offers — and those need the catalog _loaded_, not
+just a pass or fail from the binary. The loader the CLI uses is exported for that:
+
+```js
+import { register } from "node:module";
+
+register("@mjml-agent-editor/agent-node/ts-loader", import.meta.url);
+
+const { TEMPLATE_BODIES } = await import("../lib/template-bodies.ts");
+```
+
+It handles what a real catalog needs: `.ts` through the host's own `typescript`, NodeNext
+`./bodies.js` specifiers, and `server-only` / `client-only` stood down — so a catalog
+deliberately kept out of the browser can still be read by a script.
