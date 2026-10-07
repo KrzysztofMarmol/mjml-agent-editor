@@ -86,6 +86,21 @@ export interface ImageProvider {
   generate(request: GenerateImageRequest): Promise<string>;
 }
 
+export interface EmailVisualReviewRequest {
+  readonly documentId: string;
+  readonly mjml: string;
+  readonly html: string;
+}
+
+export interface EmailVisualReviewer {
+  /**
+   * Renders and critiques the current email. The return value is plain text for the
+   * editing agent to act on; hosts decide whether this uses a browser API, a local
+   * renderer, a vision model, or a cached manual preview.
+   */
+  review(request: EmailVisualReviewRequest): Promise<string>;
+}
+
 export type CompileResult =
   { readonly ok: true; readonly html: string } | { readonly ok: false; readonly errors: string };
 

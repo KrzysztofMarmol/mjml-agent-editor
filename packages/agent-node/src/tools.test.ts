@@ -6,6 +6,8 @@ import type {
   EmailDocument,
   GenerateImageRequest,
   ImageProvider,
+  EmailVisualReviewRequest,
+  EmailVisualReviewer,
   SectionComment,
 } from "@mjml-agent-editor/core";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -101,6 +103,14 @@ class StubImages implements ImageProvider {
   }
 }
 
+class StubVisualReviewer implements EmailVisualReviewer {
+  requests: EmailVisualReviewRequest[] = [];
+  review(request: EmailVisualReviewRequest): Promise<string> {
+    this.requests.push(request);
+    return Promise.resolve("VISUAL REVIEW: CTA is clear.");
+  }
+}
+
 /** The SDK passes call metadata the tools here never read. */
 const CALL_OPTIONS = { toolCallId: "test-call", messages: [] } as never;
 
@@ -111,6 +121,16 @@ function run<Name extends keyof AgentTools>(
 ): Promise<string> {
   const execute = (tools[name] as { execute?: (input: never, options: never) => unknown }).execute;
   if (!execute) throw new Error(`tool ${String(name)} has no execute`);
+  return Promise.resolve(execute(input as never, CALL_OPTIONS)) as Promise<string>;
+}
+
+function runNamed(
+  tools: Record<string, { execute?: (input: never, options: never) => unknown }>,
+  name: string,
+  input: unknown,
+): Promise<string> {
+  const execute = tools[name]?.execute;
+  if (!execute) throw new Error(`tool ${name} has no execute`);
   return Promise.resolve(execute(input as never, CALL_OPTIONS)) as Promise<string>;
 }
 
@@ -384,6 +404,56 @@ describe("agent tools", () => {
       expect(await run(failing, "generate_image", { prompt: "x", size: "1024x1024" })).toBe(
         "ERROR: quota exceeded",
       );
+    });
+  });
+
+  describe("inspect_rendered_email", () => {
+    it("is omitted when visual review is not configured", () => {
+      expect("inspect_rendered_email" in tools).toBe(false);
+    });
+
+    it("compiles the current document and delegates to the visual reviewer", async () => {
+      const visualReviewer = new StubVisualReviewer();
+      const visualTools = createAgentTools({
+        documentId: DOCUMENT_ID,
+        documents,
+        comments,
+        images,
+        compiler: createMjmlCompiler(),
+        visualReviewer,
+      });
+
+      const output = await runNamed(visualTools, "inspect_rendered_email", {});
+
+      expect(output).toBe("VISUAL REVIEW: CTA is clear.");
+      expect(visualReviewer.requests).toHaveLength(1);
+      expect(visualReviewer.requests[0]?.documentId).toBe(DOCUMENT_ID);
+      expect(visualReviewer.requests[0]?.mjml).toBe(VALID_DOC);
+      expect(visualReviewer.requests[0]?.html).toContain("<!doctype html>");
+    });
+
+    it("does not call the visual reviewer when the document no longer compiles", async () => {
+      const badDocuments = new InMemoryDocuments({
+        id: DOCUMENT_ID,
+        name: "Bad",
+        mjml: `<mjml><mj-body><mj-bogus /></mj-body></mjml>`,
+        projectData: null,
+        updatedAt: "2026-01-01T00:00:00Z",
+      });
+      const visualReviewer = new StubVisualReviewer();
+      const visualTools = createAgentTools({
+        documentId: DOCUMENT_ID,
+        documents: badDocuments,
+        comments,
+        images,
+        compiler: createMjmlCompiler(),
+        visualReviewer,
+      });
+
+      const output = await runNamed(visualTools, "inspect_rendered_email", {});
+
+      expect(output).toContain("cannot render preview");
+      expect(visualReviewer.requests).toEqual([]);
     });
   });
 

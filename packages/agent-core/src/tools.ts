@@ -38,6 +38,7 @@ export const TOOL_NAMES = [
   "insert_section",
   "remove_section",
   "generate_image",
+  "inspect_rendered_email",
   "list_open_comments",
   "resolve_comment",
 ] as const;
@@ -176,6 +177,16 @@ export const TOOLS: Readonly<Record<ToolName, ToolDefinition>> = {
       required: ["prompt", "size"],
       additionalProperties: false,
     },
+  },
+
+  inspect_rendered_email: {
+    name: "inspect_rendered_email",
+    description:
+      "When the host has configured rendered-email visual review, renders the current " +
+      "email and returns a visual critique. Use after substantial layout, hierarchy, " +
+      "image, typography, or CTA changes to check whether the rendered email matches the " +
+      "user's goal before replying.",
+    inputSchema: NO_ARGUMENTS,
   },
 
   list_open_comments: {

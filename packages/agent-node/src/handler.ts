@@ -14,6 +14,7 @@
 import type {
   CommentStore,
   DocumentStore,
+  EmailVisualReviewer,
   ImageProvider,
   MjmlCompiler,
 } from "@mjml-agent-editor/core";
@@ -76,6 +77,8 @@ export interface ChatHandlerOptions extends SystemPromptOptions {
   readonly documents: DocumentStore;
   readonly comments: CommentStore;
   readonly images: ImageProvider;
+  /** Optional rendered-email visual review tool. */
+  readonly visualReviewer?: EmailVisualReviewer;
   /** Defaults to the Node `mjml` compiler in strict mode. */
   readonly compiler?: MjmlCompiler;
   readonly maxSteps?: number;
@@ -203,6 +206,7 @@ export function createChatHandler(options: ChatHandlerOptions) {
         comments: options.comments,
         images: options.images,
         compiler,
+        visualReviewer: options.visualReviewer,
       }),
       stopWhen: stepCountIs(maxSteps),
       ...(options.onUsage

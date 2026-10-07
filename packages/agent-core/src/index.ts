@@ -18,6 +18,8 @@ export type {
   DocumentPatch,
   DocumentStore,
   EmailDocument,
+  EmailVisualReviewRequest,
+  EmailVisualReviewer,
   GenerateImageRequest,
   ImageProvider,
   MjmlCompiler,

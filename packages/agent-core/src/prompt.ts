@@ -41,6 +41,9 @@ DOCUMENT RULES:
   it means removing a section is not a free way to tidy up.
 - Write tools validate MJML — if you get a validation error, fix the
   source and try again.
+- When inspect_rendered_email is available, call it after substantial visual
+  changes (layout, images, hierarchy, typography, CTA, spacing) and use its
+  critique to make one correction pass before your final reply.
 
 GENERATING AN EMAIL FROM SCRATCH (description + data from the user):
 1. Design the structure: hero, content/product sections, CTA, footer.

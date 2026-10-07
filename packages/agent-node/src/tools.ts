@@ -1,5 +1,5 @@
 /**
- * The nine agent tools, ported from the spike's `agent/tools.py`.
+ * The agent tools, ported from the spike's `agent/tools.py`.
  *
  * Names, descriptions and argument schemas are not written here — they come from
  * `@mjml-agent-editor/core`, so this file supplies behaviour only. That is what makes
@@ -21,12 +21,13 @@ import {
   replaceSection,
   type CommentStore,
   type DocumentStore,
+  type EmailVisualReviewer,
   type ImageProvider,
   type ImageSize,
   type MjmlCompiler,
   type ToolName,
 } from "@mjml-agent-editor/core";
-import { jsonSchema, tool } from "ai";
+import { jsonSchema, tool, type Tool } from "ai";
 
 export interface AgentToolContext {
   /** Document every tool in this set operates on. Never taken from model input. */
@@ -35,6 +36,7 @@ export interface AgentToolContext {
   readonly comments: CommentStore;
   readonly images: ImageProvider;
   readonly compiler: MjmlCompiler;
+  readonly visualReviewer?: EmailVisualReviewer;
 }
 
 interface SectionIdInput {
@@ -71,6 +73,13 @@ interface ResolveCommentInput {
  * own JSONSchema7 type. The shapes agree — `src/tools.test.ts` in agent-core pins the
  * structure — so the cast is a type-system formality, not a claim about runtime.
  */
+type AgentTool = Tool<any, string>;
+type BaseToolName = Exclude<ToolName, "inspect_rendered_email">;
+
+export type AgentTools = Record<BaseToolName, AgentTool> & {
+  inspect_rendered_email?: AgentTool;
+};
+
 function schemaOf<Input>(name: ToolName) {
   return jsonSchema<Input>(TOOLS[name].inputSchema as never);
 }
@@ -81,8 +90,8 @@ function describeError(error: unknown): string {
   return `ERROR: ${String(error)}`;
 }
 
-export function createAgentTools(context: AgentToolContext) {
-  const { documentId, documents, comments, images, compiler } = context;
+export function createAgentTools(context: AgentToolContext): AgentTools {
+  const { documentId, documents, comments, images, compiler, visualReviewer } = context;
 
   const currentMjml = async (): Promise<string> => (await documents.get(documentId)).mjml;
 
@@ -132,7 +141,7 @@ export function createAgentTools(context: AgentToolContext) {
     return ` Removed ${orphans.length} comment(s) whose section no longer exists.`;
   };
 
-  return {
+  const tools: Record<BaseToolName, AgentTool> = {
     get_document: tool<Record<string, never>, string>({
       description: TOOLS.get_document.description,
       inputSchema: schemaOf<Record<string, never>>("get_document"),
@@ -282,6 +291,26 @@ export function createAgentTools(context: AgentToolContext) {
       },
     }),
   };
-}
 
-export type AgentTools = ReturnType<typeof createAgentTools>;
+  if (!visualReviewer) return tools;
+
+  return {
+    ...tools,
+    inspect_rendered_email: tool<Record<string, never>, string>({
+      description: TOOLS.inspect_rendered_email.description,
+      inputSchema: schemaOf<Record<string, never>>("inspect_rendered_email"),
+      execute: async () => {
+        try {
+          const mjml = await currentMjml();
+          const result = await compiler.compile(mjml);
+          if (!result.ok) {
+            return `ERROR: MJML validation failed — cannot render preview:\n${result.errors}`;
+          }
+          return await visualReviewer.review({ documentId, mjml, html: result.html });
+        } catch (error) {
+          return describeError(error);
+        }
+      },
+    }),
+  };
+}
