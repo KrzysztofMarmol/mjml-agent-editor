@@ -490,7 +490,7 @@ export default function ChatPanel({
                                     className={cn(
                                       isUser
                                         ? "[&_[data-slot=bubble-content]]:bg-brand [&_[data-slot=bubble-content]]:text-brand-fg"
-                                        : "[&_[data-slot=bubble-content]]:border [&_[data-slot=bubble-content]]:border-panel-border [&_[data-slot=bubble-content]]:bg-panel-elevated [&_[data-slot=bubble-content]]:text-panel-fg [&_code]:!bg-white/12 [&_pre]:!bg-white/10 [&_a]:text-brand",
+                                        : "max-w-full [&_[data-slot=bubble-content]]:border [&_[data-slot=bubble-content]]:border-panel-border [&_[data-slot=bubble-content]]:bg-panel-elevated [&_[data-slot=bubble-content]]:text-panel-fg [&_code]:!bg-white/12 [&_pre]:!bg-white/10 [&_a]:text-brand",
                                     )}
                                   >
                                     <BubbleContent
