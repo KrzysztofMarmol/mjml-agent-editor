@@ -16,7 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 
-import { refusal } from "../../lib/refusal.js";
+import { refusal, saveToastId } from "../../lib/refusal.js";
 import { cn } from "../../lib/utils";
 import { useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
@@ -173,7 +173,18 @@ type Props = {
    * means there was nothing to re-attach to — which is the ordinary case and not an error.
    */
   resume?: boolean;
-  /** Flushes unsaved editor changes before the agent starts. */
+  /**
+   * Flushes unsaved editor changes before the agent starts.
+   *
+   * **A rejection stops the turn.** The agent reads the stored document, so sending anyway
+   * would point it at a version the visitor can see has moved on. The prompt is kept in
+   * the box so they can read what happened and try again.
+   *
+   * What they read is the rejection's own message when it carries a `status` in the 4xx
+   * range, or an `{"error": "..."}` body; anything else shows `labels.documentSaveFailed`.
+   * A host whose save refuses a document over a size cap should therefore throw with
+   * `status: 413` and a sentence.
+   */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
   onAgentFinish: () => void;
@@ -402,7 +413,7 @@ export default function ChatPanel({
       await onBeforeSend();
     } catch (error) {
       console.error(error);
-      toast.error(refusal(error) ?? labels.documentSaveFailed, { id: `document-save-${docId}` });
+      toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
       return;
     }
     void sendMessage({ text: trimmed });

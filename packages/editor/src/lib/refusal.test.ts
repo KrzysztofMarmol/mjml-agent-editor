@@ -36,6 +36,23 @@ describe("refusal", () => {
     expect(refusal(storeRejection(500, "ECONNREFUSED 127.0.0.1:5432"))).toBeNull();
   });
 
+  it("hides a server fault whose body happens to look like a refusal", () => {
+    // The obvious way to normalize a failure is
+    // `throw Object.assign(new Error(await response.text()), { status })`, and an API that
+    // answers its own faults as `{"error": "..."}` would otherwise have a 500 printed
+    // verbatim. The status settles it before the body is read.
+    expect(refusal(storeRejection(500, '{"error":"internal server error"}'))).toBeNull();
+    expect(refusal(storeRejection(503, '{"error":"upstream unavailable"}'))).toBeNull();
+  });
+
+  it("falls back when a refusal's body is a shape we do not know", () => {
+    // A 4xx says it was deliberate, but there is still no sentence in here to show.
+    expect(
+      refusal(storeRejection(413, '{"message":"Payload too large","requestId":"a1b2"}')),
+    ).toBeNull();
+    expect(refusal(storeRejection(400, "{ truncated"))).toBeNull();
+  });
+
   it("hides a bare failure with no status and no body", () => {
     expect(refusal(new Error("Failed to fetch"))).toBeNull();
     expect(refusal("not an error")).toBeNull();
