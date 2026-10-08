@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/editor",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "React MJML editor with an agent chat panel and canvas comments.",
   "keywords": [
     "mjml",
@@ -58,6 +58,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "test": "vitest run",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -85,9 +86,10 @@
   "devDependencies": {
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ai": "^6.0.230",
     "react": "19.2.4",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "ai": "^6.0.230"
+    "vitest": "^2.1.8"
   }
 }

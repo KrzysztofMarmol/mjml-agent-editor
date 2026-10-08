@@ -173,6 +173,32 @@ of the message that started it; keep that message somewhere and put it back into
 written, so a host's own sentence about limits or a document that is already busy reaches
 them intact.
 
+## When the host refuses
+
+Two of the panel's calls can be turned down by the host, and both refusals are the host's
+sentence rather than ours.
+
+`onBeforeSend` flushes unsaved canvas changes before a turn starts, and **a rejection stops
+the turn.** The prompt stays in the box, so the visitor can read what went wrong and press
+send again. This matters more than it looks: letting a failed flush through sent the agent
+at the _stored_ document while the canvas held newer changes, so it answered about text the
+visitor could see had moved on.
+
+What reaches the visitor is the message carried by the rejection, when there is one to show:
+
+| The rejection                               | Shown                                                    |
+| ------------------------------------------- | -------------------------------------------------------- |
+| `Error` with a `status` of 400–499          | its `message` — a deliberate refusal, written to be read |
+| `Error` whose message is `{"error": "..."}` | the `error` string — the agent contract's shape          |
+| anything else (a 500, a dropped connection) | `labels.documentSaveFailed`                              |
+
+So a `DocumentStore.save` that refuses a document over a size cap should throw with
+`status: 413` and a sentence, not a bare `Error`. A server fault deliberately does _not_
+reach the visitor — `ECONNREFUSED 127.0.0.1:5432` is for the log.
+
+Autosave answers the same way, and both share one toast id, so a host refusing every save
+produces one message rather than one per timer tick.
+
 ## A note on field names
 
 The ports are camelCase (`sectionId`, `objectId`, `projectData`); Postgres columns are
