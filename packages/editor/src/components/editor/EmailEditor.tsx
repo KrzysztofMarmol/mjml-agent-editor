@@ -6,7 +6,13 @@ import grapesjsMJML from "grapesjs-mjml";
 import { useRef, useState, type ReactNode } from "react";
 
 import { STARTER_MJML } from "@mjml-agent-editor/core";
-import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
+import {
+  useDocumentStore,
+  useImageUploader,
+  useLabels,
+  type CommentTarget,
+  type EditorLabels,
+} from "../../index.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -228,6 +234,7 @@ function setupRichText(editor: Editor, labels: EditorLabels) {
 export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCountChange }: Props) {
   // Injected by the host rather than imported, so the editor carries no database.
   const documents = useDocumentStore();
+  const images = useImageUploader();
   const labels = useLabels();
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
@@ -541,6 +548,26 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
         layerManager: { appendTo: "#gjs-layers" },
+        // No uploader disables the dropzone rather than falling back to base64 (see ImageUploader).
+        assetManager: {
+          embedAsBase64: false,
+          uploadFile: images
+            ? async (event: DragEvent | Event) => {
+                const input = event.target as HTMLInputElement | null;
+                const files = (event as DragEvent).dataTransfer?.files ?? input?.files ?? undefined;
+                if (!files?.length) return;
+                try {
+                  const urls = await Promise.all(Array.from(files, (f) => images.upload(f)));
+                  editorRef.current?.AssetManager.add(urls.map((src) => ({ src })));
+                } catch (err) {
+                  console.error(err);
+                  toast.error(labels.imageUploadFailed);
+                } finally {
+                  if (input && "value" in input) input.value = "";
+                }
+              }
+            : undefined,
+        },
         deviceManager: {
           devices: [
             { id: "desktop", name: "Desktop", width: "" },

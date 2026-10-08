@@ -98,6 +98,25 @@ satisfying the two interfaces works, including an in-memory object.
 
 Forgetting the provider throws with an explanation rather than failing on a null read.
 
+### Image uploads
+
+Files dropped into the image picker go to an optional `images` uploader that returns a
+public URL. Where they end up is up to the host — S3, R2, a CDN:
+
+```tsx
+const images = {
+  async upload(file: File) {
+    const res = await fetch("/api/images", { method: "POST", body: file });
+    return (await res.json()).url;
+  },
+};
+
+<EditorStoreProvider stores={{ documents, comments, images }}>
+```
+
+Without one the picker takes URLs only. The editor never falls back to inlining the file as
+base64: most mail clients block `data:` images, and every agent turn would pay for the bytes.
+
 ## Copy
 
 Every word the editor renders comes from a dictionary with English defaults, so a host

@@ -18,9 +18,20 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 
 import { mergeLabels, type EditorLabels } from "./labels.js";
 
+/**
+ * Puts a file the user dropped into the image picker somewhere public and returns its URL.
+ *
+ * Without one the picker accepts only URLs. GrapesJS would otherwise inline the file as
+ * base64: most mail clients block `data:` images, and every agent turn pays for the bytes.
+ */
+export interface ImageUploader {
+  upload(file: File): Promise<string>;
+}
+
 export interface EditorStores {
   readonly documents: DocumentStore;
   readonly comments: CommentStore;
+  readonly images?: ImageUploader;
 }
 
 const StoreContext = createContext<EditorStores | null>(null);
@@ -78,4 +89,8 @@ export function useDocumentStore(): DocumentStore {
 
 export function useCommentStore(): CommentStore {
   return useStores().comments;
+}
+
+export function useImageUploader(): ImageUploader | undefined {
+  return useStores().images;
 }
