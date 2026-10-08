@@ -114,5 +114,7 @@ def contract() -> Contract:
     return tools.CONTRACT
 
 
-def build_agent(doc_id: str) -> ai.Agent:
-    return ai.Agent(tools=tools.build_tools(doc_id))
+def build_agent(
+    doc_id: str, visual_reviewer: tools.EmailVisualReviewer | None = None
+) -> ai.Agent:
+    return ai.Agent(tools=tools.build_tools(doc_id, visual_reviewer))

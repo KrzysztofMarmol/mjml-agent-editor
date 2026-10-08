@@ -16,6 +16,8 @@ import base64
 import json
 import os
 import uuid
+from dataclasses import dataclass
+from typing import Protocol
 
 import ai
 import openai
@@ -97,7 +99,27 @@ def _prune_orphaned_comments(doc_id: str, saved_mjml: str) -> str:
     return f" Removed {len(orphans)} comment(s) whose section no longer exists."
 
 
-def build_tools(doc_id: str) -> list[ai.AgentTool]:
+@dataclass(frozen=True)
+class EmailVisualReviewRequest:
+    document_id: str
+    mjml: str
+    html: str
+
+
+class EmailVisualReviewer(Protocol):
+    """Port counterpart of ``EmailVisualReviewer`` in ``packages/agent-core``.
+
+    Renders and critiques the current email. The return value is plain text for the
+    editing agent to act on; hosts decide whether this uses a browser API, a local
+    renderer, a vision model, or a cached manual preview.
+    """
+
+    async def review(self, request: EmailVisualReviewRequest) -> str: ...
+
+
+def build_tools(
+    doc_id: str, visual_reviewer: EmailVisualReviewer | None = None
+) -> list[ai.AgentTool]:
     @_described("get_document")
     async def get_document() -> str:
         mjml = db.get_document_mjml(doc_id)
@@ -214,7 +236,7 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         db.resolve_comment(comment_id)
         return "OK"
 
-    return [
+    tools = [
         get_document,
         get_section,
         set_document,
@@ -226,6 +248,33 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         resolve_comment,
     ]
 
+    # Optional, as in the TypeScript backend: without a reviewer the model is never
+    # offered a tool that could only answer "not configured".
+    if visual_reviewer is None:
+        return tools
+
+    @_described("inspect_rendered_email")
+    async def inspect_rendered_email() -> str:
+        try:
+            mjml = db.get_document_mjml(doc_id)
+            ok, result = mjml_compile.compile_mjml(mjml)
+            if not ok:
+                return f"ERROR: MJML validation failed — cannot render preview:\n{result}"
+            return await visual_reviewer.review(
+                EmailVisualReviewRequest(document_id=doc_id, mjml=mjml, html=result)
+            )
+        except Exception as error:
+            return f"ERROR: {error}"
+
+    return [*tools, inspect_rendered_email]
+
+
+class _ContractCheckReviewer:
+    """Stand-in so the contract check sees the optional tool too."""
+
+    async def review(self, request: EmailVisualReviewRequest) -> str:
+        return ""
+
 
 def _implemented_signatures() -> dict[str, set[str]]:
     """Argument names of each tool, for the contract check below."""
@@ -233,7 +282,7 @@ def _implemented_signatures() -> dict[str, set[str]]:
 
     return {
         tool.name: set(inspect.signature(tool.fn).parameters)
-        for tool in build_tools("contract-check")
+        for tool in build_tools("contract-check", _ContractCheckReviewer())
     }
 
 

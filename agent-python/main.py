@@ -23,6 +23,7 @@ import pydantic
 
 import email_agent
 import mjml_compile
+import tools
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -93,6 +94,12 @@ def _friendly_error(exc: Exception) -> str:
     return f"Agent error: {name}: {str(exc)[:300]}"
 
 
+# Optional rendered-email visual review (`tools.EmailVisualReviewer`). None leaves the
+# inspect_rendered_email tool out of the agent's tool set; a host that wants it assigns an
+# implementation here.
+VISUAL_REVIEWER: tools.EmailVisualReviewer | None = None
+
+
 class ChatRequest(pydantic.BaseModel):
     messages: list[ai.ui.ai_sdk.UIMessage]
     docId: str
@@ -105,7 +112,7 @@ async def chat(request: ChatRequest) -> fastapi.responses.StreamingResponse:
 
     messages, _approvals = ai.ui.ai_sdk.to_messages(request.messages)
     messages = [ai.system_message(email_agent.SYSTEM), *messages]
-    agent = email_agent.build_agent(request.docId)
+    agent = email_agent.build_agent(request.docId, VISUAL_REVIEWER)
 
     async def stream_response() -> AsyncGenerator[str]:
         try:

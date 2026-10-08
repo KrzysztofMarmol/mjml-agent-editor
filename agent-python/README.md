@@ -19,7 +19,7 @@ Then point the frontend's `NEXT_PUBLIC_AGENT_URL` at `http://localhost:8002` and
 `ALLOWED_ORIGINS` to the frontend's origin.
 
 ```bash
-uv run pytest        # 43 tests
+uv run pytest        # 56 tests
 uv run ruff check .
 ```
 
