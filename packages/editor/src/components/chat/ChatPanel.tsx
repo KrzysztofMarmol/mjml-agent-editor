@@ -426,7 +426,7 @@ export default function ChatPanel({
       <MessageScrollerProvider autoScroll>
         <MessageScroller className="flex-1">
           <MessageScrollerViewport>
-            <MessageScrollerContent className="p-3">
+            <MessageScrollerContent className="px-5 py-3">
               {messages.length === 0 ? (
                 <Empty className="h-full">
                   <EmptyHeader>
