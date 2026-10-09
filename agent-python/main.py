@@ -29,14 +29,6 @@ import tools
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, AsyncIterator
 
-# Configurable rather than hardcoded to http://localhost:3000, which was the spike's
-# single largest obstacle to running this anywhere but one developer's machine.
-ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
-    if origin.strip()
-]
-
 
 @contextlib.asynccontextmanager
 async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
@@ -140,12 +132,23 @@ async def chat(
 
 
 def create_app(visual_reviewer: tools.EmailVisualReviewer | None = None) -> fastapi.FastAPI:
-    """The service. Without a reviewer, inspect_rendered_email is left out of the tool set."""
+    """The service, served with ``uvicorn main:create_app --factory``.
+
+    Without a reviewer, inspect_rendered_email is left out of the tool set. Nothing is built
+    at import, so a host that wraps this in its own module serves exactly one app.
+    """
+    # Configurable rather than hardcoded to http://localhost:3000, which was the spike's
+    # single largest obstacle to running this anywhere but one developer's machine.
+    allowed_origins = [
+        origin.strip()
+        for origin in os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+        if origin.strip()
+    ]
     app = fastapi.FastAPI(title="mjml-agent-editor-python", lifespan=lifespan)
     app.state.visual_reviewer = visual_reviewer
     app.add_middleware(
         fastapi.middleware.cors.CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -153,6 +156,3 @@ def create_app(visual_reviewer: tools.EmailVisualReviewer | None = None) -> fast
     app.add_exception_handler(fastapi.exceptions.RequestValidationError, log_validation_errors)
     app.include_router(router)
     return app
-
-
-app = create_app()

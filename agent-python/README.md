@@ -12,7 +12,7 @@ implementation drifts from it, and `tools.py` refuses to import on a signature m
 ```bash
 cp .env.example .env      # SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
 uv sync
-uv run uvicorn main:app --port 8002
+uv run uvicorn main:create_app --factory --port 8002
 ```
 
 Then point the frontend's `NEXT_PUBLIC_AGENT_URL` at `http://localhost:8002` and set
@@ -27,7 +27,7 @@ uv run ruff check .
 
 `inspect_rendered_email` is offered only when the app is built with a reviewer. Implement
 `tools.EmailVisualReviewer` — one async `review(request)` returning critique text — and
-serve your own app instead of `main:app`:
+serve your own app instead of `main:create_app`:
 
 ```python
 # my_server.py
