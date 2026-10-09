@@ -1,4 +1,4 @@
-"""How a host names its visual reviewer — configuration, not an edit to main.py."""
+"""Resolving the VISUAL_REVIEWER setting."""
 
 from __future__ import annotations
 

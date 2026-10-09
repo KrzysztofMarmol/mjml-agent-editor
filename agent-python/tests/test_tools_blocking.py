@@ -54,7 +54,7 @@ def test_a_slow_compile_does_not_stall_the_event_loop(
     db: FakeDb, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def slow_compile(mjml: str) -> tuple[bool, str]:
-        time.sleep(0.3)  # what a real mjml subprocess does to its caller
+        time.sleep(0.3)
         return True, "<html/>"
 
     monkeypatch.setattr(tools.mjml_compile, "compile_mjml", slow_compile)

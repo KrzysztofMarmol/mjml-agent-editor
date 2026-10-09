@@ -71,9 +71,8 @@ _EMPTY_ARG_HINT = (
 )
 
 
-# The Supabase client and the mjml compiler are both synchronous — a network round trip,
-# and a subprocess of up to 30s — so every call to them goes through this. On the event
-# loop it would stall every other open chat stream, since they all share it.
+# For every Supabase and mjml call: both are synchronous (mjml is a subprocess of up to
+# 30s), and on the event loop they would stall every other open chat stream.
 _blocking = asyncio.to_thread
 
 
@@ -115,12 +114,8 @@ class EmailVisualReviewRequest:
 
 
 class EmailVisualReviewer(Protocol):
-    """Port counterpart of ``EmailVisualReviewer`` in ``packages/agent-core``.
-
-    Renders and critiques the current email. The return value is plain text for the
-    editing agent to act on; hosts decide whether this uses a browser API, a local
-    renderer, a vision model, or a cached manual preview.
-    """
+    """Port counterpart of ``EmailVisualReviewer`` in ``packages/agent-core``: renders and
+    critiques the current email, returning plain text for the editing agent."""
 
     async def review(self, request: EmailVisualReviewRequest) -> str: ...
 
@@ -268,8 +263,8 @@ def build_tools(
             ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
             if not ok:
                 if result.startswith("ERROR:"):
-                    # The compiler itself failed (a timeout), which says nothing about the
-                    # MJML; called a validation failure, the model rewrites a valid email.
+                    # A compiler failure (a timeout) says nothing about the MJML; reported
+                    # as invalid, it sends the model rewriting a valid email.
                     return f"ERROR: could not render the email: {result[6:].strip()}"
                 return f"ERROR: MJML validation failed — cannot render preview:\n{result}"
             return await visual_reviewer.review(

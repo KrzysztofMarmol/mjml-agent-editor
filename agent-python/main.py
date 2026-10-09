@@ -98,13 +98,8 @@ def _friendly_error(exc: Exception) -> str:
 
 
 def load_visual_reviewer(spec: str | None) -> tools.EmailVisualReviewer | None:
-    """The reviewer named by ``module:name`` — an instance, or a class or zero-argument
-    factory that builds one. Empty means none.
-
-    Named in the environment so a host enables visual review by configuration, the way the
-    TypeScript backend takes ``visualReviewer`` on ``createChatHandler``, rather than by
-    editing this file.
-    """
+    """The reviewer named by ``module:name``: an instance, or a class or zero-argument
+    factory that builds one. Empty means none."""
     if not spec or not spec.strip():
         return None
     module_name, _, attribute = spec.strip().partition(":")
@@ -118,9 +113,8 @@ def load_visual_reviewer(spec: str | None) -> tools.EmailVisualReviewer | None:
     return reviewer
 
 
-# Optional rendered-email visual review. None leaves inspect_rendered_email out of the
-# agent's tool set. Resolved at import, so a misnamed reviewer stops the service from
-# starting instead of silently running without the tool.
+# None leaves inspect_rendered_email out of the tool set. Resolved at import, so a
+# misnamed reviewer stops startup instead of the tool silently going missing.
 VISUAL_REVIEWER: tools.EmailVisualReviewer | None = load_visual_reviewer(
     os.environ.get("VISUAL_REVIEWER")
 )
