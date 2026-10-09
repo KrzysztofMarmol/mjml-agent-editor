@@ -19,9 +19,22 @@ Then point the frontend's `NEXT_PUBLIC_AGENT_URL` at `http://localhost:8002` and
 `ALLOWED_ORIGINS` to the frontend's origin.
 
 ```bash
-uv run pytest        # 56 tests
+uv run pytest
 uv run ruff check .
 ```
+
+## Visual review
+
+`inspect_rendered_email` is offered only when a reviewer is configured. Implement
+`tools.EmailVisualReviewer` — one async `review(request)` returning critique text — and
+name it in the environment:
+
+```bash
+VISUAL_REVIEWER=my_reviewers:ScreenshotReviewer   # an instance, class or factory
+```
+
+A name that does not resolve stops the service at startup rather than running without
+the tool.
 
 ## The mjml binary
 

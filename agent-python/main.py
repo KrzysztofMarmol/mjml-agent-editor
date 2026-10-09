@@ -6,6 +6,7 @@ implementation differs, which is the point of keeping this backend around.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
 from typing import TYPE_CHECKING
@@ -57,6 +58,8 @@ async def check_prerequisites() -> None:
     binary = mjml_compile.resolve_mjml_binary()
     print(f"[startup] mjml: {binary}", file=sys.stderr, flush=True)
     print(f"[startup] contract v{email_agent.contract().version}", file=sys.stderr, flush=True)
+    reviewer = type(VISUAL_REVIEWER).__name__ if VISUAL_REVIEWER else "off"
+    print(f"[startup] visual review: {reviewer}", file=sys.stderr, flush=True)
 
 
 @app.exception_handler(fastapi.exceptions.RequestValidationError)
@@ -94,10 +97,33 @@ def _friendly_error(exc: Exception) -> str:
     return f"Agent error: {name}: {str(exc)[:300]}"
 
 
-# Optional rendered-email visual review (`tools.EmailVisualReviewer`). None leaves the
-# inspect_rendered_email tool out of the agent's tool set; a host that wants it assigns an
-# implementation here.
-VISUAL_REVIEWER: tools.EmailVisualReviewer | None = None
+def load_visual_reviewer(spec: str | None) -> tools.EmailVisualReviewer | None:
+    """The reviewer named by ``module:name`` — an instance, or a class or zero-argument
+    factory that builds one. Empty means none.
+
+    Named in the environment so a host enables visual review by configuration, the way the
+    TypeScript backend takes ``visualReviewer`` on ``createChatHandler``, rather than by
+    editing this file.
+    """
+    if not spec or not spec.strip():
+        return None
+    module_name, _, attribute = spec.strip().partition(":")
+    if not module_name or not attribute:
+        raise RuntimeError(f"VISUAL_REVIEWER must look like 'module:name', got {spec!r}")
+    target = getattr(importlib.import_module(module_name), attribute)
+    builds = isinstance(target, type) or (callable(target) and not hasattr(target, "review"))
+    reviewer = target() if builds else target
+    if not callable(getattr(reviewer, "review", None)):
+        raise RuntimeError(f"VISUAL_REVIEWER {spec!r} has no review() method")
+    return reviewer
+
+
+# Optional rendered-email visual review. None leaves inspect_rendered_email out of the
+# agent's tool set. Resolved at import, so a misnamed reviewer stops the service from
+# starting instead of silently running without the tool.
+VISUAL_REVIEWER: tools.EmailVisualReviewer | None = load_visual_reviewer(
+    os.environ.get("VISUAL_REVIEWER")
+)
 
 
 class ChatRequest(pydantic.BaseModel):

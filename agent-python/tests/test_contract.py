@@ -76,9 +76,13 @@ class TestImplementationMatchesContract:
         assert "inspect_rendered_email" not in built
 
     def test_descriptions_come_from_the_contract(self, contract) -> None:
-        built = {tool.name: tool.tool.spec.description for tool in tools.build_tools("doc-1")}
-        # get_section takes no MJML, so its description is the contract text verbatim.
-        assert built["get_section"] == contract.description("get_section")
+        built = {
+            tool.name: tool.tool.spec.description
+            for tool in tools.build_tools("doc-1", _Reviewer())
+        }
+        # Neither takes MJML, so both descriptions are the contract text verbatim.
+        for name in ("get_section", "inspect_rendered_email"):
+            assert built[name] == contract.description(name), name
 
     def test_mjml_tools_carry_the_python_only_hint(self) -> None:
         built = {tool.name: tool.tool.spec.description for tool in tools.build_tools("doc-1")}
@@ -126,9 +130,7 @@ class TestInspectRenderedEmail:
         assert "bad tag" in result
         assert reviewer.requests == []
 
-    def test_reports_reviewer_failures_to_the_model(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reports_reviewer_failures_to_the_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
 
         class Failing:
@@ -137,3 +139,44 @@ class TestInspectRenderedEmail:
 
         built = {tool.name: tool for tool in tools.build_tools("doc-1", Failing())}
         assert asyncio.run(built["inspect_rendered_email"].fn()) == "ERROR: renderer down"
+
+    def test_a_compiler_failure_is_not_reported_as_invalid_mjml(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            tools.mjml_compile,
+            "compile_mjml",
+            lambda mjml: (False, "ERROR: mjml did not finish within 30s"),
+        )
+
+        result = asyncio.run(_inspect(_Reviewer())())
+
+        assert result == "ERROR: could not render the email: mjml did not finish within 30s"
+
+    def test_an_exception_without_a_message_still_says_what_failed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+
+        class TimingOut:
+            async def review(self, request: tools.EmailVisualReviewRequest) -> str:
+                raise TimeoutError()
+
+        built = {tool.name: tool for tool in tools.build_tools("doc-1", TimingOut())}
+        assert asyncio.run(built["inspect_rendered_email"].fn()) == "ERROR: TimeoutError"
+
+    def test_a_client_error_is_reported_by_its_message(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class ApiError(Exception):
+            # Shaped like postgrest's APIError, whose str() is the whole response dict.
+            message = "JSON object requested, multiple (or no) rows returned"
+
+        def missing(doc_id: str) -> str:
+            raise ApiError({"code": "PGRST116", "details": "...", "hint": None})
+
+        monkeypatch.setattr(tools.db, "get_document_mjml", missing)
+
+        result = asyncio.run(_inspect(_Reviewer())())
+
+        assert result == "ERROR: JSON object requested, multiple (or no) rows returned"

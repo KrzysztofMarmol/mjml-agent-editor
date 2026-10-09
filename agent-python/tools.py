@@ -12,6 +12,7 @@ which parses streamed arguments incrementally — see ``docs/agent-contract.md``
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
@@ -256,17 +257,29 @@ def build_tools(
     @_described("inspect_rendered_email")
     async def inspect_rendered_email() -> str:
         try:
-            mjml = db.get_document_mjml(doc_id)
-            ok, result = mjml_compile.compile_mjml(mjml)
+            # Both block — a Supabase round trip and an mjml subprocess of up to 30s — and
+            # the event loop is shared by every other open chat stream.
+            mjml = await asyncio.to_thread(db.get_document_mjml, doc_id)
+            ok, result = await asyncio.to_thread(mjml_compile.compile_mjml, mjml)
             if not ok:
+                if result.startswith("ERROR:"):
+                    # The compiler itself failed (a timeout), which says nothing about the
+                    # MJML; called a validation failure, the model rewrites a valid email.
+                    return f"ERROR: could not render the email: {result[6:].strip()}"
                 return f"ERROR: MJML validation failed — cannot render preview:\n{result}"
             return await visual_reviewer.review(
                 EmailVisualReviewRequest(document_id=doc_id, mjml=mjml, html=result)
             )
         except Exception as error:
-            return f"ERROR: {error}"
+            return f"ERROR: {_error_message(error)}"
 
     return [*tools, inspect_rendered_email]
+
+
+def _error_message(error: Exception) -> str:
+    """A short message for the model: never empty, and not a client library's raw dict."""
+    message = getattr(error, "message", None) or str(error)
+    return (message.strip() or type(error).__name__)[:300]
 
 
 class _ContractCheckReviewer:
