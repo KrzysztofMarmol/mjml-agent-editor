@@ -19,6 +19,7 @@ import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import ColorField, { toHex } from "./ColorField.js";
+import ImageField, { imageUrl } from "./ImageField.js";
 import { createRoot, type Root } from "react-dom/client";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -191,13 +192,13 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 /**
- * Swaps every Style Manager color control for ColorField.
+ * Swaps the Style Manager's color and image controls for ColorField and ImageField.
  *
- * Built on the base property view rather than extending GrapesJS's color view, which
- * mounts its Spectrum picker in onRender whatever `create` returns. Each control is its own
- * React root because GrapesJS creates and destroys these views outside React.
+ * Built on the base property view rather than extending GrapesJS's own views, which mount
+ * their widgets in onRender whatever `create` returns. Each control is its own React root
+ * because GrapesJS creates and destroys these views outside React.
  */
-function setupColorField(editor: Editor, labels: EditorLabels) {
+function setupStyleFields(editor: Editor, labels: EditorLabels) {
   const sm = editor.StyleManager;
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const base = (sm.getType("base") as any).view;
@@ -217,22 +218,14 @@ function setupColorField(editor: Editor, labels: EditorLabels) {
       .map(([hex]) => hex);
   };
 
-  sm.addType("color", {
-    view: base.extend({
+  // A view that renders `field(property, value)` into its own React root.
+  const reactView = (field: (property: any, value: string) => ReactNode) =>
+    base.extend({
       create(this: View, { property }: { property: any }) {
         const el = document.createElement("div");
         const root = createRoot(el);
         this.__root = root;
-        this.__render = (value: string) =>
-          root.render(
-            <ColorField
-              value={value}
-              placeholder={String(property.getDefaultValue?.() ?? "")}
-              documentColors={documentColors}
-              labels={labels}
-              onChange={(next, partial) => property.upValue(next, { partial })}
-            />,
-          );
+        this.__render = (value: string) => root.render(field(property, value));
         this.__render(String(property.getValue?.() ?? ""));
         return el;
       },
@@ -248,7 +241,41 @@ function setupColorField(editor: Editor, labels: EditorLabels) {
         this.__render = undefined;
         setTimeout(() => root?.unmount());
       },
-    }),
+    });
+
+  sm.addType("color", {
+    view: reactView((property, value) => (
+      <ColorField
+        value={value}
+        placeholder={String(property.getDefaultValue?.() ?? "")}
+        documentColors={documentColors}
+        labels={labels}
+        onChange={(next, partial) => property.upValue(next, { partial })}
+      />
+    )),
+  } as never);
+
+  // Opens the same picker an mj-image uses; the property wraps the URL in url() itself
+  // where it needs to (CSS background-image), and keeps it bare where it does not (MJML).
+  sm.addType("file", {
+    view: reactView((property, value) => (
+      <ImageField
+        value={value}
+        labels={labels}
+        onChoose={() => {
+          const am = editor.AssetManager;
+          am.open({
+            types: ["image"],
+            current: imageUrl(value) ?? undefined,
+            select(asset: string | { getSrc: () => string }, complete?: boolean) {
+              const url = typeof asset === "string" ? asset : asset.getSrc();
+              property.upValue(url, { partial: !complete });
+              if (complete) am.close();
+            },
+          } as never);
+        }}
+      />
+    )),
   } as never);
   /* eslint-enable @typescript-eslint/no-explicit-any */
 }
@@ -429,7 +456,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
 
     setupRichText(editor, labels);
-    setupColorField(editor, labels);
+    setupStyleFields(editor, labels);
 
     // Group the palette blocks into categories (the plugin ships them flat).
     const blockCategory = (label: string): string => {
@@ -663,10 +690,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           custom: {
             open: (props: {
               select: (asset: string, complete?: boolean) => void;
-              options?: { target?: Component };
+              // `current` is ours, passed by style properties that have no target component.
+              options?: { target?: Component; current?: string };
             }) =>
               setPicker({
-                current: String(props.options?.target?.get("src") ?? "") || undefined,
+                current:
+                  props.options?.current ??
+                  (String(props.options?.target?.get("src") ?? "") || undefined),
                 select: (url) => props.select(url, true),
               }),
             close: () => setPicker(null),
