@@ -410,19 +410,21 @@
   cursor: pointer;
 }
 
-/* ── Color picker (react-colorful) sized to its popover ───────────────── */
+/* ── Color picker (react-colorful), compact to fit beside the sidebar ──── */
 .color-field-picker.react-colorful {
   width: 100%;
-  height: 150px;
+  height: 120px;
 }
 .color-field-picker .react-colorful__saturation {
   border-radius: 6px 6px 0 0;
+  border-bottom: none;
 }
 .color-field-picker .react-colorful__hue {
-  height: 14px;
+  height: 10px;
   border-radius: 0 0 6px 6px;
 }
 .color-field-picker .react-colorful__pointer {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
 }

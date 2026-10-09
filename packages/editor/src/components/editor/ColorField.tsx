@@ -143,13 +143,13 @@ export default function ColorField({
         side="right"
         align="start"
         sideOffset={8}
-        className="editor-dark flex w-60 flex-col gap-3 border border-panel-border bg-panel p-3 text-panel-fg"
+        className="editor-dark flex w-52 flex-col gap-2.5 border border-panel-border bg-panel p-2.5 text-panel-fg"
       >
         <HexColorPicker color={hex} onChange={drag} className="color-field-picker" />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <span
-            className="size-7 shrink-0 rounded border border-white/20"
+            className="size-6 shrink-0 rounded border border-white/20"
             style={{ background: hex }}
           />
           <input
@@ -158,7 +158,7 @@ export default function ColorField({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && commit(text.trim())}
             onBlur={() => text !== value && commit(text.trim())}
-            className="h-7 min-w-0 flex-1 rounded border border-panel-border bg-panel-elevated px-2 font-mono text-xs outline-none focus:border-brand"
+            className="h-6 min-w-0 flex-1 rounded border border-panel-border bg-panel-elevated px-1.5 font-mono text-[11px] outline-none focus:border-brand"
           />
           {eyeDropper() && (
             <button
@@ -166,9 +166,9 @@ export default function ColorField({
               onClick={() => void pickFromScreen()}
               title={labels.colorPickerEyedropper}
               aria-label={labels.colorPickerEyedropper}
-              className="flex size-7 shrink-0 items-center justify-center rounded border border-panel-border bg-panel-elevated text-panel-muted-fg hover:text-panel-fg"
+              className="flex size-6 shrink-0 items-center justify-center rounded border border-panel-border bg-panel-elevated text-panel-muted-fg hover:text-panel-fg"
             >
-              <Pipette className="size-3.5" />
+              <Pipette className="size-3" />
             </button>
           )}
         </div>
@@ -209,10 +209,10 @@ function Swatches({
 }) {
   return (
     <div>
-      <p className="mb-1.5 text-[11px] font-medium tracking-wide text-panel-muted-fg uppercase">
+      <p className="mb-1 text-[10px] font-medium tracking-wide text-panel-muted-fg uppercase">
         {title}
       </p>
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-8 gap-1">
         {colors.map((color) => (
           <button
             key={color}

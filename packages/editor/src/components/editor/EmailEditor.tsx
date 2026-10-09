@@ -240,8 +240,12 @@ function setupColorField(editor: Editor, labels: EditorLabels) {
         this.__render?.(String(value ?? ""));
       },
       destroy(this: View) {
-        // Deferred: GrapesJS can remove a view while React is mid-render.
+        // GrapesJS can still call update() on a destroyed view; drop the renderer first so
+        // that is a no-op rather than "Cannot update an unmounted root". The unmount itself
+        // is deferred because the view may be removed while React is mid-render.
         const root = this.__root;
+        this.__root = undefined;
+        this.__render = undefined;
         setTimeout(() => root?.unmount());
       },
     }),
