@@ -1,79 +1,138 @@
 # MJML Agent Editor
 
-An MJML email editor with an AI agent that generates an email from a description and data,
-generates images, edits individual sections, and applies fixes from comments left on the
-canvas.
+[![CI](https://github.com/KrzysztofMarmol/mjml-agent-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/KrzysztofMarmol/mjml-agent-editor/actions/workflows/ci.yml)
 
-![One prompt, a working email](docs/media/agent-loop.gif)
+A React editor for [MJML](https://mjml.io/) emails with an AI assistant for drafting and
+editing. Use the visual canvas, ask for changes in chat, or leave comments on individual
+elements for the assistant to address.
 
-One prompt to a finished email. The agent reads the document, generates the images, writes
-the sections and saves. Partway through it reaches for `mj-card` — not a tag MJML has — and
-rebuilds the plan cards out of `mj-section` and `mj-column` instead; a write that does not
-compile never reaches the database, and the compiler's message goes back to the model.
-Recorded against DeepSeek, not Anthropic: the backend is a configuration choice.
+This repository contains reusable packages and a Next.js example application backed by
+Supabase.
 
-## Layout
+![The assistant drafting an email in the editor](docs/media/agent-loop.gif)
 
-| Path                      | What it is                                                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `packages/agent-core`     | The contract: tool schemas, the system prompt, MJML document addressing, storage ports. No framework, no I/O. |
-| `packages/agent-node`     | Default agent implementation (TypeScript, Vercel AI SDK).                                                     |
-| `packages/editor`         | The React editor: GrapesJS-MJML canvas, chat panel on `useChat`, canvas comments.                             |
-| `packages/store-supabase` | Supabase adapter for the `DocumentStore` / `CommentStore` ports.                                              |
-| `packages/conformance`    | The suite any agent backend must pass, runnable against a URL.                                                |
-| `agent-python`            | Second implementation (FastAPI), proving the contract is a contract.                                          |
-| `apps/example`            | The complete application, and the thing to clone if you want a working editor.                                |
-| `supabase/`               | Local Postgres (documents, comments) and Storage, via `npx supabase start`.                                   |
+## Features
 
-Both agent implementations read tool names, descriptions, argument schemas and the system
-prompt from `packages/agent-core/contract/tools.json`, which the core package's build
-emits. Tests on both sides fail if either drifts from it.
+- Edit email layouts, text, and styles on a GrapesJS canvas with MJML components.
+- Generate a draft or update individual sections through chat.
+- Pin comments to elements and ask the assistant to apply the requested changes.
+- Preview desktop and mobile layouts and export MJML or compiled HTML.
+- Validate the assistant's MJML changes before saving; return compiler errors to the model
+  so it can retry.
 
-## Running (dev)
+The example uses placeholder images. Image generation requires an `ImageProvider`
+implementation supplied by the host application.
 
-```bash
-# 1. Supabase (requires Docker)
+## Run the example locally
+
+### Requirements
+
+- Node.js 22 (the version used in CI).
+- pnpm 11.6.0, as pinned in `package.json`.
+- Docker running, for local Supabase.
+- An API key for the selected model provider. The default is Anthropic.
+
+### 1. Install dependencies
+
+```sh
+git clone https://github.com/KrzysztofMarmol/mjml-agent-editor.git
+cd mjml-agent-editor
+pnpm install --frozen-lockfile
+```
+
+Run the following commands from the repository root.
+
+### 2. Start Supabase
+
+```sh
 npx supabase start
+npx supabase status
+```
 
-# 2. Build the packages the app consumes
-pnpm install
+Supabase starts the local database and applies the migrations in `supabase/migrations`.
+Keep the keys printed by `supabase status` for the next step.
+
+### 3. Configure the application
+
+```sh
+cp apps/example/.env.example apps/example/.env.local
+```
+
+Fill in these values in `apps/example/.env.local`:
+
+| Variable                        | Value                             |
+| ------------------------------- | --------------------------------- |
+| `SUPABASE_SERVICE_ROLE_KEY`     | Local Supabase `service_role` key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Local Supabase `anon` key         |
+| `ANTHROPIC_API_KEY`             | Your Anthropic API key            |
+
+The Supabase URLs in the template already point to the local instance. Keep the service-role
+key on the server; only the anon key belongs in a `NEXT_PUBLIC_*` variable.
+
+To use DeepSeek, Gemini, or a custom OpenAI-compatible endpoint, set `AGENT_PROVIDER` and
+the matching key and model in the same file. See the
+[backend configuration guide](packages/agent-node/README.md#choosing-a-backend).
+
+### 4. Build and start
+
+```sh
 pnpm build
-
-# 3. Configure and run
-cp apps/example/.env.example apps/example/.env.local   # Supabase keys + ANTHROPIC_API_KEY
 pnpm --filter @mjml-agent-editor/example dev
 ```
 
-Open http://localhost:3000. To run the Python backend instead, see `agent-python/README.md`.
+Open [localhost:3000](http://localhost:3000), create an email, and try a prompt such as
+“Write a welcome email with a heading, a short introduction, and a call-to-action button.”
 
-## Key concepts
+The example has no authentication or authorization, and its database grants anonymous
+users full access to documents and comments. Before deploying it publicly, add access
+controls and limits on model usage. See [known issues](docs/known-issues.md) and
+[agent backend configuration](packages/agent-node/README.md#before-putting-this-on-the-internet).
 
-- The source of truth is the **MJML** in `documents.mjml`; the editor and the agent work on
-  the same document.
-- Every `mj-section` carries a stable id in `css-class` (`sec-<id>`). Comments and the
-  agent's tools address sections by it, and no operation is allowed to change one.
-- A write is compiled before it is persisted. Markup that does not compile is rejected and
-  the compiler's message goes back to the model, which corrects itself.
-- Section comments live in the `comments` table; "Apply changes from comments" runs the
-  agent, which reads the open comments, fixes the sections and resolves them.
+## Use the packages in your application
 
-## Using it in your own project
+For an existing React 19 application, install the editor and TypeScript agent backend:
 
-Clone `apps/example` if you want a working application. Install `@mjml-agent-editor/editor`
-and `@mjml-agent-editor/agent-node` if you want the editor inside something you already have;
-neither package talks to a database — the host injects a `DocumentStore` and a `CommentStore`,
-and every colour is a CSS custom property. See
-[`packages/editor/README.md`](packages/editor/README.md).
+```sh
+npm install @mjml-agent-editor/editor @mjml-agent-editor/agent-node
+```
 
-## Documentation
+The editor and agent use `DocumentStore` and `CommentStore` interfaces for persistence.
+Supply your own implementations or use `@mjml-agent-editor/store-supabase`. The editor
+supports CSS theme variables and label overrides.
 
-- [`docs/agent-contract.md`](docs/agent-contract.md) — what a backend must implement.
-- [`packages/conformance/README.md`](packages/conformance/README.md) — the suite both backends pass.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to run the checks CI runs, and why the generated
-  contract artifact needs a `git diff` rather than a test.
-- [`docs/known-issues.md`](docs/known-issues.md) — the soft spots, including why
-  `apps/example` must not be deployed as-is.
+Start with the [editor integration guide](packages/editor/README.md) for the store provider,
+stylesheets, and loading the canvas in a browser. The
+[agent backend guide](packages/agent-node/README.md) shows how to mount the chat handler
+and configure its model, authorization, and conversation storage.
+
+| Package                                                                  | Purpose                                                                      |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| [`@mjml-agent-editor/editor`](packages/editor/README.md)                 | React canvas, chat panel, comments, and export controls                      |
+| [`@mjml-agent-editor/agent-node`](packages/agent-node/README.md)         | TypeScript agent backend using the Vercel AI SDK                             |
+| [`@mjml-agent-editor/core`](packages/agent-core/README.md)               | Tool schemas, system prompt, MJML section addressing, and storage interfaces |
+| [`@mjml-agent-editor/store-supabase`](packages/store-supabase/README.md) | Supabase storage adapters and a placeholder image provider                   |
+
+## Other backends
+
+The [agent contract](docs/agent-contract.md) defines the tools and streaming protocol an
+editor-compatible backend must implement. The included [Python backend](agent-python/README.md)
+reads its tool definitions and system prompt from `packages/agent-core/contract/tools.json`,
+generated from the same definitions the TypeScript backend uses.
+
+The [conformance suite](packages/conformance/README.md) checks backend behavior against a
+running endpoint.
+
+## Contributing and support
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, checks, and pull request
+guidelines, and [known issues](docs/known-issues.md) for current limitations.
+
+Report bugs and request features in
+[GitHub Issues](https://github.com/KrzysztofMarmol/mjml-agent-editor/issues). Include steps
+to reproduce and your environment when reporting a bug.
+
+Maintained by [Krzysztof Marmol](https://github.com/KrzysztofMarmol).
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+[MIT](LICENSE).
