@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { HexColorPicker } from "react-colorful";
+import { HexAlphaColorPicker, HexColorPicker } from "react-colorful";
 import { Pipette } from "lucide-react";
 
 import type { EditorLabels } from "../../labels.js";
@@ -61,6 +61,8 @@ export default function ColorField({
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState<string[]>([]);
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The value a drag left as a partial update, still to be committed.
+  const dragged = useRef<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   // The picker opens beside the panel the field sits in, level with the field. Anchored to
   // the field itself it covered the panel, since a property can be half the panel wide.
@@ -73,22 +75,35 @@ export default function ColorField({
   });
 
   useEffect(() => setText(value), [value]);
-  useEffect(() => () => clearTimeout(commitTimer.current ?? undefined), []);
+  // A drag cut short by the view going away still ends as a real change, with an undo step.
+  const latestOnChange = useRef(onChange);
+  latestOnChange.current = onChange;
+  useEffect(
+    () => () => {
+      clearTimeout(commitTimer.current ?? undefined);
+      if (dragged.current !== null) latestOnChange.current(dragged.current, false);
+    },
+    [],
+  );
 
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
+  // Translucent colors keep their alpha, and get the slider to change it.
+  const translucent = hex.length === 9;
   const empty = !value;
 
   const commit = (next: string) => {
     clearTimeout(commitTimer.current ?? undefined);
+    dragged.current = null;
     onChange(next, false);
   };
 
   // react-colorful has no "drag ended"; a pause stands in for it.
   const drag = (next: string) => {
     setText(next);
+    dragged.current = next;
     onChange(next, true);
     clearTimeout(commitTimer.current ?? undefined);
-    commitTimer.current = setTimeout(() => onChange(next, false), 300);
+    commitTimer.current = setTimeout(() => commit(next), 300);
   };
 
   const pickFromScreen = async () => {
@@ -107,6 +122,9 @@ export default function ColorField({
       open={open}
       onOpenChange={(next) => {
         if (next) setUsed(documentColors());
+        // Closing by Escape or a click outside unmounts the hex input without a blur, so
+        // a value typed there is committed here rather than lost.
+        else if (text.trim() !== value) commit(text.trim());
         setOpen(next);
       }}
     >
@@ -145,7 +163,11 @@ export default function ColorField({
         sideOffset={8}
         className="editor-dark flex w-52 flex-col gap-2.5 border border-panel-border bg-panel p-2.5 text-panel-fg"
       >
-        <HexColorPicker color={hex} onChange={drag} className="color-field-picker" />
+        {translucent ? (
+          <HexAlphaColorPicker color={hex} onChange={drag} className="color-field-picker" />
+        ) : (
+          <HexColorPicker color={hex} onChange={drag} className="color-field-picker" />
+        )}
 
         <div className="flex items-center gap-1.5">
           <span
@@ -253,18 +275,23 @@ function Checkerboard() {
   );
 }
 
-/** `#rgb`, `#rrggbb` and `rgb()/rgba()` to `#rrggbb`; anything else (names, `transparent`) to null. */
-export function toHex(value: string): string | null {
+/**
+ * `#rgb`, `#rrggbb(aa)` and `rgb()/rgba()` to `#rrggbb`, or `#rrggbbaa` when translucent
+ * unless `opaque` is set; anything else (names, `transparent`) to null.
+ */
+export function toHex(value: string, { opaque = false } = {}): string | null {
   const v = value.trim().toLowerCase();
   const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/.exec(v);
   if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
   if (/^#[0-9a-f]{6}$/.test(v)) return v;
-  if (/^#[0-9a-f]{8}$/.test(v)) return v.slice(0, 7);
-  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(v);
+  if (/^#[0-9a-f]{8}$/.test(v)) return opaque || v.endsWith("ff") ? v.slice(0, 7) : v;
+  const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)(?:[\s,/]+([\d.]+%?))?/.exec(v);
   if (rgb) {
-    return `#${[rgb[1], rgb[2], rgb[3]]
-      .map((n) => Math.min(255, Number(n)).toString(16).padStart(2, "0"))
-      .join("")}`;
+    const channels = [rgb[1], rgb[2], rgb[3]].map((n) => Math.min(255, Number(n)));
+    const alphaText = rgb[4];
+    const alpha = alphaText?.endsWith("%") ? parseFloat(alphaText) / 100 : Number(alphaText ?? 1);
+    if (!opaque && alpha < 1) channels.push(Math.round(Math.max(0, alpha) * 255));
+    return `#${channels.map((n) => n.toString(16).padStart(2, "0")).join("")}`;
   }
   return null;
 }

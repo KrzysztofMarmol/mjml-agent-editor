@@ -190,7 +190,6 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 /**
  * Swaps the Style Manager's color and image controls for ColorField and ImageField.
  *
@@ -200,16 +199,19 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
  */
 function setupStyleFields(editor: Editor, labels: EditorLabels) {
   const sm = editor.StyleManager;
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   const base = (sm.getType("base") as any).view;
-  type View = { __root?: Root; __render?: (value: string) => void };
+  type View = { __root?: Root; __render?: () => void };
 
   // Distinct colors already in the email, most frequent first, read when the picker opens.
+  // Only values of color-bearing attributes and declarations: a bare `#[0-9a-f]+` also
+  // matches entities such as `&#039;` and anchors such as `href="#top"`.
   const documentColors = (): string[] => {
     const source = `${editor.getHtml()} ${editor.getCss() ?? ""}`;
     const counts = new Map<string, number>();
-    for (const match of source.matchAll(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi)) {
-      const hex = toHex(match[0]);
+    const colorValue =
+      /(?:color|background|border)[\w-]*\s*[:=]\s*["']?[^"';>{}]*?(#[0-9a-f]{3,8}\b|rgba?\([^)]*\))/gi;
+    for (const match of source.matchAll(colorValue)) {
+      const hex = toHex(match[1]!, { opaque: true });
       if (hex) counts.set(hex, (counts.get(hex) ?? 0) + 1);
     }
     return [...counts.entries()]
@@ -218,19 +220,27 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
       .map(([hex]) => hex);
   };
 
+  // The value set on the selection, or "" when the property only shows its default:
+  // GrapesJS substitutes the default before update(), which would present it as set.
+  const ownValue = (property: any): string =>
+    property.hasValue?.({ noParent: true }) ? String(property.getValue?.() ?? "") : "";
+
   // A view that renders `field(property, value)` into its own React root.
   const reactView = (field: (property: any, value: string) => ReactNode) =>
     base.extend({
       create(this: View, { property }: { property: any }) {
         const el = document.createElement("div");
+        // The base view writes the value of any input that fires `change`; the field
+        // commits its own, so letting the event through wrote every edit twice.
+        el.addEventListener("change", (event) => event.stopPropagation());
         const root = createRoot(el);
         this.__root = root;
-        this.__render = (value: string) => root.render(field(property, value));
-        this.__render(String(property.getValue?.() ?? ""));
+        this.__render = () => root.render(field(property, ownValue(property)));
+        this.__render();
         return el;
       },
-      update(this: View, { value }: { value: string }) {
-        this.__render?.(String(value ?? ""));
+      update(this: View) {
+        this.__render?.();
       },
       destroy(this: View) {
         // GrapesJS can still call update() on a destroyed view; drop the renderer first so
@@ -262,6 +272,7 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
       <ImageField
         value={value}
         labels={labels}
+        onClear={() => property.upValue("")}
         onChoose={() => {
           const am = editor.AssetManager;
           am.open({
@@ -277,9 +288,9 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
       />
     )),
   } as never);
-  /* eslint-enable @typescript-eslint/no-explicit-any */
 }
 
+// Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 function setupRichText(editor: Editor, labels: EditorLabels) {
   const rte = editor.RichTextEditor as any;
   if (!rte || rte.__customActions) return;
