@@ -789,7 +789,11 @@ function LeftSidebar({
               className="group relative block w-full overflow-hidden rounded-lg border border-panel-border bg-panel-elevated"
             >
               {selectedImageSrc ? (
-                <img src={selectedImageSrc} alt="" className="h-32 w-full object-cover" />
+                <img
+                  src={selectedImageSrc}
+                  alt=""
+                  className="h-32 w-full bg-black/25 object-contain"
+                />
               ) : (
                 <span className="flex h-32 items-center justify-center text-panel-muted-fg">
                   <ImageIcon className="size-8" />

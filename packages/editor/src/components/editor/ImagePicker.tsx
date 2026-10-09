@@ -216,7 +216,7 @@ export default function ImagePicker({
                   {Array.from({ length: pending }, (_, i) => (
                     <li
                       key={`pending-${i}`}
-                      className="flex aspect-square items-center justify-center rounded-lg border border-panel-border bg-panel-elevated"
+                      className="flex aspect-[4/3] items-center justify-center rounded-lg border border-panel-border bg-panel-elevated"
                     >
                       <Spinner />
                     </li>
@@ -231,17 +231,19 @@ export default function ImagePicker({
                           onClick={() => onSelect(image.url)}
                           title={image.name}
                           className={cn(
-                            "block aspect-square w-full overflow-hidden rounded-lg border bg-panel-elevated transition outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                            "block aspect-[4/3] w-full overflow-hidden rounded-lg border bg-black/25 transition outline-none focus-visible:ring-2 focus-visible:ring-brand",
                             selected
                               ? "border-brand ring-2 ring-brand"
                               : "border-panel-border hover:border-panel-muted-fg",
                           )}
                         >
+                          {/* Contained, not cropped: email images are mostly wide banners, and
+                              choosing one means seeing its whole composition. */}
                           <img
                             src={image.url}
                             alt={image.name ?? ""}
                             loading="lazy"
-                            className="size-full object-cover"
+                            className="size-full object-contain"
                           />
                         </button>
                         {selected && (
