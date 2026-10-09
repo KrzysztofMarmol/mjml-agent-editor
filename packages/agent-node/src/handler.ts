@@ -200,8 +200,7 @@ export function createChatHandler(options: ChatHandlerOptions) {
       conversation = [...(await options.session.load(body.docId)), latest];
     }
 
-    // Summed from finished steps and reported when the response ends, however it ends:
-    // `onFinish` never fires for a turn that errors or is stopped.
+    // Completed-step usage, reported when the response ends.
     const stepUsage: LanguageModelUsage[] = [];
     const abort = new AbortController();
     let reported = false;
@@ -285,15 +284,18 @@ function endsWith(
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
   return new ReadableStream<Uint8Array>({
+    // `ended` is awaited before the stream closes, so a reader that has the whole response
+    // also has the usage recorded — the next turn's limit check reads it.
     async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (!done) return controller.enqueue(value);
-        controller.close();
-      } catch (error) {
+      const chunk = await reader.read().catch(async (error: unknown) => {
+        await ended();
         controller.error(error);
-      }
+        return null;
+      });
+      if (!chunk) return;
+      if (!chunk.done) return controller.enqueue(chunk.value);
       await ended();
+      controller.close();
     },
     async cancel(reason) {
       abort.abort(reason);

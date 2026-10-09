@@ -398,11 +398,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     const queue = createSaveQueue(save, 1200);
 
-    editor.on("update", () => {
-      notifyState();
-      if (loadingRef.current) return;
-      queue.schedule();
+    // `updateBefore` fires with the change; `update` a tick later, after a flush may
+    // already have found nothing to save.
+    editor.on("updateBefore", () => {
+      if (!loadingRef.current) queue.schedule();
     });
+    editor.on("update", notifyState);
     editor.on("change:device", notifyState);
 
     const loadMjml = (mjml: string) => {

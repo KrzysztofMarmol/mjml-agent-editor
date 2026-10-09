@@ -529,6 +529,24 @@ describe("onUsage", () => {
     expect(model.doStreamCalls).toHaveLength(1);
   });
 
+  it("records usage before the response finishes", async () => {
+    let recorded = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("hi")).model,
+      documents,
+      comments,
+      images,
+      onUsage: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        recorded = true;
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(recorded).toBe(true);
+  });
+
   it("does not break the response when the ledger write fails", async () => {
     const handler = createChatHandler({
       model: modelReplaying(textTurn("still fine")).model,

@@ -149,4 +149,21 @@ describe("createSaveQueue", () => {
 
     expect(save).not.toHaveBeenCalled();
   });
+
+  it("does not bring back edits that a reset discarded while their save failed", async () => {
+    const first = deferred();
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue(undefined);
+    const queue = createSaveQueue(save, 1000);
+
+    queue.schedule();
+    await vi.advanceTimersByTimeAsync(1000);
+    queue.reset();
+    first.reject(new Error("network"));
+    await queue.flush();
+
+    expect(save).toHaveBeenCalledTimes(1);
+  });
 });

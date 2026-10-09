@@ -11,6 +11,8 @@ export interface SaveQueue {
 export function createSaveQueue(save: () => Promise<void>, delayMs: number): SaveQueue {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let dirty = false;
+  // Bumped by reset, so a save of discarded edits that fails afterwards does not restore them.
+  let generation = 0;
   // Writes run one at a time, so an older one can never land after a newer one.
   let running: Promise<void> | null = null;
 
@@ -23,11 +25,13 @@ export function createSaveQueue(save: () => Promise<void>, delayMs: number): Sav
     while (running) await running.catch(() => {});
     if (!dirty) return;
     dirty = false;
+    const startedIn = generation;
     const attempt = save();
     running = attempt;
     try {
       await attempt;
     } catch (error) {
+      if (startedIn !== generation) return;
       dirty = true;
       throw error;
     } finally {
@@ -44,6 +48,7 @@ export function createSaveQueue(save: () => Promise<void>, delayMs: number): Sav
     reset() {
       stopTimer();
       dirty = false;
+      generation++;
     },
     async flush() {
       stopTimer();
