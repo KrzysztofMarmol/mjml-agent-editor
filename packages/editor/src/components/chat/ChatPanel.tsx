@@ -306,6 +306,7 @@ export default function ChatPanel({
   const labels = useLabels();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const sending = useRef(false);
   // Per-message timestamp, stamped when the message first renders.
   const times = useRef<Map<string, string>>(new Map());
   const timeFor = (id: string) => {
@@ -403,7 +404,10 @@ export default function ChatPanel({
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    // `busy` follows the chat status, which only changes once the message is sent; the
+    // flush before it can take a moment, and a second Enter in that window sent twice.
+    if (!trimmed || busy || sending.current) return;
+    sending.current = true;
     // A failed flush has to stop the turn, not just log. Letting it through sent the agent
     // at the *stored* document while the canvas held newer changes, so it answered about
     // text the visitor could see had moved on — and the prompt was gone, because the input
@@ -415,6 +419,8 @@ export default function ChatPanel({
       console.error(error);
       toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
       return;
+    } finally {
+      sending.current = false;
     }
     void sendMessage({ text: trimmed });
     setInput("");

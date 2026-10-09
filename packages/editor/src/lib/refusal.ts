@@ -49,7 +49,9 @@ export function refusal(error: unknown): string | null {
     }
   }
 
-  if (deliberate && error.message.trim() !== "") return error.message;
+  // A proxy or platform answering for the host sends a page, not a sentence.
+  const message = error.message.trim();
+  if (deliberate && message !== "" && !message.startsWith("<")) return error.message;
   return null;
 }
 

@@ -68,8 +68,13 @@ export interface TurnUsage {
   readonly outputTokens: number;
   readonly cachedInputTokens: number;
   readonly totalTokens: number;
-  /** The SDK's own usage object, for anything the fields above flatten away. */
+  /** The SDK's summed usage object. */
   readonly raw: LanguageModelUsage;
+  /**
+   * Each finished step's usage, with the provider's own `raw` figures — the sum above
+   * cannot carry those. Shorter than the turn when it failed or was stopped mid-step.
+   */
+  readonly steps: readonly LanguageModelUsage[];
 }
 
 export interface ChatHandlerOptions extends SystemPromptOptions {
@@ -195,6 +200,32 @@ export function createChatHandler(options: ChatHandlerOptions) {
       conversation = [...(await options.session.load(body.docId)), latest];
     }
 
+    // Reported once, however the turn ends. `onFinish` fires only for a turn that
+    // completes, so an error or a stopped reader would otherwise leave every finished step
+    // unbilled — and stopping a turn on purpose would make it free.
+    const stepUsage: LanguageModelUsage[] = [];
+    let reported = false;
+    const report = async (total: LanguageModelUsage) => {
+      if (!options.onUsage || reported) return;
+      reported = true;
+      try {
+        await options.onUsage({
+          documentId: body.docId,
+          modelId: typeof options.model === "string" ? options.model : options.model.modelId,
+          // Every field is optional on the SDK type — a provider that reports no usage
+          // produces zeros rather than NaN in someone's ledger.
+          inputTokens: total.inputTokens ?? 0,
+          outputTokens: total.outputTokens ?? 0,
+          cachedInputTokens: total.cachedInputTokens ?? 0,
+          totalTokens: total.totalTokens ?? 0,
+          raw: total,
+          steps: [...stepUsage],
+        });
+      } catch (error) {
+        console.error("onUsage failed", error);
+      }
+    };
+
     const result = streamText({
       model: options.model,
       system,
@@ -211,35 +242,18 @@ export function createChatHandler(options: ChatHandlerOptions) {
       stopWhen: stepCountIs(maxSteps),
       ...(options.onUsage
         ? {
-            // `totalUsage`, not `usage`: the latter describes the final step only, so a turn
-            // that called four tools and then answered reports the answer and nothing else.
-            // The undercount is silent, grows with how hard the turn worked, and lands in
-            // whatever ledger a budget is read from — see `TurnUsage`, which has always
-            // promised totals.
-            onFinish: async ({ totalUsage }) => {
-              try {
-                await options.onUsage?.({
-                  documentId: body.docId,
-                  modelId:
-                    typeof options.model === "string" ? options.model : options.model.modelId,
-                  // Every field is optional on the SDK type — a provider that reports no
-                  // usage produces zeros rather than NaN in someone's ledger.
-                  inputTokens: totalUsage.inputTokens ?? 0,
-                  outputTokens: totalUsage.outputTokens ?? 0,
-                  cachedInputTokens: totalUsage.cachedInputTokens ?? 0,
-                  totalTokens: totalUsage.totalTokens ?? 0,
-                  raw: totalUsage,
-                });
-              } catch (error) {
-                console.error("onUsage failed", error);
-              }
+            onStepFinish: ({ usage }) => {
+              stepUsage.push(usage);
             },
+            // `totalUsage`, not `usage`: the latter is the final step only.
+            onFinish: ({ totalUsage }) => report(totalUsage),
+            onError: () => report(sumUsage(stepUsage)),
           }
         : {}),
     });
 
     const session = options.session;
-    return result.toUIMessageStreamResponse({
+    const response = result.toUIMessageStreamResponse({
       onError: (error) => formatError(error),
       // `originalMessages` is what puts the SDK into persistence mode: it gives the
       // response message an id and hands `onFinish` the whole updated conversation
@@ -259,5 +273,55 @@ export function createChatHandler(options: ChatHandlerOptions) {
           }
         : {}),
     });
+    if (!options.onUsage || !response.body) return response;
+    // A reader that stops — the visitor pressing stop — ends the turn without any of the
+    // callbacks above, so the steps it already paid for are charged here.
+    return new Response(
+      onCancel(response.body, () => void report(sumUsage(stepUsage))),
+      {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      },
+    );
+  };
+}
+
+function onCancel(
+  body: ReadableStream<Uint8Array>,
+  cancelled: () => void,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    cancel(reason) {
+      cancelled();
+      return reader.cancel(reason);
+    },
+  });
+}
+
+/** Field-by-field sum of the flat token counts, for a turn that never reached `onFinish`. */
+function sumUsage(steps: readonly LanguageModelUsage[]): LanguageModelUsage {
+  const add = (pick: (u: LanguageModelUsage) => number | undefined) =>
+    steps.reduce((sum, u) => sum + (pick(u) ?? 0), 0);
+  return {
+    inputTokens: add((u) => u.inputTokens),
+    outputTokens: add((u) => u.outputTokens),
+    totalTokens: add((u) => u.totalTokens),
+    cachedInputTokens: add((u) => u.cachedInputTokens),
+    inputTokenDetails: {
+      noCacheTokens: add((u) => u.inputTokenDetails?.noCacheTokens),
+      cacheReadTokens: add((u) => u.inputTokenDetails?.cacheReadTokens),
+      cacheWriteTokens: add((u) => u.inputTokenDetails?.cacheWriteTokens),
+    },
+    outputTokenDetails: {
+      textTokens: add((u) => u.outputTokenDetails?.textTokens),
+      reasoningTokens: add((u) => u.outputTokenDetails?.reasoningTokens),
+    },
   };
 }

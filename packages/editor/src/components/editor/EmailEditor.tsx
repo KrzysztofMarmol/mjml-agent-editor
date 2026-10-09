@@ -8,6 +8,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
+import { createSaveQueue } from "../../lib/save-queue.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -232,7 +233,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const labels = useLabels();
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveStatusRef = useRef<SaveStatus>("idle");
   const stateListeners = useRef(new Set<(s: EditorState) => void>());
   const [loading, setLoading] = useState(true);
@@ -399,16 +399,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }
     };
 
+    const queue = createSaveQueue(save, 1200);
+
     editor.on("update", () => {
       notifyState();
       if (loadingRef.current) return;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      // Cleared as it fires, so the handle answers "a write is still owed" rather than
-      // "a write was scheduled at some point" — which is what `flushSave` reads.
-      saveTimer.current = setTimeout(() => {
-        saveTimer.current = null;
-        void save().catch(console.error);
-      }, 1200);
+      queue.schedule();
     });
     editor.on("change:device", notifyState);
 
@@ -417,8 +413,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       // can fire the "update" event asynchronously, which would otherwise
       // overwrite the agent's fresh change with the editor's normalized version.
       loadingRef.current = true;
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = null;
+      queue.cancel();
       editor.setComponents(mjml || STARTER_MJML);
       editor.getWrapper()?.find("mj-section").forEach(decorate);
       for (const t of Object.keys(TYPE_LABEL)) {
@@ -492,17 +487,15 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       getMjml: () => editor.getHtml(),
       getCompiledHtml: compiledHtml,
       flushSave: async () => {
-        // Only write when there is something to write. A pending debounce means the canvas
-        // holds changes the database has not seen; `error` means the last attempt to send
-        // them failed, so they are still owed. Otherwise the stored document already
-        // matches, and saving again cost a round trip per message sent — and, now that a
-        // rejected flush stops the turn, gave a host that refuses every save a way to
-        // block a conversation that was not asking it to save anything.
-        const pending = saveTimer.current !== null || saveStatusRef.current === "error";
-        if (saveTimer.current) clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-        if (!pending) return;
-        await save();
+        // Text typed into an open rich-text editor reaches the model only when editing
+        // ends, so it would be missing from both the save and the agent's view of it.
+        const editing = editor.getEditing();
+        if (editing) {
+          await (
+            editing.getView() as { syncContent?: () => Promise<void> } | undefined
+          )?.syncContent?.();
+        }
+        await queue.flush(Boolean(editing));
       },
       reloadFromDb: async () => {
         const fresh = await documents.get(docId);

@@ -32,6 +32,11 @@ describe("refusal", () => {
     expect(refusal(storeRejection(403, "This demo is read-only."))).toBe("This demo is read-only.");
   });
 
+  it("hides an HTML page a proxy answered with", () => {
+    const page = "<html><head><title>413 Request Entity Too Large</title></head></html>";
+    expect(refusal(storeRejection(413, page))).toBeNull();
+  });
+
   it("hides a server fault, which is not a sentence for a visitor", () => {
     expect(refusal(storeRejection(500, "ECONNREFUSED 127.0.0.1:5432"))).toBeNull();
   });

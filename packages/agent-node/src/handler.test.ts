@@ -10,7 +10,7 @@ import type { UIMessage } from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
 
-import { createChatHandler } from "./handler.js";
+import { createChatHandler, type TurnUsage } from "./handler.js";
 
 const DOCUMENT: EmailDocument = {
   id: "doc-1",
@@ -402,6 +402,70 @@ describe("onUsage", () => {
     // Charging the final step alone would report 5 and 3.
     expect(usage.inputTokens).toBe(105);
     expect(usage.outputTokens).toBe(10);
+  });
+
+  it("still charges the finished steps when a later step fails", async () => {
+    const seen: TurnUsage[] = [];
+    const handler = createChatHandler({
+      model: modelReplaying(toolCallTurn("get_document", {}, tokens(100, 7)), [
+        { type: "stream-start", warnings: [] },
+        { type: "error", error: new Error("provider exploded") },
+      ]).model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(100);
+    expect(seen[0]!.outputTokens).toBe(7);
+    expect(seen[0]!.steps).toHaveLength(1);
+  });
+
+  it("still charges the finished steps when the client stops reading", async () => {
+    const seen: TurnUsage[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        if (model.doStreamCalls.length === 1) {
+          return {
+            stream: convertArrayToReadableStream(toolCallTurn("get_document", {}, tokens(40, 2))),
+          };
+        }
+        // The second step never finishes on its own, like a reply the visitor stops.
+        await held;
+        return { stream: convertArrayToReadableStream(textTurn("late", tokens(1, 1))) };
+      },
+    });
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    const response = await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }));
+    const reader = response.body!.getReader();
+    const pump = (async () => {
+      while (!(await reader.read().catch(() => ({ done: true }))).done);
+    })();
+    while (model.doStreamCalls.length < 2) await new Promise((resolve) => setTimeout(resolve, 5));
+    await reader.cancel();
+    release();
+    await pump;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBeGreaterThanOrEqual(40);
   });
 
   it("does not break the response when the ledger write fails", async () => {
