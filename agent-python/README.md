@@ -25,16 +25,21 @@ uv run ruff check .
 
 ## Visual review
 
-`inspect_rendered_email` is offered only when a reviewer is configured. Implement
+`inspect_rendered_email` is offered only when the app is built with a reviewer. Implement
 `tools.EmailVisualReviewer` — one async `review(request)` returning critique text — and
-name it in the environment:
+serve your own app instead of `main:app`:
 
-```bash
-VISUAL_REVIEWER=my_reviewers:ScreenshotReviewer   # a class or zero-argument factory
+```python
+# my_server.py
+from main import create_app
+from my_reviewers import ScreenshotReviewer
+
+app = create_app(visual_reviewer=ScreenshotReviewer(api_key="..."))
 ```
 
-A name that does not resolve stops the service at startup rather than running without
-the tool.
+```bash
+uv run uvicorn my_server:app --port 8002
+```
 
 ## The mjml binary
 

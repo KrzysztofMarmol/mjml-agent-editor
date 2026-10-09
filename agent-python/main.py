@@ -6,10 +6,10 @@ implementation differs, which is the point of keeping this backend around.
 
 from __future__ import annotations
 
-import importlib
+import contextlib
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 import dotenv
 
@@ -27,9 +27,7 @@ import mjml_compile
 import tools
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-app = fastapi.FastAPI(title="mjml-agent-editor-python")
+    from collections.abc import AsyncGenerator, AsyncIterator
 
 # Configurable rather than hardcoded to http://localhost:3000, which was the spike's
 # single largest obstacle to running this anywhere but one developer's machine.
@@ -39,17 +37,9 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
-app.add_middleware(
-    fastapi.middleware.cors.CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-
-@app.on_event("startup")
-async def check_prerequisites() -> None:
+@contextlib.asynccontextmanager
+async def lifespan(app: fastapi.FastAPI) -> AsyncIterator[None]:
     """Fails fast if the MJML compiler is missing.
 
     Without this the service starts happily and every write tool fails on the first
@@ -58,21 +48,25 @@ async def check_prerequisites() -> None:
     binary = mjml_compile.resolve_mjml_binary()
     print(f"[startup] mjml: {binary}", file=sys.stderr, flush=True)
     print(f"[startup] contract v{email_agent.contract().version}", file=sys.stderr, flush=True)
-    reviewer = type(VISUAL_REVIEWER).__name__ if VISUAL_REVIEWER else "off"
-    print(f"[startup] visual review: {reviewer}", file=sys.stderr, flush=True)
+    reviewer = app.state.visual_reviewer
+    print(
+        f"[startup] visual review: {type(reviewer).__name__ if reviewer else 'off'}",
+        file=sys.stderr,
+        flush=True,
+    )
+    yield
 
 
-@app.exception_handler(fastapi.exceptions.RequestValidationError)
 async def log_validation_errors(
-    request: fastapi.Request, exc: fastapi.exceptions.RequestValidationError
+    request: fastapi.Request, exc: Exception
 ) -> fastapi.responses.JSONResponse:
+    assert isinstance(exc, fastapi.exceptions.RequestValidationError)
     print(f"[422] {request.method} {request.url.path}: {exc.errors()}", file=sys.stderr, flush=True)
     return fastapi.responses.JSONResponse({"detail": exc.errors()}, status_code=422)
 
 
-@app.get("/api/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "model": os.environ.get("AGENT_MODEL", email_agent.DEFAULT_MODEL)}
+def get_visual_reviewer(request: fastapi.Request) -> tools.EmailVisualReviewer | None:
+    return request.app.state.visual_reviewer
 
 
 def _unwrap(exc: BaseException) -> BaseException:
@@ -97,25 +91,12 @@ def _friendly_error(exc: Exception) -> str:
     return f"Agent error: {name}: {str(exc)[:300]}"
 
 
-def load_visual_reviewer(spec: str | None) -> tools.EmailVisualReviewer | None:
-    """Builds the reviewer named by ``module:name``, a class or zero-argument factory.
-    Empty means none."""
-    if not spec or not spec.strip():
-        return None
-    module_name, _, attribute = spec.strip().partition(":")
-    if not module_name or not attribute:
-        raise RuntimeError(f"VISUAL_REVIEWER must look like 'module:name', got {spec!r}")
-    reviewer = getattr(importlib.import_module(module_name), attribute)()
-    if not callable(getattr(reviewer, "review", None)):
-        raise RuntimeError(f"VISUAL_REVIEWER {spec!r} has no review() method")
-    return reviewer
+router = fastapi.APIRouter()
 
 
-# None leaves inspect_rendered_email out of the tool set. Resolved at import, so a
-# misnamed reviewer stops startup instead of the tool silently going missing.
-VISUAL_REVIEWER: tools.EmailVisualReviewer | None = load_visual_reviewer(
-    os.environ.get("VISUAL_REVIEWER")
-)
+@router.get("/api/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok", "model": os.environ.get("AGENT_MODEL", email_agent.DEFAULT_MODEL)}
 
 
 class ChatRequest(pydantic.BaseModel):
@@ -123,14 +104,19 @@ class ChatRequest(pydantic.BaseModel):
     docId: str
 
 
-@app.post("/api/chat")
-async def chat(request: ChatRequest) -> fastapi.responses.StreamingResponse:
+@router.post("/api/chat")
+async def chat(
+    request: ChatRequest,
+    visual_reviewer: Annotated[
+        tools.EmailVisualReviewer | None, fastapi.Depends(get_visual_reviewer)
+    ],
+) -> fastapi.responses.StreamingResponse:
     if not request.docId:
         raise fastapi.HTTPException(status_code=400, detail="`docId` is required")
 
     messages, _approvals = ai.ui.ai_sdk.to_messages(request.messages)
     messages = [ai.system_message(email_agent.SYSTEM), *messages]
-    agent = email_agent.build_agent(request.docId, VISUAL_REVIEWER)
+    agent = email_agent.build_agent(request.docId, visual_reviewer)
 
     async def stream_response() -> AsyncGenerator[str]:
         try:
@@ -151,3 +137,22 @@ async def chat(request: ChatRequest) -> fastapi.responses.StreamingResponse:
         stream_response(),
         headers=ai.ui.ai_sdk.UI_MESSAGE_STREAM_HEADERS,
     )
+
+
+def create_app(visual_reviewer: tools.EmailVisualReviewer | None = None) -> fastapi.FastAPI:
+    """The service. Without a reviewer, inspect_rendered_email is left out of the tool set."""
+    app = fastapi.FastAPI(title="mjml-agent-editor-python", lifespan=lifespan)
+    app.state.visual_reviewer = visual_reviewer
+    app.add_middleware(
+        fastapi.middleware.cors.CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.add_exception_handler(fastapi.exceptions.RequestValidationError, log_validation_errors)
+    app.include_router(router)
+    return app
+
+
+app = create_app()
