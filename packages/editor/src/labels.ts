@@ -46,6 +46,7 @@ export interface EditorLabels {
   readonly documentLoadFailed: string;
   readonly documentSaveFailed: string;
   readonly imageUploadFailed: string;
+  readonly imageUploadUnavailable: string;
 
   // Comments
   readonly commentOnSection: string;
@@ -100,6 +101,7 @@ export const DEFAULT_LABELS: EditorLabels = {
   documentLoadFailed: "Failed to load the document.",
   documentSaveFailed: "Failed to save changes.",
   imageUploadFailed: "Failed to upload the image.",
+  imageUploadUnavailable: "Uploading is not available here — paste an image URL instead.",
 
   commentOnSection: "Comment on the whole section",
   closeComments: "Close",

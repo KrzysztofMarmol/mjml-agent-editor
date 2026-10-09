@@ -535,6 +535,34 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
   };
 
+  // GrapesJS calls this for both the file input and a drop onto the picker form; the drop
+  // is wired even when the input is disabled, so the no-uploader case has to answer too.
+  const uploadFile = async (event: DragEvent | Event) => {
+    const input = event.target as HTMLInputElement | null;
+    const files = (event as DragEvent).dataTransfer?.files ?? input?.files;
+    if (!files?.length) return;
+    if (!images) {
+      toast.error(labels.imageUploadUnavailable);
+      return;
+    }
+    try {
+      // Settled rather than all: an upload that succeeded has already been stored and
+      // counted by the host, so one failure must not throw its URL away.
+      const results = await Promise.allSettled(Array.from(files, (f) => images.upload(f)));
+      const urls = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+      if (urls.length) editorRef.current?.AssetManager.add(urls.map((src) => ({ src })));
+      for (const r of results) {
+        if (r.status === "rejected") {
+          console.error(r.reason);
+          // The host's message is usually the actionable part ("limit reached", "too large").
+          toast.error(r.reason instanceof Error ? r.reason.message : labels.imageUploadFailed);
+        }
+      }
+    } finally {
+      if (input && "value" in input) input.value = "";
+    }
+  };
+
   return (
     <GjsEditor
       grapesjs={grapesjs}
@@ -548,25 +576,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
         layerManager: { appendTo: "#gjs-layers" },
-        // No uploader disables the dropzone rather than falling back to base64 (see ImageUploader).
         assetManager: {
+          // Never inline files: mail clients block `data:` images (see ImageUploader).
           embedAsBase64: false,
-          uploadFile: images
-            ? async (event: DragEvent | Event) => {
-                const input = event.target as HTMLInputElement | null;
-                const files = (event as DragEvent).dataTransfer?.files ?? input?.files ?? undefined;
-                if (!files?.length) return;
-                try {
-                  const urls = await Promise.all(Array.from(files, (f) => images.upload(f)));
-                  editorRef.current?.AssetManager.add(urls.map((src) => ({ src })));
-                } catch (err) {
-                  console.error(err);
-                  toast.error(labels.imageUploadFailed);
-                } finally {
-                  if (input && "value" in input) input.value = "";
-                }
-              }
-            : undefined,
+          // GrapesJS reads this but leaves it out of its types. Unset, it disables the file
+          // input whenever there is no `upload` URL, even with a custom `uploadFile`.
+          ...({ disableUpload: !images } as object),
+          uploadFile,
         },
         deviceManager: {
           devices: [
