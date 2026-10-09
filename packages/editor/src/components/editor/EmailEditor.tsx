@@ -7,6 +7,7 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
+import { refusal } from "../../lib/refusal.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -390,7 +391,10 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         setSave("saved");
       } catch (e) {
         setSave("error");
-        toast.error(labels.documentSaveFailed);
+        // Autosave fires on a timer, so a host refusing every save — a document over a size
+        // cap, say — would stack one toast per attempt. A shared id makes it one message,
+        // and the same id is used when a turn's flush fails for the same reason.
+        toast.error(refusal(e) ?? labels.documentSaveFailed, { id: `document-save-${docId}` });
         throw e;
       }
     };

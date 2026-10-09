@@ -211,7 +211,12 @@ export function createChatHandler(options: ChatHandlerOptions) {
       stopWhen: stepCountIs(maxSteps),
       ...(options.onUsage
         ? {
-            onFinish: async ({ usage }) => {
+            // `totalUsage`, not `usage`: the latter describes the final step only, so a turn
+            // that called four tools and then answered reports the answer and nothing else.
+            // The undercount is silent, grows with how hard the turn worked, and lands in
+            // whatever ledger a budget is read from — see `TurnUsage`, which has always
+            // promised totals.
+            onFinish: async ({ totalUsage }) => {
               try {
                 await options.onUsage?.({
                   documentId: body.docId,
@@ -219,11 +224,11 @@ export function createChatHandler(options: ChatHandlerOptions) {
                     typeof options.model === "string" ? options.model : options.model.modelId,
                   // Every field is optional on the SDK type — a provider that reports no
                   // usage produces zeros rather than NaN in someone's ledger.
-                  inputTokens: usage.inputTokens ?? 0,
-                  outputTokens: usage.outputTokens ?? 0,
-                  cachedInputTokens: usage.cachedInputTokens ?? 0,
-                  totalTokens: usage.totalTokens ?? 0,
-                  raw: usage,
+                  inputTokens: totalUsage.inputTokens ?? 0,
+                  outputTokens: totalUsage.outputTokens ?? 0,
+                  cachedInputTokens: totalUsage.cachedInputTokens ?? 0,
+                  totalTokens: totalUsage.totalTokens ?? 0,
+                  raw: totalUsage,
                 });
               } catch (error) {
                 console.error("onUsage failed", error);

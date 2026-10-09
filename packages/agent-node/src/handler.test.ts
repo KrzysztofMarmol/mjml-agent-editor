@@ -51,26 +51,35 @@ const images: ImageProvider = {
   generate: () => Promise.resolve("https://images.test/x.png"),
 };
 
-const USAGE: LanguageModelV3Usage = {
-  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-  outputTokens: { total: 1, text: 1, reasoning: 0 },
-};
+/** What one step reported. Takes figures so a test can tell a sum from the last step. */
+function tokens(input: number, output: number): LanguageModelV3Usage {
+  return {
+    inputTokens: { total: input, noCache: input, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: output, text: output, reasoning: 0 },
+  };
+}
 
-function textTurn(text: string): LanguageModelV3StreamPart[] {
+const USAGE: LanguageModelV3Usage = tokens(1, 1);
+
+function textTurn(text: string, usage: LanguageModelV3Usage = USAGE): LanguageModelV3StreamPart[] {
   return [
     { type: "stream-start", warnings: [] },
     { type: "text-start", id: "t1" },
     { type: "text-delta", id: "t1", delta: text },
     { type: "text-end", id: "t1" },
-    { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage: USAGE },
+    { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
   ];
 }
 
-function toolCallTurn(toolName: string, input: unknown): LanguageModelV3StreamPart[] {
+function toolCallTurn(
+  toolName: string,
+  input: unknown,
+  usage: LanguageModelV3Usage = USAGE,
+): LanguageModelV3StreamPart[] {
   return [
     { type: "stream-start", warnings: [] },
     { type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) },
-    { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_use" }, usage: USAGE },
+    { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_use" }, usage },
   ];
 }
 
@@ -365,8 +374,13 @@ describe("onUsage", () => {
   it("reports totals for the whole turn, not one step", async () => {
     const seen: unknown[] = [];
     const handler = createChatHandler({
-      // Two steps: a tool call, then the reply. A budget cares about the sum.
-      model: modelReplaying(toolCallTurn("get_document", {}), textTurn("done")).model,
+      // Two steps: a tool call, then the reply. A budget cares about the sum. The figures
+      // differ on purpose — equal ones cannot tell a total from the last step, which is how
+      // this went unnoticed while the assertion was only "greater than zero".
+      model: modelReplaying(
+        toolCallTurn("get_document", {}, tokens(100, 7)),
+        textTurn("done", tokens(5, 3)),
+      ).model,
       documents,
       comments,
       images,
@@ -385,9 +399,9 @@ describe("onUsage", () => {
       totalTokens: number;
     };
     expect(usage.documentId).toBe("doc-7");
-    // USAGE is per step and the mock replays two steps.
-    expect(usage.inputTokens).toBeGreaterThan(0);
-    expect(usage.outputTokens).toBeGreaterThan(0);
+    // Charging the final step alone would report 5 and 3.
+    expect(usage.inputTokens).toBe(105);
+    expect(usage.outputTokens).toBe(10);
   });
 
   it("does not break the response when the ledger write fails", async () => {
