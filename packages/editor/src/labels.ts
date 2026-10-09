@@ -61,6 +61,8 @@ export interface EditorLabels {
   readonly imagePickerConfirmDelete: string;
   readonly imagePickerLoadFailed: string;
   readonly imageUploadFailed: string;
+  readonly imageDeleteFailed: string;
+  readonly imagePickerUnsupported: (fileName: string) => string;
 
   // Comments
   readonly commentOnSection: string;
@@ -129,6 +131,8 @@ export const DEFAULT_LABELS: EditorLabels = {
   imagePickerConfirmDelete: "Click again to delete",
   imagePickerLoadFailed: "Failed to load your images.",
   imageUploadFailed: "Failed to upload the image.",
+  imageDeleteFailed: "Failed to delete the image.",
+  imagePickerUnsupported: (fileName) => `${fileName} is not a supported image type.`,
 
   commentOnSection: "Comment on the whole section",
   closeComments: "Close",

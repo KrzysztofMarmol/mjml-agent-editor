@@ -39,6 +39,11 @@ export interface ImageLibrary {
   }>;
   upload(file: File): Promise<ImageAsset>;
   /**
+   * What `upload` takes, as an `<input accept>` value ("image/png,image/jpeg"). The picker
+   * refuses anything else before sending it. Defaults to any image.
+   */
+  readonly accept?: string;
+  /**
    * Omit to make the gallery read-only — for a host that caps uploads and cannot reclaim
    * the storage, deleting would only be a way round the cap.
    */

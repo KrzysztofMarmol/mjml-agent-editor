@@ -44,6 +44,13 @@ export default function ImagePicker({
   const [url, setUrl] = useState("");
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  // Bumped on every open and close. An upload still running when the picker closes, or
+  // reopens for another image, must not apply its result to whatever is open now.
+  const session = useRef(0);
+  // Read through refs so neither a new `labels` object nor a new `onSelect` from a parent
+  // render re-runs the open effect — that would wipe a half-typed URL.
+  const latest = useRef({ labels, onSelect });
+  latest.current = { labels, onSelect };
 
   const refresh = useCallback(async () => {
     if (!library) return;
@@ -54,24 +61,36 @@ export default function ImagePicker({
       setQuota(result.quota);
     } catch (err) {
       console.error(err);
-      toast.error(labels.imagePickerLoadFailed);
+      toast.error(latest.current.labels.imagePickerLoadFailed);
     } finally {
       setLoading(false);
     }
-  }, [library, labels]);
+  }, [library]);
 
   useEffect(() => {
+    session.current += 1;
     if (!open) return;
     setUrl("");
     setConfirmId(null);
     void refresh();
-  }, [open, refresh]);
+    // Once per opening; `refresh` reads the latest props through `latest`.
+  }, [open]);
+
+  const accepts = (file: File) => matchesAccept(file, library?.accept);
 
   const full = quota !== undefined && quota.used >= quota.limit;
 
   const upload = async (files: FileList | null) => {
     if (!library || !files?.length) return;
-    const list = Array.from(files);
+    const mine = session.current;
+    // The input's `accept` covers browsing; a drop bypasses it, so check here too rather
+    // than send a whole file only to have the host refuse it.
+    const list = Array.from(files).filter((f) => {
+      if (accepts(f)) return true;
+      toast.error(labels.imagePickerUnsupported(f.name));
+      return false;
+    });
+    if (!list.length) return;
     setPending((n) => n + list.length);
     // Settled rather than all: an upload that succeeded has already been stored and
     // counted by the host, so one failure must not hide it.
@@ -84,10 +103,13 @@ export default function ImagePicker({
         toast.error(r.reason instanceof Error ? r.reason.message : labels.imageUploadFailed);
       }
     }
+    if (session.current !== mine) return;
     await refresh();
     // One file dropped while editing an image is meant for that image.
     const [only] = results;
-    if (results.length === 1 && only?.status === "fulfilled") onSelect(only.value.url);
+    if (results.length === 1 && only?.status === "fulfilled" && session.current === mine) {
+      latest.current.onSelect(only.value.url);
+    }
   };
 
   const remove = async (image: ImageAsset) => {
@@ -103,7 +125,7 @@ export default function ImagePicker({
       await refresh();
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : labels.imageUploadFailed);
+      toast.error(err instanceof Error ? err.message : labels.imageDeleteFailed);
     }
   };
 
@@ -159,7 +181,7 @@ export default function ImagePicker({
                 <input
                   ref={fileInput}
                   type="file"
-                  accept="image/*"
+                  accept={library.accept ?? "image/*"}
                   multiple
                   hidden
                   onChange={(e) => {
@@ -289,4 +311,15 @@ export default function ImagePicker({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** The subset of `<input accept>` a picker needs: MIME types, `type/*`, and `.ext`. */
+function matchesAccept(file: File, accept: string | undefined): boolean {
+  if (!accept) return file.type.startsWith("image/");
+  return accept.split(",").some((raw) => {
+    const rule = raw.trim().toLowerCase();
+    if (rule.startsWith(".")) return file.name.toLowerCase().endsWith(rule);
+    if (rule.endsWith("/*")) return file.type.startsWith(rule.slice(0, -1));
+    return file.type === rule;
+  });
 }

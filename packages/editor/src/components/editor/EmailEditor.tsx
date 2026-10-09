@@ -415,9 +415,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         );
       }
     });
+    // With multi-select a deselection can leave something selected; follow what remains.
     editor.on("component:deselected", () => {
-      setCrumbs([]);
-      setSelectedImageSrc(null);
+      const rest = editor.getSelected();
+      buildCrumbs(rest);
+      setSelectedImageSrc(
+        rest && tagOf(rest) === "mj-image" ? String(rest.get("src") ?? "") : null,
+      );
     });
     editor.on("component:update:src", (c: Component) => {
       if (c === editor.getSelected()) setSelectedImageSrc(String(c.get("src") ?? ""));
@@ -634,8 +638,16 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             <ImagePicker
               open={picker !== null}
               currentUrl={picker?.current}
-              onSelect={(url) => picker?.select(url)}
-              onClose={() => editorRef.current?.AssetManager.close()}
+              onSelect={(url) => {
+                picker?.select(url);
+                setPicker(null);
+              }}
+              // Closed here as well as through GrapesJS: its close() is a no-op whenever it
+              // does not consider its asset command active, which left the dialog stuck open.
+              onClose={() => {
+                setPicker(null);
+                editorRef.current?.AssetManager.close();
+              }}
             />
             {loading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
