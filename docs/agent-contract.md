@@ -74,6 +74,7 @@ two are interchangeable would send an adopter down the wrong path.
 | Token accounting                      | `onUsage` hook                            | none                                                      |
 | Multi-line MJML in tool arguments     | works                                     | needs the single-line hint (see below)                    |
 | Deleting an orphaned comment          | optional `CommentStore.remove`            | `db.delete_comment`, hardwired to Supabase                |
+| Rendered-email visual review          | optional `visualReviewer` port            | optional `visual_reviewer` on `create_app`                |
 
 The first three rows are what "ports" buys and Python does not have: **the Python backend can
 only be pointed at Supabase**, and swapping its storage means editing it. The next three are
