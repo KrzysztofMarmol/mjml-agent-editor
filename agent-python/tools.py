@@ -12,10 +12,13 @@ which parses streamed arguments incrementally — see ``docs/agent-contract.md``
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import os
 import uuid
+from dataclasses import dataclass
+from typing import Protocol
 
 import ai
 import openai
@@ -68,16 +71,21 @@ _EMPTY_ARG_HINT = (
 )
 
 
-def _validated_save(doc_id: str, mjml: str) -> str:
+# For every Supabase and mjml call: both are synchronous (mjml is a subprocess of up to
+# 30s), and on the event loop they would stall every other open chat stream.
+_blocking = asyncio.to_thread
+
+
+async def _validated_save(doc_id: str, mjml: str) -> str:
     """Compiles the whole document and saves only if it is valid."""
-    ok, result = mjml_compile.compile_mjml(mjml)
+    ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
     if not ok:
         return f"ERROR: MJML validation failed — document was NOT saved:\n{result}"
-    db.set_document_mjml(doc_id, mjml)
+    await _blocking(db.set_document_mjml, doc_id, mjml)
     return "OK, saved."
 
 
-def _prune_orphaned_comments(doc_id: str, saved_mjml: str) -> str:
+async def _prune_orphaned_comments(doc_id: str, saved_mjml: str) -> str:
     """Deletes comments left pointing at sections the document no longer contains.
 
     Called after the two writes that can drop a section — set_document, which reassigns
@@ -89,24 +97,41 @@ def _prune_orphaned_comments(doc_id: str, saved_mjml: str) -> str:
         for section in mjml_doc.list_sections(saved_mjml)
         if section["section_id"] != "?"
     }
-    orphans = [c for c in db.list_comments(doc_id) if c["section_id"] not in live]
+    comments = await _blocking(db.list_comments, doc_id)
+    orphans = [c for c in comments if c["section_id"] not in live]
     if not orphans:
         return ""
     for orphan in orphans:
-        db.delete_comment(orphan["id"])
+        await _blocking(db.delete_comment, orphan["id"])
     return f" Removed {len(orphans)} comment(s) whose section no longer exists."
 
 
-def build_tools(doc_id: str) -> list[ai.AgentTool]:
+@dataclass(frozen=True)
+class EmailVisualReviewRequest:
+    document_id: str
+    mjml: str
+    html: str
+
+
+class EmailVisualReviewer(Protocol):
+    """Port counterpart of ``EmailVisualReviewer`` in ``packages/agent-core``: renders and
+    critiques the current email, returning plain text for the editing agent."""
+
+    async def review(self, request: EmailVisualReviewRequest) -> str: ...
+
+
+def build_tools(
+    doc_id: str, visual_reviewer: EmailVisualReviewer | None = None
+) -> list[ai.AgentTool]:
     @_described("get_document")
     async def get_document() -> str:
-        mjml = db.get_document_mjml(doc_id)
+        mjml = await _blocking(db.get_document_mjml, doc_id)
         sections = json.dumps(mjml_doc.list_sections(mjml), ensure_ascii=False)
         return f"SECTIONS: {sections}\n\nMJML:\n{mjml}"
 
     @_described("get_section")
     async def get_section(section_id: str) -> str:
-        mjml = db.get_document_mjml(doc_id)
+        mjml = await _blocking(db.get_document_mjml, doc_id)
         section = mjml_doc.get_section(mjml, section_id)
         return section or f"ERROR: no section with id '{section_id}'"
 
@@ -120,11 +145,11 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         # after an edit it has already saved.
         existing = [
             section["section_id"]
-            for section in mjml_doc.list_sections(db.get_document_mjml(doc_id))
+            for section in mjml_doc.list_sections(await _blocking(db.get_document_mjml, doc_id))
             if section["section_id"] != "?"
         ]
         if existing and not confirm_full_rewrite:
-            open_count = len(db.list_open_comments(doc_id))
+            open_count = len(await _blocking(db.list_open_comments, doc_id))
             return (
                 f"ERROR: this document already has {len(existing)} section(s) "
                 f"({', '.join(existing)}). Replacing the whole document reassigns every id "
@@ -137,48 +162,48 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
             saved = mjml_doc.ensure_section_ids(mjml)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
-        result = _validated_save(doc_id, saved)
+        result = await _validated_save(doc_id, saved)
         if not result.startswith("OK"):
             return result
-        return f"{result}{_prune_orphaned_comments(doc_id, saved)}"
+        return f"{result}{await _prune_orphaned_comments(doc_id, saved)}"
 
     @_described("set_section")
     async def set_section(section_id: str = "", mjml: str = "") -> str:
         if not section_id.strip() or not mjml.strip():
             return _EMPTY_ARG_HINT
-        doc = db.get_document_mjml(doc_id)
+        doc = await _blocking(db.get_document_mjml, doc_id)
         try:
             updated = mjml_doc.replace_section(doc, section_id, mjml)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
         if updated is None:
             return f"ERROR: no section with id '{section_id}'"
-        return _validated_save(doc_id, updated)
+        return await _validated_save(doc_id, updated)
 
     @_described("insert_section")
     async def insert_section(mjml: str = "", after_section_id: str | None = None) -> str:
         if not mjml.strip():
             return _EMPTY_ARG_HINT
-        doc = db.get_document_mjml(doc_id)
+        doc = await _blocking(db.get_document_mjml, doc_id)
         try:
             updated, section_id = mjml_doc.insert_section(doc, mjml, after_section_id)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
-        result = _validated_save(doc_id, updated)
+        result = await _validated_save(doc_id, updated)
         return f"{result} New section: {section_id}" if result.startswith("OK") else result
 
     @_described("remove_section")
     async def remove_section(section_id: str) -> str:
-        doc = db.get_document_mjml(doc_id)
+        doc = await _blocking(db.get_document_mjml, doc_id)
         updated = mjml_doc.remove_section(doc, section_id)
         if updated is None:
             return f"ERROR: no section with id '{section_id}'"
-        result = _validated_save(doc_id, updated)
+        result = await _validated_save(doc_id, updated)
         if not result.startswith("OK"):
             return result
         # A section removed on request takes its comments with it — the same rule as a
         # rewrite, reached from the other direction.
-        return f"{result}{_prune_orphaned_comments(doc_id, updated)}"
+        return f"{result}{await _prune_orphaned_comments(doc_id, updated)}"
 
     @_described("generate_image")
     async def generate_image(prompt: str, size: str = "1536x1024") -> str:
@@ -200,21 +225,21 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
             quality=os.environ.get("IMAGE_QUALITY", "low"),
         )
         data = base64.b64decode(result.data[0].b64_json)
-        return db.upload_image(f"{doc_id}/{uuid.uuid4().hex}.png", data)
+        return await _blocking(db.upload_image, f"{doc_id}/{uuid.uuid4().hex}.png", data)
 
     @_described("list_open_comments")
     async def list_open_comments() -> str:
-        comments = db.list_open_comments(doc_id)
+        comments = await _blocking(db.list_open_comments, doc_id)
         if not comments:
             return "No open comments."
         return json.dumps(comments, ensure_ascii=False, default=str)
 
     @_described("resolve_comment")
     async def resolve_comment(comment_id: str) -> str:
-        db.resolve_comment(comment_id)
+        await _blocking(db.resolve_comment, comment_id)
         return "OK"
 
-    return [
+    tools = [
         get_document,
         get_section,
         set_document,
@@ -226,6 +251,43 @@ def build_tools(doc_id: str) -> list[ai.AgentTool]:
         resolve_comment,
     ]
 
+    # Optional, as in the TypeScript backend: without a reviewer the model is never
+    # offered a tool that could only answer "not configured".
+    if visual_reviewer is None:
+        return tools
+
+    @_described("inspect_rendered_email")
+    async def inspect_rendered_email() -> str:
+        try:
+            mjml = await _blocking(db.get_document_mjml, doc_id)
+            ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
+            if not ok:
+                if result.startswith("ERROR:"):
+                    # A compiler failure (a timeout) says nothing about the MJML; reported
+                    # as invalid, it sends the model rewriting a valid email.
+                    return f"ERROR: could not render the email: {result[6:].strip()}"
+                return f"ERROR: MJML validation failed — cannot render preview:\n{result}"
+            return await visual_reviewer.review(
+                EmailVisualReviewRequest(document_id=doc_id, mjml=mjml, html=result)
+            )
+        except Exception as error:
+            return f"ERROR: {_error_message(error)}"
+
+    return [*tools, inspect_rendered_email]
+
+
+def _error_message(error: Exception) -> str:
+    """A short message for the model: never empty, and not a client library's raw dict."""
+    message = getattr(error, "message", None) or str(error)
+    return (message.strip() or type(error).__name__)[:300]
+
+
+class _ContractCheckReviewer:
+    """Stand-in so the contract check sees the optional tool too."""
+
+    async def review(self, request: EmailVisualReviewRequest) -> str:
+        return ""
+
 
 def _implemented_signatures() -> dict[str, set[str]]:
     """Argument names of each tool, for the contract check below."""
@@ -233,7 +295,7 @@ def _implemented_signatures() -> dict[str, set[str]]:
 
     return {
         tool.name: set(inspect.signature(tool.fn).parameters)
-        for tool in build_tools("contract-check")
+        for tool in build_tools("contract-check", _ContractCheckReviewer())
     }
 
 
