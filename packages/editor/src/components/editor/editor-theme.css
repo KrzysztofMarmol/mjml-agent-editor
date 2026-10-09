@@ -409,3 +409,20 @@
   background: transparent;
   cursor: pointer;
 }
+
+/* ── Color picker (react-colorful) sized to its popover ───────────────── */
+.color-field-picker.react-colorful {
+  width: 100%;
+  height: 150px;
+}
+.color-field-picker .react-colorful__saturation {
+  border-radius: 6px 6px 0 0;
+}
+.color-field-picker .react-colorful__hue {
+  height: 14px;
+  border-radius: 0 0 6px 6px;
+}
+.color-field-picker .react-colorful__pointer {
+  width: 16px;
+  height: 16px;
+}

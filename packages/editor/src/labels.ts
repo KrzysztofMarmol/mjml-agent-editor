@@ -61,6 +61,13 @@ export interface EditorLabels {
   readonly imagePickerConfirmDelete: string;
   readonly imagePickerLoadFailed: string;
   readonly imageUploadFailed: string;
+
+  // Color picker
+  readonly colorPickerOpen: string;
+  readonly colorPickerEyedropper: string;
+  readonly colorPickerDocument: string;
+  readonly colorPickerPresets: string;
+  readonly colorPickerTransparent: string;
   readonly imageDeleteFailed: string;
   readonly imagePickerUnsupported: (fileName: string) => string;
 
@@ -131,6 +138,12 @@ export const DEFAULT_LABELS: EditorLabels = {
   imagePickerConfirmDelete: "Click again to delete",
   imagePickerLoadFailed: "Failed to load your images.",
   imageUploadFailed: "Failed to upload the image.",
+
+  colorPickerOpen: "Pick a color",
+  colorPickerEyedropper: "Pick from the screen",
+  colorPickerDocument: "In this email",
+  colorPickerPresets: "Presets",
+  colorPickerTransparent: "Transparent",
   imageDeleteFailed: "Failed to delete the image.",
   imagePickerUnsupported: (fileName) => `${fileName} is not a supported image type.`,
 

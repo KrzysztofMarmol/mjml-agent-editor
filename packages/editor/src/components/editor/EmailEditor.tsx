@@ -18,6 +18,8 @@ import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
+import ColorField, { toHex } from "./ColorField.js";
+import { createRoot, type Root } from "react-dom/client";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -188,6 +190,65 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
+/**
+ * Swaps every Style Manager color control for ColorField.
+ *
+ * Built on the base property view rather than extending GrapesJS's color view, which
+ * mounts its Spectrum picker in onRender whatever `create` returns. Each control is its own
+ * React root because GrapesJS creates and destroys these views outside React.
+ */
+function setupColorField(editor: Editor, labels: EditorLabels) {
+  const sm = editor.StyleManager;
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const base = (sm.getType("base") as any).view;
+  type View = { __root?: Root; __render?: (value: string) => void };
+
+  // Distinct colors already in the email, most frequent first, read when the picker opens.
+  const documentColors = (): string[] => {
+    const source = `${editor.getHtml()} ${editor.getCss() ?? ""}`;
+    const counts = new Map<string, number>();
+    for (const match of source.matchAll(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi)) {
+      const hex = toHex(match[0]);
+      if (hex) counts.set(hex, (counts.get(hex) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 14)
+      .map(([hex]) => hex);
+  };
+
+  sm.addType("color", {
+    view: base.extend({
+      create(this: View, { property }: { property: any }) {
+        const el = document.createElement("div");
+        const root = createRoot(el);
+        this.__root = root;
+        this.__render = (value: string) =>
+          root.render(
+            <ColorField
+              value={value}
+              placeholder={String(property.getDefaultValue?.() ?? "")}
+              documentColors={documentColors}
+              labels={labels}
+              onChange={(next, partial) => property.upValue(next, { partial })}
+            />,
+          );
+        this.__render(String(property.getValue?.() ?? ""));
+        return el;
+      },
+      update(this: View, { value }: { value: string }) {
+        this.__render?.(String(value ?? ""));
+      },
+      destroy(this: View) {
+        // Deferred: GrapesJS can remove a view while React is mid-render.
+        const root = this.__root;
+        setTimeout(() => root?.unmount());
+      },
+    }),
+  } as never);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
 function setupRichText(editor: Editor, labels: EditorLabels) {
   const rte = editor.RichTextEditor as any;
   if (!rte || rte.__customActions) return;
@@ -364,6 +425,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
 
     setupRichText(editor, labels);
+    setupColorField(editor, labels);
 
     // Group the palette blocks into categories (the plugin ships them flat).
     const blockCategory = (label: string): string => {
