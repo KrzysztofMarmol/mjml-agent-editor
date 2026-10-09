@@ -30,7 +30,7 @@ uv run ruff check .
 name it in the environment:
 
 ```bash
-VISUAL_REVIEWER=my_reviewers:ScreenshotReviewer   # an instance, class or factory
+VISUAL_REVIEWER=my_reviewers:ScreenshotReviewer   # a class or zero-argument factory
 ```
 
 A name that does not resolve stops the service at startup rather than running without

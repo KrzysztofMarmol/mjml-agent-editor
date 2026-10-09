@@ -18,10 +18,9 @@ class _Reviewer:
 @pytest.fixture
 def module(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     fake = types.ModuleType("fake_reviewers")
-    fake.instance = _Reviewer()
     fake.Reviewer = _Reviewer
     fake.factory = lambda: _Reviewer()
-    fake.not_a_reviewer = object()
+    fake.not_a_reviewer = lambda: object()
     monkeypatch.setitem(sys.modules, "fake_reviewers", fake)
     return fake
 
@@ -29,10 +28,6 @@ def module(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
 @pytest.mark.parametrize("spec", [None, "", "   "])
 def test_unset_means_no_reviewer(spec: str | None) -> None:
     assert main.load_visual_reviewer(spec) is None
-
-
-def test_names_an_instance(module: types.ModuleType) -> None:
-    assert main.load_visual_reviewer("fake_reviewers:instance") is module.instance
 
 
 @pytest.mark.parametrize("name", ["Reviewer", "factory"])

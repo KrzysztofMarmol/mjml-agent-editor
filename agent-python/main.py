@@ -98,16 +98,14 @@ def _friendly_error(exc: Exception) -> str:
 
 
 def load_visual_reviewer(spec: str | None) -> tools.EmailVisualReviewer | None:
-    """The reviewer named by ``module:name``: an instance, or a class or zero-argument
-    factory that builds one. Empty means none."""
+    """Builds the reviewer named by ``module:name``, a class or zero-argument factory.
+    Empty means none."""
     if not spec or not spec.strip():
         return None
     module_name, _, attribute = spec.strip().partition(":")
     if not module_name or not attribute:
         raise RuntimeError(f"VISUAL_REVIEWER must look like 'module:name', got {spec!r}")
-    target = getattr(importlib.import_module(module_name), attribute)
-    builds = isinstance(target, type) or (callable(target) and not hasattr(target, "review"))
-    reviewer = target() if builds else target
+    reviewer = getattr(importlib.import_module(module_name), attribute)()
     if not callable(getattr(reviewer, "review", None)):
         raise RuntimeError(f"VISUAL_REVIEWER {spec!r} has no review() method")
     return reviewer
