@@ -391,9 +391,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         setSave("saved");
       } catch (e) {
         setSave("error");
-        // Autosave fires on a timer, so a host refusing every save — a document over a size
-        // cap, say — would stack one toast per attempt. A shared id makes it one message,
-        // and the same id is used when a turn's flush fails for the same reason.
         toast.error(refusal(e) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
         throw e;
       }
@@ -413,7 +410,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       // can fire the "update" event asynchronously, which would otherwise
       // overwrite the agent's fresh change with the editor's normalized version.
       loadingRef.current = true;
-      queue.cancel();
+      queue.reset();
       editor.setComponents(mjml || STARTER_MJML);
       editor.getWrapper()?.find("mj-section").forEach(decorate);
       for (const t of Object.keys(TYPE_LABEL)) {
@@ -487,15 +484,15 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       getMjml: () => editor.getHtml(),
       getCompiledHtml: compiledHtml,
       flushSave: async () => {
-        // Text typed into an open rich-text editor reaches the model only when editing
-        // ends, so it would be missing from both the save and the agent's view of it.
-        const editing = editor.getEditing();
-        if (editing) {
-          await (
-            editing.getView() as { syncContent?: () => Promise<void> } | undefined
-          )?.syncContent?.();
+        // An open rich-text editor holds its text until editing ends.
+        const view = editor.getEditing()?.getView() as
+          { syncContent?: () => Promise<void> } | undefined;
+        if (view?.syncContent) {
+          const before = editor.getHtml();
+          await view.syncContent();
+          if (editor.getHtml() !== before) queue.schedule();
         }
-        await queue.flush(Boolean(editing));
+        await queue.flush();
       },
       reloadFromDb: async () => {
         const fresh = await documents.get(docId);

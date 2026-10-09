@@ -47,14 +47,6 @@ describe("createSaveQueue", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("writes when forced, even with nothing scheduled", async () => {
-    const save = vi.fn(() => Promise.resolve());
-
-    await createSaveQueue(save, 1000).flush(true);
-
-    expect(save).toHaveBeenCalledTimes(1);
-  });
-
   it("waits for an autosave already under way before resolving", async () => {
     const inFlight = deferred();
     const save = vi.fn(() => inFlight.promise);
@@ -102,5 +94,59 @@ describe("createSaveQueue", () => {
     await queue.flush();
 
     expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("never runs two saves at once, so an older one cannot land last", async () => {
+    const first = deferred();
+    let active = 0;
+    let overlapped = false;
+    const save = vi.fn(async () => {
+      active++;
+      if (active > 1) overlapped = true;
+      if (save.mock.calls.length === 1) await first.promise;
+      active--;
+    });
+    const queue = createSaveQueue(save, 1000);
+
+    queue.schedule();
+    await vi.advanceTimersByTimeAsync(1000);
+    queue.schedule();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenCalledTimes(1);
+
+    first.resolve();
+    await queue.flush();
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(overlapped).toBe(false);
+  });
+
+  it("also stores an edit made while the flush was waiting", async () => {
+    const first = deferred();
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue(undefined);
+    const queue = createSaveQueue(save, 1000);
+
+    queue.schedule();
+    await vi.advanceTimersByTimeAsync(1000);
+    const flush = queue.flush();
+    queue.schedule();
+    first.resolve();
+    await flush;
+
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("forgets edits on reset", async () => {
+    const save = vi.fn(() => Promise.resolve());
+    const queue = createSaveQueue(save, 1000);
+
+    queue.schedule();
+    queue.reset();
+    await queue.flush();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(save).not.toHaveBeenCalled();
   });
 });

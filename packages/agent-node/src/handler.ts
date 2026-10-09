@@ -68,7 +68,7 @@ export interface TurnUsage {
   readonly outputTokens: number;
   readonly cachedInputTokens: number;
   readonly totalTokens: number;
-  /** The SDK's summed usage object. */
+  /** The summed counts, in the SDK's usage shape. */
   readonly raw: LanguageModelUsage;
   /**
    * Each finished step's usage, with the provider's own `raw` figures — the sum above
@@ -200,14 +200,15 @@ export function createChatHandler(options: ChatHandlerOptions) {
       conversation = [...(await options.session.load(body.docId)), latest];
     }
 
-    // Reported once, however the turn ends. `onFinish` fires only for a turn that
-    // completes, so an error or a stopped reader would otherwise leave every finished step
-    // unbilled — and stopping a turn on purpose would make it free.
+    // Summed from finished steps and reported when the response ends, however it ends:
+    // `onFinish` never fires for a turn that errors or is stopped.
     const stepUsage: LanguageModelUsage[] = [];
+    const abort = new AbortController();
     let reported = false;
-    const report = async (total: LanguageModelUsage) => {
+    const report = async () => {
       if (!options.onUsage || reported) return;
       reported = true;
+      const total = sumUsage(stepUsage);
       try {
         await options.onUsage({
           documentId: body.docId,
@@ -240,16 +241,10 @@ export function createChatHandler(options: ChatHandlerOptions) {
         visualReviewer: options.visualReviewer,
       }),
       stopWhen: stepCountIs(maxSteps),
-      ...(options.onUsage
-        ? {
-            onStepFinish: ({ usage }) => {
-              stepUsage.push(usage);
-            },
-            // `totalUsage`, not `usage`: the latter is the final step only.
-            onFinish: ({ totalUsage }) => report(totalUsage),
-            onError: () => report(sumUsage(stepUsage)),
-          }
-        : {}),
+      abortSignal: abort.signal,
+      onStepFinish: ({ usage }) => {
+        stepUsage.push(usage);
+      },
     });
 
     const session = options.session;
@@ -273,39 +268,42 @@ export function createChatHandler(options: ChatHandlerOptions) {
           }
         : {}),
     });
-    if (!options.onUsage || !response.body) return response;
-    // A reader that stops — the visitor pressing stop — ends the turn without any of the
-    // callbacks above, so the steps it already paid for are charged here.
-    return new Response(
-      onCancel(response.body, () => void report(sumUsage(stepUsage))),
-      {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      },
-    );
+    if (!response.body) return response;
+    return new Response(endsWith(response.body, report, abort), response);
   };
 }
 
-function onCancel(
+/**
+ * Passes `body` through and calls `ended` once it is done, failed or cancelled. A cancelled
+ * reader — the visitor pressing stop — also aborts the model, so it stops generating
+ * steps nobody will read or be charged for.
+ */
+function endsWith(
   body: ReadableStream<Uint8Array>,
-  cancelled: () => void,
+  ended: () => Promise<void>,
+  abort: AbortController,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { done, value } = await reader.read();
-      if (done) controller.close();
-      else controller.enqueue(value);
+      try {
+        const { done, value } = await reader.read();
+        if (!done) return controller.enqueue(value);
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+      await ended();
     },
-    cancel(reason) {
-      cancelled();
-      return reader.cancel(reason);
+    async cancel(reason) {
+      abort.abort(reason);
+      await reader.cancel(reason);
+      await ended();
     },
   });
 }
 
-/** Field-by-field sum of the flat token counts, for a turn that never reached `onFinish`. */
+/** Field-by-field sum of the steps' token counts, which is what `totalUsage` reports. */
 function sumUsage(steps: readonly LanguageModelUsage[]): LanguageModelUsage {
   const add = (pick: (u: LanguageModelUsage) => number | undefined) =>
     steps.reduce((sum, u) => sum + (pick(u) ?? 0), 0);

@@ -174,16 +174,9 @@ type Props = {
    */
   resume?: boolean;
   /**
-   * Flushes unsaved editor changes before the agent starts.
-   *
-   * **A rejection stops the turn.** The agent reads the stored document, so sending anyway
-   * would point it at a version the visitor can see has moved on. The prompt is kept in
-   * the box so they can read what happened and try again.
-   *
-   * What they read is the rejection's own message when it carries a `status` in the 4xx
-   * range, or an `{"error": "..."}` body; anything else shows `labels.documentSaveFailed`.
-   * A host whose save refuses a document over a size cap should therefore throw with
-   * `status: 413` and a sentence.
+   * Flushes unsaved editor changes before the agent starts. A rejection stops the turn and
+   * keeps the prompt; its message is shown when it carries a 4xx `status` or an
+   * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
    */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
@@ -306,7 +299,9 @@ export default function ChatPanel({
   const labels = useLabels();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // The ref blocks a second send at once; the state disables the buttons meanwhile.
   const sending = useRef(false);
+  const [flushing, setFlushing] = useState(false);
   // Per-message timestamp, stamped when the message first renders.
   const times = useRef<Map<string, string>>(new Map());
   const timeFor = (id: string) => {
@@ -404,15 +399,9 @@ export default function ChatPanel({
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    // `busy` follows the chat status, which only changes once the message is sent; the
-    // flush before it can take a moment, and a second Enter in that window sent twice.
     if (!trimmed || busy || sending.current) return;
     sending.current = true;
-    // A failed flush has to stop the turn, not just log. Letting it through sent the agent
-    // at the *stored* document while the canvas held newer changes, so it answered about
-    // text the visitor could see had moved on — and the prompt was gone, because the input
-    // had already been cleared. Keeping the prompt is half the fix; the toast is the other,
-    // and it shares an id with autosave's so one failure is one message.
+    setFlushing(true);
     try {
       await onBeforeSend();
     } catch (error) {
@@ -421,6 +410,7 @@ export default function ChatPanel({
       return;
     } finally {
       sending.current = false;
+      setFlushing(false);
     }
     void sendMessage({ text: trimmed });
     setInput("");
@@ -537,7 +527,7 @@ export default function ChatPanel({
       <div className="border-t border-panel-border p-3">
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={busy}
+          disabled={busy || flushing}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -581,7 +571,7 @@ export default function ChatPanel({
             <Button
               type="submit"
               size="sm"
-              disabled={busy || !input.trim()}
+              disabled={busy || flushing || !input.trim()}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}

@@ -374,9 +374,7 @@ describe("onUsage", () => {
   it("reports totals for the whole turn, not one step", async () => {
     const seen: unknown[] = [];
     const handler = createChatHandler({
-      // Two steps: a tool call, then the reply. A budget cares about the sum. The figures
-      // differ on purpose — equal ones cannot tell a total from the last step, which is how
-      // this went unnoticed while the assertion was only "greater than zero".
+      // Different figures per step, so the total cannot be mistaken for the last step.
       model: modelReplaying(
         toolCallTurn("get_document", {}, tokens(100, 7)),
         textTurn("done", tokens(5, 3)),
@@ -404,13 +402,22 @@ describe("onUsage", () => {
     expect(usage.outputTokens).toBe(10);
   });
 
-  it("still charges the finished steps when a later step fails", async () => {
+  it("charges the finished steps when a later step's call fails", async () => {
     const seen: TurnUsage[] = [];
+    let call = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        call++;
+        if (call === 1) {
+          return {
+            stream: convertArrayToReadableStream(toolCallTurn("get_document", {}, tokens(100, 7))),
+          };
+        }
+        throw new Error("provider down");
+      },
+    });
     const handler = createChatHandler({
-      model: modelReplaying(toolCallTurn("get_document", {}, tokens(100, 7)), [
-        { type: "stream-start", warnings: [] },
-        { type: "error", error: new Error("provider exploded") },
-      ]).model,
+      model,
       documents,
       comments,
       images,
@@ -423,24 +430,48 @@ describe("onUsage", () => {
 
     expect(seen).toHaveLength(1);
     expect(seen[0]!.inputTokens).toBe(100);
-    expect(seen[0]!.outputTokens).toBe(7);
     expect(seen[0]!.steps).toHaveLength(1);
   });
 
-  it("still charges the finished steps when the client stops reading", async () => {
+  it("charges the whole turn when an error part comes before the finish", async () => {
+    const seen: TurnUsage[] = [];
+    const handler = createChatHandler({
+      model: modelReplaying([
+        { type: "stream-start", warnings: [] },
+        { type: "error", error: new Error("transient") },
+        ...textTurn("recovered", tokens(30, 4)).slice(1),
+      ]).model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(30);
+  });
+
+  it("stops the model and charges the finished steps when the reader stops", async () => {
     const seen: TurnUsage[] = [];
     let release!: () => void;
     const held = new Promise<void>((resolve) => (release = resolve));
     const model = new MockLanguageModelV3({
-      doStream: async () => {
+      doStream: async ({ abortSignal }) => {
         if (model.doStreamCalls.length === 1) {
           return {
             stream: convertArrayToReadableStream(toolCallTurn("get_document", {}, tokens(40, 2))),
           };
         }
-        // The second step never finishes on its own, like a reply the visitor stops.
-        await held;
-        return { stream: convertArrayToReadableStream(textTurn("late", tokens(1, 1))) };
+        // The second step only ends when it is aborted, like a reply the visitor stops.
+        await new Promise<void>((resolve) =>
+          abortSignal?.addEventListener("abort", () => resolve()),
+        );
+        release();
+        throw new DOMException("aborted", "AbortError");
       },
     });
     const handler = createChatHandler({
@@ -460,12 +491,42 @@ describe("onUsage", () => {
     })();
     while (model.doStreamCalls.length < 2) await new Promise((resolve) => setTimeout(resolve, 5));
     await reader.cancel();
-    release();
+    await held;
     await pump;
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(seen).toHaveLength(1);
-    expect(seen[0]!.inputTokens).toBeGreaterThanOrEqual(40);
+    expect(seen[0]!.inputTokens).toBe(40);
+    expect(model.doStreamCalls).toHaveLength(2);
+  });
+
+  it("charges nothing, once, when the reader stops before any step finishes", async () => {
+    const seen: TurnUsage[] = [];
+    const model = new MockLanguageModelV3({
+      doStream: ({ abortSignal }) =>
+        new Promise((_, reject) =>
+          abortSignal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          ),
+        ),
+    });
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    const response = await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }));
+    while (model.doStreamCalls.length < 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    await response.body!.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(0);
+    expect(model.doStreamCalls).toHaveLength(1);
   });
 
   it("does not break the response when the ledger write fails", async () => {

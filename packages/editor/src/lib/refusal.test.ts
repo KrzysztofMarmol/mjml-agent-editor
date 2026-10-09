@@ -26,8 +26,6 @@ describe("refusal", () => {
   });
 
   it("covers every 4xx, not one status", () => {
-    // The first host to need this refused with 413. Hard-coding that would have made the
-    // next one — a 429 throttle, a 403 read-only switch — silently generic again.
     expect(refusal(storeRejection(429, "Too many saves."))).toBe("Too many saves.");
     expect(refusal(storeRejection(403, "This demo is read-only."))).toBe("This demo is read-only.");
   });
@@ -42,10 +40,6 @@ describe("refusal", () => {
   });
 
   it("hides a server fault whose body happens to look like a refusal", () => {
-    // The obvious way to normalize a failure is
-    // `throw Object.assign(new Error(await response.text()), { status })`, and an API that
-    // answers its own faults as `{"error": "..."}` would otherwise have a 500 printed
-    // verbatim. The status settles it before the body is read.
     expect(refusal(storeRejection(500, '{"error":"internal server error"}'))).toBeNull();
     expect(refusal(storeRejection(503, '{"error":"upstream unavailable"}'))).toBeNull();
   });

@@ -1,65 +1,53 @@
-/**
- * Autosave, and the flush a turn waits on before the agent reads the stored document.
- *
- * Kept apart from the canvas so the part that decides whether the agent sees the visitor's
- * latest edit can be tested without GrapesJS.
- */
-
+/** Autosave, and the flush a turn waits on before the agent reads the stored document. */
 export interface SaveQueue {
-  /** Restarts the debounce; called on every edit. */
+  /** Records an edit and restarts the debounce. */
   schedule(): void;
-  /** Drops a scheduled save without running it. */
-  cancel(): void;
-  /**
-   * Resolves once everything the visitor has done is stored, and rejects if it could not
-   * be. Waits for a save already under way rather than reporting nothing owed while it
-   * runs, and writes nothing when the store already matches.
-   */
-  flush(force?: boolean): Promise<void>;
+  /** Forgets unsaved edits, for when the document is replaced from the store. */
+  reset(): void;
+  /** Resolves once every edit so far is stored; rejects if one could not be. */
+  flush(): Promise<void>;
 }
 
 export function createSaveQueue(save: () => Promise<void>, delayMs: number): SaveQueue {
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let dirty = false;
+  // Writes run one at a time, so an older one can never land after a newer one.
   let running: Promise<void> | null = null;
-  // The last attempt failed, so its changes are still owed.
-  let owed = false;
 
-  const cancel = () => {
+  const stopTimer = () => {
     if (timer) clearTimeout(timer);
     timer = null;
   };
 
-  const run = (): Promise<void> => {
-    cancel();
-    const attempt = save().then(
-      () => {
-        owed = false;
-      },
-      (error: unknown) => {
-        owed = true;
-        throw error;
-      },
-    );
+  const write = async (): Promise<void> => {
+    while (running) await running.catch(() => {});
+    if (!dirty) return;
+    dirty = false;
+    const attempt = save();
     running = attempt;
-    void attempt
-      .catch(() => {})
-      .finally(() => {
-        if (running === attempt) running = null;
-      });
-    return attempt;
+    try {
+      await attempt;
+    } catch (error) {
+      dirty = true;
+      throw error;
+    } finally {
+      running = null;
+    }
   };
 
   return {
     schedule() {
-      cancel();
-      timer = setTimeout(() => void run().catch(() => {}), delayMs);
+      dirty = true;
+      stopTimer();
+      timer = setTimeout(() => void write().catch(() => {}), delayMs);
     },
-    cancel,
-    async flush(force = false) {
-      const scheduled = timer !== null;
-      cancel();
-      if (running) await running.catch(() => {});
-      if (force || scheduled || owed) await run();
+    reset() {
+      stopTimer();
+      dirty = false;
+    },
+    async flush() {
+      stopTimer();
+      while (dirty || running) await write();
     },
   };
 }

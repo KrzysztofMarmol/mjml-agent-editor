@@ -175,40 +175,22 @@ them intact.
 
 ## When the host refuses
 
-Two of the panel's calls can be turned down by the host, and both refusals are the host's
-sentence rather than ours.
+`onBeforeSend` flushes unsaved canvas changes before a turn, and **a rejection stops the
+turn**, keeping the prompt in the box: the agent reads the stored document, so it would
+otherwise answer about a version the visitor has moved past. The flush writes only when
+the store is behind the canvas.
 
-`onBeforeSend` flushes unsaved canvas changes before a turn starts, and **a rejection stops
-the turn.** The prompt stays in the box, so the visitor can read what went wrong and press
-send again. This matters more than it looks: letting a failed flush through sent the agent
-at the _stored_ document while the canvas held newer changes, so it answered about text the
-visitor could see had moved on.
+The visitor sees the host's own sentence when the rejection carries one:
 
-What reaches the visitor is the message carried by the rejection, when there is one to
-show. The `status` is read first, then the body:
+| The rejection                            | Shown                       |
+| ---------------------------------------- | --------------------------- |
+| a `status` outside 400–499               | `labels.documentSaveFailed` |
+| message is `{"error": "..."}`            | the `error` string          |
+| a `status` of 400–499, any other message | the `message`, unless HTML  |
+| no status and no recognizable body       | `labels.documentSaveFailed` |
 
-| The rejection                            | Shown                                                         |
-| ---------------------------------------- | ------------------------------------------------------------- |
-| a `status` outside 400–499               | `labels.documentSaveFailed` — a fault, whatever the body says |
-| message is `{"error": "..."}`            | the `error` string — the agent contract's shape               |
-| a `status` of 400–499, any other message | the `message` — a refusal, written to be read                 |
-| no status and no recognizable body       | `labels.documentSaveFailed`                                   |
-
-So a `DocumentStore.save` that refuses a document over a size cap should throw with
-`status: 413` and a sentence, not a bare `Error`. A server fault deliberately does _not_
-reach the visitor, and the status is what decides that: a host normalizing failures as
-`throw Object.assign(new Error(await response.text()), { status })`, against an API that
-answers its own faults as `{"error": "..."}`, would otherwise print a 500 verbatim.
-
-Autosave answers the same way, and both share one toast id, so a host refusing every save
-produces one message rather than one per timer tick.
-
-One more thing follows from a rejection being able to stop a turn: **the flush only writes
-when there is something to write.** A pending debounce, or a previous save that failed,
-means the database is behind the canvas and the write is owed. Otherwise the stored
-document already matches and `flushSave` resolves without touching the store — so a host
-that refuses every save does not also block conversations that were not asking it to save
-anything.
+So a `DocumentStore.save` refusing a document over a size cap should throw with
+`status: 413` and a sentence. Autosave reports the same way, under one toast id.
 
 ## A note on field names
 
