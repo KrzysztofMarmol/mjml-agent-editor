@@ -98,24 +98,28 @@ satisfying the two interfaces works, including an in-memory object.
 
 Forgetting the provider throws with an explanation rather than failing on a null read.
 
-### Image uploads
+### Images
 
-Files dropped into the image picker go to an optional `images` uploader that returns a
-public URL. Where they end up is up to the host — S3, R2, a CDN:
+The image picker — opened by double-clicking an image, from its toolbar, or from the
+Settings panel — uploads to and picks from an optional `images` library. Where the files
+live is up to the host: S3, R2, a CDN.
 
 ```tsx
-const images = {
-  async upload(file: File) {
-    const res = await fetch("/api/images", { method: "POST", body: file });
-    return (await res.json()).url;
-  },
+const images: ImageLibrary = {
+  list: () => fetch("/api/images").then((r) => r.json()), // { images, quota? }
+  upload: (file) => fetch("/api/images", { method: "POST", body: file }).then((r) => r.json()),
+  remove: (id) => fetch(`/api/images/${id}`, { method: "DELETE" }).then(() => {}),
 };
 
 <EditorStoreProvider stores={{ documents, comments, images }}>
 ```
 
-Without one the picker takes URLs only. The editor never falls back to inlining the file as
-base64: most mail clients block `data:` images, and every agent turn would pay for the bytes.
+`quota` (`{ used, limit }`) is shown in the picker and stops uploads when reached. Leave
+`remove` out for a read-only gallery — a host that caps uploads but cannot reclaim the
+storage would otherwise be handing out a way round its own cap.
+
+Without a library the picker takes URLs only. The editor never inlines a file as base64:
+most mail clients block `data:` images, and every agent turn would pay for the bytes.
 
 ## Copy
 

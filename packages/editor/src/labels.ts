@@ -45,8 +45,22 @@ export interface EditorLabels {
   readonly rteBackgroundColor: string;
   readonly documentLoadFailed: string;
   readonly documentSaveFailed: string;
+
+  // Image picker
+  readonly chooseImage: string;
+  readonly imagePickerTitle: string;
+  readonly imagePickerDrop: string;
+  readonly imagePickerBrowse: string;
+  readonly imagePickerUrlPlaceholder: string;
+  readonly imagePickerUseUrl: string;
+  readonly imagePickerGallery: string;
+  readonly imagePickerEmpty: string;
+  readonly imagePickerQuota: (used: number, limit: number) => string;
+  readonly imagePickerQuotaFull: string;
+  readonly imagePickerDelete: string;
+  readonly imagePickerConfirmDelete: string;
+  readonly imagePickerLoadFailed: string;
   readonly imageUploadFailed: string;
-  readonly imageUploadUnavailable: string;
 
   // Comments
   readonly commentOnSection: string;
@@ -100,8 +114,21 @@ export const DEFAULT_LABELS: EditorLabels = {
   rteBackgroundColor: "Background color",
   documentLoadFailed: "Failed to load the document.",
   documentSaveFailed: "Failed to save changes.",
+
+  chooseImage: "Choose image",
+  imagePickerTitle: "Choose an image",
+  imagePickerDrop: "Drag images here, or",
+  imagePickerBrowse: "Browse files",
+  imagePickerUrlPlaceholder: "…or paste an image URL",
+  imagePickerUseUrl: "Use URL",
+  imagePickerGallery: "Your images",
+  imagePickerEmpty: "No images yet — the ones you upload will be kept here.",
+  imagePickerQuota: (used, limit) => `${used} of ${limit} uploads used`,
+  imagePickerQuotaFull: "Upload limit reached — pick an image below or paste a URL.",
+  imagePickerDelete: "Delete image",
+  imagePickerConfirmDelete: "Click again to delete",
+  imagePickerLoadFailed: "Failed to load your images.",
   imageUploadFailed: "Failed to upload the image.",
-  imageUploadUnavailable: "Uploading is not available here — paste an image URL instead.",
 
   commentOnSection: "Comment on the whole section",
   closeComments: "Close",

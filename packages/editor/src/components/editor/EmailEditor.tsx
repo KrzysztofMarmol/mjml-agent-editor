@@ -6,22 +6,18 @@ import grapesjsMJML from "grapesjs-mjml";
 import { useRef, useState, type ReactNode } from "react";
 
 import { STARTER_MJML } from "@mjml-agent-editor/core";
-import {
-  useDocumentStore,
-  useImageUploader,
-  useLabels,
-  type CommentTarget,
-  type EditorLabels,
-} from "../../index.js";
+import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ImageIcon, ImageUp } from "lucide-react";
 
+import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
+import ImagePicker from "./ImagePicker.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -86,6 +82,10 @@ function tagOf(c: Component): string {
 // "Sparkles" icon (lucide Sparkles) used as a label in the GrapesJS toolbar.
 const SPARKLES_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></svg>';
+
+// "Image up" icon (lucide ImageUp), the toolbar button that opens the image picker.
+const IMAGE_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/><circle cx="9" cy="9" r="2"/></svg>';
 
 function isSection(c: Component): boolean {
   return tagOf(c) === "mj-section";
@@ -234,7 +234,6 @@ function setupRichText(editor: Editor, labels: EditorLabels) {
 export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCountChange }: Props) {
   // Injected by the host rather than imported, so the editor carries no database.
   const documents = useDocumentStore();
-  const images = useImageUploader();
   const labels = useLabels();
   // Refs instead of state — GrapesJS lives outside React's lifecycle.
   const loadingRef = useRef(false);
@@ -251,6 +250,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   // Breadcrumb of the selected component's ancestry (Section › Column › …).
   const editorRef = useRef<Editor | null>(null);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
+  // `src` of the selected mj-image, or null when the selection is not one.
+  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
+  // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
+  const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
+    null,
+  );
 
   const onEditor = async (editor: Editor) => {
     editorRef.current = editor;
@@ -316,6 +321,14 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       if (isSection(c)) addIdClass(c, "sec");
       if (!isCommentable(c)) return;
       const toolbar = [...((c.get("toolbar") as { command?: string }[]) ?? [])];
+      if (tagOf(c) === "mj-image" && !toolbar.some((t) => t.command === "open-image-picker")) {
+        toolbar.push({
+          command: "open-image-picker",
+          label: IMAGE_SVG,
+          attributes: { title: labels.chooseImage },
+        } as never);
+        c.set("toolbar", toolbar as never);
+      }
       if (!toolbar.some((t) => t.command === "open-comments")) {
         toolbar.push({
           command: "open-comments",
@@ -325,6 +338,23 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         c.set("toolbar", toolbar as never);
       }
     };
+
+    // What a double-click on an image does in GrapesJS, reachable from a button.
+    editor.Commands.add("open-image-picker", {
+      run(ed: Editor) {
+        const target = ed.getSelected();
+        if (!target || tagOf(target) !== "mj-image") return;
+        const am = ed.AssetManager;
+        am.open({
+          target,
+          types: ["image"],
+          select(asset: { getSrc: () => string }, complete?: boolean) {
+            target.set({ src: asset.getSrc() });
+            if (complete) am.close();
+          },
+        } as never);
+      },
+    });
 
     editor.Commands.add("open-comments", {
       run(ed: Editor) {
@@ -369,6 +399,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
       buildCrumbs(c);
+      setSelectedImageSrc(c && tagOf(c) === "mj-image" ? String(c.get("src") ?? "") : null);
       // mj-image has no src trait by default (src changes via the Asset
       // Manager) — add a URL field so the image can be set from the panel.
       if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
@@ -384,7 +415,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         );
       }
     });
-    editor.on("component:deselected", () => setCrumbs([]));
+    editor.on("component:deselected", () => {
+      setCrumbs([]);
+      setSelectedImageSrc(null);
+    });
+    editor.on("component:update:src", (c: Component) => {
+      if (c === editor.getSelected()) setSelectedImageSrc(String(c.get("src") ?? ""));
+    });
 
     const save = async () => {
       if (loadingRef.current) return;
@@ -535,34 +572,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
   };
 
-  // GrapesJS calls this for both the file input and a drop onto the picker form; the drop
-  // is wired even when the input is disabled, so the no-uploader case has to answer too.
-  const uploadFile = async (event: DragEvent | Event) => {
-    const input = event.target as HTMLInputElement | null;
-    const files = (event as DragEvent).dataTransfer?.files ?? input?.files;
-    if (!files?.length) return;
-    if (!images) {
-      toast.error(labels.imageUploadUnavailable);
-      return;
-    }
-    try {
-      // Settled rather than all: an upload that succeeded has already been stored and
-      // counted by the host, so one failure must not throw its URL away.
-      const results = await Promise.allSettled(Array.from(files, (f) => images.upload(f)));
-      const urls = results.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
-      if (urls.length) editorRef.current?.AssetManager.add(urls.map((src) => ({ src })));
-      for (const r of results) {
-        if (r.status === "rejected") {
-          console.error(r.reason);
-          // The host's message is usually the actionable part ("limit reached", "too large").
-          toast.error(r.reason instanceof Error ? r.reason.message : labels.imageUploadFailed);
-        }
-      }
-    } finally {
-      if (input && "value" in input) input.value = "";
-    }
-  };
-
   return (
     <GjsEditor
       grapesjs={grapesjs}
@@ -577,12 +586,21 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         traitManager: { appendTo: "#gjs-traits" },
         layerManager: { appendTo: "#gjs-layers" },
         assetManager: {
-          // Never inline files: mail clients block `data:` images (see ImageUploader).
+          // Never inline files: mail clients block `data:` images (see ImageLibrary).
           embedAsBase64: false,
-          // GrapesJS reads this but leaves it out of its types. Unset, it disables the file
-          // input whenever there is no `upload` URL, even with a custom `uploadFile`.
-          ...({ disableUpload: !images } as object),
-          uploadFile,
+          // Our own dialog instead of GrapesJS's modal. GrapesJS still decides when it opens
+          // and what a choice applies to; `select(url, true)` sets the image and closes.
+          custom: {
+            open: (props: {
+              select: (asset: string, complete?: boolean) => void;
+              options?: { target?: Component };
+            }) =>
+              setPicker({
+                current: String(props.options?.target?.get("src") ?? "") || undefined,
+                select: (url) => props.select(url, true),
+              }),
+            close: () => setPicker(null),
+          },
         },
         deviceManager: {
           devices: [
@@ -599,6 +617,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           view={sidebarView}
           onViewChange={setSidebarView}
           markLayersSource={() => (selectionSource.current = "layers")}
+          selectedImageSrc={selectedImageSrc}
+          onChooseImage={() => editorRef.current?.runCommand("open-image-picker")}
         />
         <div className="flex min-w-0 flex-1 flex-col bg-surface-muted">
           <div className="relative min-h-0 flex-1">
@@ -610,6 +630,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
               onComposeConsumed={() => setComposeTarget(null)}
               refreshSignal={commentsRefresh}
               onOpenCountChange={onOpenCountChange}
+            />
+            <ImagePicker
+              open={picker !== null}
+              currentUrl={picker?.current}
+              onSelect={(url) => picker?.select(url)}
+              onClose={() => editorRef.current?.AssetManager.close()}
             />
             {loading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
@@ -658,10 +684,15 @@ function LeftSidebar({
   view,
   onViewChange,
   markLayersSource,
+  selectedImageSrc,
+  onChooseImage,
 }: {
   view: SidebarView;
   onViewChange: (v: SidebarView) => void;
   markLayersSource: () => void;
+  /** `src` of the selected image, or null when no image is selected. */
+  selectedImageSrc: string | null;
+  onChooseImage: () => void;
 }) {
   const editor = useEditorMaybe();
   const labels = useLabels();
@@ -749,6 +780,36 @@ function LeftSidebar({
 
       {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
+        {selectedImageSrc !== null && (
+          <div className="border-b border-panel-border p-3">
+            <button
+              type="button"
+              onClick={onChooseImage}
+              title={labels.chooseImage}
+              className="group relative block w-full overflow-hidden rounded-lg border border-panel-border bg-panel-elevated"
+            >
+              {selectedImageSrc ? (
+                <img src={selectedImageSrc} alt="" className="h-32 w-full object-cover" />
+              ) : (
+                <span className="flex h-32 items-center justify-center text-panel-muted-fg">
+                  <ImageIcon className="size-8" />
+                </span>
+              )}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
+                {labels.chooseImage}
+              </span>
+            </button>
+            <Button
+              type="button"
+              size="sm"
+              className="mt-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
+              onClick={onChooseImage}
+            >
+              <ImageUp />
+              {labels.chooseImage}
+            </Button>
+          </div>
+        )}
         <CollapseSection title={labels.attributes}>
           <div id="gjs-traits" />
         </CollapseSection>

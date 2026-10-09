@@ -2,10 +2,11 @@ export {
   EditorStoreProvider,
   useCommentStore,
   useDocumentStore,
-  useImageUploader,
+  useImageLibrary,
   useLabels,
   type EditorStores,
-  type ImageUploader,
+  type ImageAsset,
+  type ImageLibrary,
 } from "./stores.js";
 
 export { DEFAULT_LABELS, mergeLabels, type EditorLabels } from "./labels.js";
