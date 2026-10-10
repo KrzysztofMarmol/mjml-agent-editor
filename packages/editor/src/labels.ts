@@ -45,6 +45,7 @@ export interface EditorLabels {
   readonly rteBackgroundColor: string;
   readonly documentLoadFailed: string;
   readonly documentSaveFailed: string;
+  readonly retry: string;
 
   // Image picker
   readonly chooseImage: string;
@@ -124,6 +125,7 @@ export const DEFAULT_LABELS: EditorLabels = {
   rteBackgroundColor: "Background color",
   documentLoadFailed: "Failed to load the document.",
   documentSaveFailed: "Failed to save changes.",
+  retry: "Retry",
 
   chooseImage: "Choose image",
   imagePickerTitle: "Choose an image",

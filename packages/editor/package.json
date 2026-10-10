@@ -58,6 +58,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "test": "vitest run",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -89,6 +90,7 @@
     "ai": "^6.0.230",
     "react": "19.2.4",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

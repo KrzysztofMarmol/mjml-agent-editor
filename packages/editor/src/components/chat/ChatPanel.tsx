@@ -16,8 +16,9 @@ import {
   ChevronRight,
 } from "lucide-react";
 
+import { refusal, saveToastId } from "../../lib/refusal.js";
 import { cn } from "../../lib/utils";
-import { useLabels } from "../../stores.js";
+import { useAgentTurn, useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "../ui/empty";
@@ -136,29 +137,6 @@ function toBlocks(parts: UIMessage["parts"]): MessageBlock[] {
   return blocks;
 }
 
-/**
- * The host's own sentence, when a refusal carried one.
- *
- * A rejected turn arrives here as an `Error` whose message is the response body verbatim,
- * and the contract says a refusal is `{"error": "..."}` written for a person to read — "the
- * agent is still working on this email", "this account has used its 25 messages". Falling
- * back to a generic "agent chat error" throws away the only part the reader can act on.
- *
- * Anything else — a network failure, an error part mid-stream — has no such body and keeps
- * the generic label, because a raw exception message is not something to put in front of a
- * visitor.
- */
-function refusal(error: unknown): string | null {
-  const body = error instanceof Error ? error.message : "";
-  if (!body.startsWith("{")) return null;
-  try {
-    const parsed = JSON.parse(body) as { error?: unknown };
-    return typeof parsed.error === "string" && parsed.error.trim() !== "" ? parsed.error : null;
-  } catch {
-    return null;
-  }
-}
-
 type Props = {
   docId: string;
   /**
@@ -195,7 +173,11 @@ type Props = {
    * means there was nothing to re-attach to — which is the ordinary case and not an error.
    */
   resume?: boolean;
-  /** Flushes unsaved editor changes before the agent starts. */
+  /**
+   * Flushes unsaved editor changes before the agent starts. A rejection stops the turn and
+   * keeps the prompt; its message is shown when it carries a 4xx `status` or an
+   * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
+   */
   onBeforeSend: () => Promise<void>;
   /** After the agent's turn finishes (refresh the editor and comments). */
   onAgentFinish: () => void;
@@ -317,6 +299,9 @@ export default function ChatPanel({
   const labels = useLabels();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // The ref blocks a second send at once; the state disables the buttons meanwhile.
+  const sending = useRef(false);
+  const [flushing, setFlushing] = useState(false);
   // Per-message timestamp, stamped when the message first renders.
   const times = useRef<Map<string, string>>(new Map());
   const timeFor = (id: string) => {
@@ -395,6 +380,11 @@ export default function ChatPanel({
 
   const busy = status === "submitted" || status === "streaming";
 
+  // The canvas is read only from the pre-turn save until the turn ends.
+  const { setRunning, locked } = useAgentTurn();
+  useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
+  useEffect(() => () => setRunning(false), [setRunning]);
+
   // Whether any tool is in progress (to avoid duplicating the global "Agent is working…").
   const lastMsg = messages[messages.length - 1];
   const toolRunning =
@@ -414,8 +404,19 @@ export default function ChatPanel({
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
-    await onBeforeSend().catch(console.error);
+    if (!trimmed || busy || locked || sending.current) return;
+    sending.current = true;
+    setFlushing(true);
+    try {
+      await onBeforeSend();
+    } catch (error) {
+      console.error(error);
+      toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
+      return;
+    } finally {
+      sending.current = false;
+      setFlushing(false);
+    }
     void sendMessage({ text: trimmed });
     setInput("");
     if (taRef.current) taRef.current.style.height = "auto";
@@ -531,7 +532,7 @@ export default function ChatPanel({
       <div className="border-t border-panel-border p-3">
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={busy}
+          disabled={busy || flushing || locked}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -575,7 +576,7 @@ export default function ChatPanel({
             <Button
               type="submit"
               size="sm"
-              disabled={busy || !input.trim()}
+              disabled={busy || flushing || locked || !input.trim()}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}
