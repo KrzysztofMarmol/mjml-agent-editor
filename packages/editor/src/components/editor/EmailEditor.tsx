@@ -381,7 +381,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     editor.on("component:deselected", () => setCrumbs([]));
 
     const save = async () => {
-      if (loadingRef.current) return;
       setSave("saving");
       try {
         await documents.save(docId, {
@@ -407,19 +406,19 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     editor.on("change:device", notifyState);
 
     const loadMjml = (mjml: string) => {
-      // Mute autosave during loading and for a moment after — setComponents
-      // can fire the "update" event asynchronously, which would otherwise
-      // overwrite the agent's fresh change with the editor's normalized version.
+      // Loading and decorating report changes of their own, but the store already holds
+      // this document. Muted only while they run, so the visitor's next edit counts.
       loadingRef.current = true;
-      queue.reset();
-      editor.setComponents(mjml || STARTER_MJML);
-      editor.getWrapper()?.find("mj-section").forEach(decorate);
-      for (const t of Object.keys(TYPE_LABEL)) {
-        editor.getWrapper()?.find(t).forEach(decorate);
-      }
-      setTimeout(() => {
+      try {
+        queue.reset();
+        editor.setComponents(mjml || STARTER_MJML);
+        editor.getWrapper()?.find("mj-section").forEach(decorate);
+        for (const t of Object.keys(TYPE_LABEL)) {
+          editor.getWrapper()?.find(t).forEach(decorate);
+        }
+      } finally {
         loadingRef.current = false;
-      }, 400);
+      }
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -487,10 +486,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       flushSave: async () => {
         // An open rich-text editor holds its text until editing ends.
         const view = editor.getEditing()?.getView() as
-          { syncContent?: () => Promise<void> } | undefined;
+          { syncContent?: (opts: { avoidStore: boolean }) => Promise<void> } | undefined;
         if (view?.syncContent) {
+          // avoidStore: syncing reports a change even when the text is the same.
           const before = editor.getHtml();
-          await view.syncContent();
+          await view.syncContent({ avoidStore: true });
           if (editor.getHtml() !== before) queue.schedule();
         }
         await queue.flush();

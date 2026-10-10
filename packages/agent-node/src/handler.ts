@@ -203,10 +203,8 @@ export function createChatHandler(options: ChatHandlerOptions) {
     // Completed-step usage, reported when the response ends.
     const stepUsage: LanguageModelUsage[] = [];
     const abort = new AbortController();
-    let reported = false;
-    const report = async () => {
-      if (!options.onUsage || reported) return;
-      reported = true;
+    const record = async () => {
+      if (!options.onUsage) return;
       const total = sumUsage(stepUsage);
       try {
         await options.onUsage({
@@ -225,6 +223,9 @@ export function createChatHandler(options: ChatHandlerOptions) {
         console.error("onUsage failed", error);
       }
     };
+    // One write, however many ways the response ends; every caller waits for it.
+    let reporting: Promise<void> | undefined;
+    const report = () => (reporting ??= record());
 
     const result = streamText({
       model: options.model,

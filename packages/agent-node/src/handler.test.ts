@@ -547,6 +547,40 @@ describe("onUsage", () => {
     expect(recorded).toBe(true);
   });
 
+  it("waits for a usage write already under way when the reader stops", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let recorded = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("hi")).model,
+      documents,
+      comments,
+      images,
+      onUsage: async () => {
+        await held;
+        recorded = true;
+      },
+    });
+
+    const reader = (
+      await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))
+    ).body!.getReader();
+    // Read until the stream is waiting on the usage write before it closes.
+    const pending = (async () => {
+      while (!(await reader.read()).done);
+    })().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    let cancelled = false;
+    const cancel = reader.cancel().then(() => (cancelled = true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(cancelled).toBe(false);
+    release();
+    await cancel;
+    await pending;
+    expect(recorded).toBe(true);
+  });
+
   it("does not break the response when the ledger write fails", async () => {
     const handler = createChatHandler({
       model: modelReplaying(textTurn("still fine")).model,
