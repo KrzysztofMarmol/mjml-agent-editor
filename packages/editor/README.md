@@ -98,6 +98,29 @@ satisfying the two interfaces works, including an in-memory object.
 
 Forgetting the provider throws with an explanation rather than failing on a null read.
 
+### Images
+
+The image picker — opened by double-clicking an image, from its toolbar, or from the
+Settings panel — uploads to and picks from an optional `images` library. Where the files
+live is up to the host: S3, R2, a CDN.
+
+```tsx
+const images: ImageLibrary = {
+  list: () => fetch("/api/images").then((r) => r.json()), // { images, quota? }
+  upload: (file) => fetch("/api/images", { method: "POST", body: file }).then((r) => r.json()),
+  remove: (id) => fetch(`/api/images/${id}`, { method: "DELETE" }).then(() => {}),
+};
+
+<EditorStoreProvider stores={{ documents, comments, images }}>
+```
+
+`quota` (`{ used, limit }`) is shown in the picker and stops uploads when reached. Leave
+`remove` out for a read-only gallery — a host that caps uploads but cannot reclaim the
+storage would otherwise be handing out a way round its own cap.
+
+Without a library the picker takes URLs only. The editor never inlines a file as base64:
+most mail clients block `data:` images, and every agent turn would pay for the bytes.
+
 ## Copy
 
 Every word the editor renders comes from a dictionary with English defaults, so a host

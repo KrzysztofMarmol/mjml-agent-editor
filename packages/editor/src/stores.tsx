@@ -18,9 +18,42 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 
 import { mergeLabels, type EditorLabels } from "./labels.js";
 
+/** An image the host has stored on the user's behalf. */
+export interface ImageAsset {
+  readonly id: string;
+  readonly url: string;
+  readonly name?: string;
+}
+
+/**
+ * The user's own images: uploaded once, then picked from a gallery in any email.
+ *
+ * Without one the picker accepts only URLs. GrapesJS would otherwise inline a dropped file
+ * as base64: most mail clients block `data:` images, and every agent turn pays for the bytes.
+ */
+export interface ImageLibrary {
+  /** Newest first. `quota` is shown in the picker when given. */
+  list(): Promise<{
+    readonly images: readonly ImageAsset[];
+    readonly quota?: { readonly used: number; readonly limit: number };
+  }>;
+  upload(file: File): Promise<ImageAsset>;
+  /**
+   * What `upload` takes, as an `<input accept>` value ("image/png,image/jpeg"). The picker
+   * refuses anything else before sending it. Defaults to any image.
+   */
+  readonly accept?: string;
+  /**
+   * Omit to make the gallery read-only — for a host that caps uploads and cannot reclaim
+   * the storage, deleting would only be a way round the cap.
+   */
+  remove?(id: string): Promise<void>;
+}
+
 export interface EditorStores {
   readonly documents: DocumentStore;
   readonly comments: CommentStore;
+  readonly images?: ImageLibrary;
 }
 
 const StoreContext = createContext<EditorStores | null>(null);
@@ -109,4 +142,8 @@ export function useDocumentStore(): DocumentStore {
 
 export function useCommentStore(): CommentStore {
   return useStores().comments;
+}
+
+export function useImageLibrary(): ImageLibrary | undefined {
+  return useStores().images;
 }

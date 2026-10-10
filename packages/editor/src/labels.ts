@@ -47,6 +47,32 @@ export interface EditorLabels {
   readonly documentSaveFailed: string;
   readonly retry: string;
 
+  // Image picker
+  readonly chooseImage: string;
+  readonly imagePickerTitle: string;
+  readonly imagePickerDrop: string;
+  readonly imagePickerBrowse: string;
+  readonly imagePickerUrlPlaceholder: string;
+  readonly imagePickerUseUrl: string;
+  readonly imagePickerGallery: string;
+  readonly imagePickerEmpty: string;
+  readonly imagePickerQuota: (used: number, limit: number) => string;
+  readonly imagePickerQuotaFull: string;
+  readonly imagePickerDelete: string;
+  readonly imagePickerConfirmDelete: string;
+  readonly imagePickerLoadFailed: string;
+  readonly imageUploadFailed: string;
+  readonly imageDeleteFailed: string;
+  readonly imagePickerUnsupported: (fileName: string) => string;
+  readonly imageFieldRemove: string;
+
+  // Color picker
+  readonly colorPickerOpen: string;
+  readonly colorPickerEyedropper: string;
+  readonly colorPickerDocument: string;
+  readonly colorPickerPresets: string;
+  readonly colorPickerTransparent: string;
+
   // Comments
   readonly commentOnSection: string;
   readonly closeComments: string;
@@ -100,6 +126,30 @@ export const DEFAULT_LABELS: EditorLabels = {
   documentLoadFailed: "Failed to load the document.",
   documentSaveFailed: "Failed to save changes.",
   retry: "Retry",
+
+  chooseImage: "Choose image",
+  imagePickerTitle: "Choose an image",
+  imagePickerDrop: "Drag images here, or",
+  imagePickerBrowse: "Browse files",
+  imagePickerUrlPlaceholder: "…or paste an image URL",
+  imagePickerUseUrl: "Use URL",
+  imagePickerGallery: "Your images",
+  imagePickerEmpty: "No images yet — the ones you upload will be kept here.",
+  imagePickerQuota: (used, limit) => `${used} of ${limit} uploads used`,
+  imagePickerQuotaFull: "Upload limit reached — pick an image below or paste a URL.",
+  imagePickerDelete: "Delete image",
+  imagePickerConfirmDelete: "Click again to delete",
+  imagePickerLoadFailed: "Failed to load your images.",
+  imageUploadFailed: "Failed to upload the image.",
+  imageDeleteFailed: "Failed to delete the image.",
+  imagePickerUnsupported: (fileName) => `${fileName} is not a supported image type.`,
+  imageFieldRemove: "Remove image",
+
+  colorPickerOpen: "Pick a color",
+  colorPickerEyedropper: "Pick from the screen",
+  colorPickerDocument: "In this email",
+  colorPickerPresets: "Presets",
+  colorPickerTransparent: "Transparent",
 
   commentOnSection: "Comment on the whole section",
   closeComments: "Close",
