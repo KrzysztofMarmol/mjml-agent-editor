@@ -30,6 +30,8 @@ export type EditorState = {
   saveStatus: SaveStatus;
   zoom: number;
   contentWidth: string;
+  /** True during an agent turn, until its result is loaded. */
+  readOnly: boolean;
 };
 
 export type EditorApi = {
@@ -289,6 +291,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       saveStatus: saveStatusRef.current,
       zoom: Math.round((editor.Canvas.getZoom?.() as number | undefined) ?? 100),
       contentWidth: bodyWidth(),
+      readOnly: readOnlyRef.current,
     });
     const notifyState = () => {
       const s = snapshot();
@@ -436,23 +439,40 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         if (readOnlyRef.current) options.abort = true;
       });
     }
+    let turnOn = false;
     applyReadOnly.current = async (on) => {
+      turnOn = on;
       readOnlyRef.current = true;
       setReadOnly(true);
+      notifyState();
       if (on) {
         queue.cancel();
         editor.select([]);
-      } else {
-        await reload().catch(console.error);
-        readOnlyRef.current = false;
-        setReadOnly(false);
+        return;
       }
+      try {
+        await reload();
+      } catch (e) {
+        // Unlocking a stale canvas would let the next save overwrite what the agent wrote.
+        console.error(e);
+        toast.error(labels.documentLoadFailed, {
+          id: `reload-${docId}`,
+          duration: Infinity,
+          action: { label: labels.retry, onClick: () => void applyReadOnly.current(false) },
+        });
+        return;
+      }
+      if (turnOn) return; // the next turn started while this one's result was loading
+      readOnlyRef.current = false;
+      setReadOnly(false);
       notifyState();
     };
 
+    // Only the agent writes during a turn, so the store differs from `stored` exactly when it
+    // changed something. Otherwise the canvas is kept, including edits a failed save left unsaved.
     const reload = async () => {
       const fresh = await documents.get(docId);
-      if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
+      if (fresh.mjml !== stored) loadMjml(fresh.mjml);
     };
 
     const loadMjml = (mjml: string) => {
@@ -566,6 +586,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         notifyState();
       },
       setContentWidth: (w) => {
+        if (readOnlyRef.current) return;
         findByTag("mj-body")?.addAttributes({ width: w });
         notifyState();
       },

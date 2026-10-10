@@ -121,6 +121,7 @@ export default function EditorHeader({
     saveStatus: "idle",
     zoom: 100,
     contentWidth: "600px",
+    readOnly: false,
   });
   const [code, setCode] = useState({ mjml: "", html: "" });
   const [preview, setPreview] = useState("");
@@ -231,6 +232,7 @@ export default function EditorHeader({
           <Button
             variant="ghost"
             size="sm"
+            disabled={state.readOnly}
             className={cn(darkGhost, "gap-1.5 rounded-md border border-panel-border max-xl:hidden")}
           >
             <span className="text-panel-muted-fg">{labels.contentWidth}</span>
