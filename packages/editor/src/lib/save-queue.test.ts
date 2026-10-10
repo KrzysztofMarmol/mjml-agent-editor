@@ -78,6 +78,24 @@ describe("createSaveQueue", () => {
     await expect(flush).rejects.toThrow("too large");
   });
 
+  it("runs a task after the save under way", async () => {
+    const first = deferred();
+    const order: string[] = [];
+    const save = vi.fn(async () => {
+      await first.promise;
+      order.push("save");
+    });
+    const queue = createSaveQueue(save, 1000);
+
+    queue.schedule();
+    await vi.advanceTimersByTimeAsync(1000);
+    const task = queue.run(async () => void order.push("task"));
+    first.resolve();
+    await task;
+
+    expect(order).toEqual(["save", "task"]);
+  });
+
   it("drops a scheduled autosave on cancel", async () => {
     const save = vi.fn(() => Promise.resolve());
     const queue = createSaveQueue(save, 1000);

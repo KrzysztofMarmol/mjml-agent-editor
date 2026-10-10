@@ -381,9 +381,9 @@ export default function ChatPanel({
   const busy = status === "submitted" || status === "streaming";
 
   // The canvas is read only from the pre-turn save until the turn ends.
-  const [, setTurnRunning] = useAgentTurn();
-  useEffect(() => setTurnRunning(busy || flushing), [busy, flushing, setTurnRunning]);
-  useEffect(() => () => setTurnRunning(false), [setTurnRunning]);
+  const { setRunning, locked } = useAgentTurn();
+  useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
+  useEffect(() => () => setRunning(false), [setRunning]);
 
   // Whether any tool is in progress (to avoid duplicating the global "Agent is working…").
   const lastMsg = messages[messages.length - 1];
@@ -404,7 +404,7 @@ export default function ChatPanel({
 
   const send = async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || busy || sending.current) return;
+    if (!trimmed || busy || locked || sending.current) return;
     sending.current = true;
     setFlushing(true);
     try {
@@ -532,7 +532,7 @@ export default function ChatPanel({
       <div className="border-t border-panel-border p-3">
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={busy || flushing}
+          disabled={busy || flushing || locked}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -576,7 +576,7 @@ export default function ChatPanel({
             <Button
               type="submit"
               size="sm"
-              disabled={busy || flushing || !input.trim()}
+              disabled={busy || flushing || locked || !input.trim()}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}

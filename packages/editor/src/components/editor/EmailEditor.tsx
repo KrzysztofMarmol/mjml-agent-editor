@@ -247,13 +247,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const selectionSource = useRef<"canvas" | "layers" | "other">("other");
   // Breadcrumb of the selected component's ancestry (Section › Column › …).
   const editorRef = useRef<Editor | null>(null);
-  const [turnRunning] = useAgentTurn();
   // Read only from a turn's start until the document it left is loaded, not just until it
   // ends: an edit made before that final reload would be replaced by it.
-  const [readOnly, setReadOnly] = useState(false);
+  const { running: turnRunning, locked: readOnly, setLocked } = useAgentTurn();
   const readOnlyRef = useRef(false);
   const applyReadOnly = useRef<(on: boolean) => Promise<void>>(async () => {});
   useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
+  useEffect(() => () => setLocked(false), [setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
 
   const onEditor = async (editor: Editor) => {
@@ -439,13 +439,14 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         if (readOnlyRef.current) options.abort = true;
       });
     }
-    let turnOn = false;
-    applyReadOnly.current = async (on) => {
-      turnOn = on;
-      readOnlyRef.current = true;
-      setReadOnly(true);
+    const lock = (on: boolean) => {
+      readOnlyRef.current = on;
+      setLocked(on);
       notifyState();
+    };
+    applyReadOnly.current = async (on) => {
       if (on) {
+        lock(true);
         queue.cancel();
         editor.select([]);
         return;
@@ -462,18 +463,17 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         });
         return;
       }
-      if (turnOn) return; // the next turn started while this one's result was loading
-      readOnlyRef.current = false;
-      setReadOnly(false);
-      notifyState();
+      lock(false);
     };
 
     // Only the agent writes during a turn, so the store differs from `stored` exactly when it
     // changed something. Otherwise the canvas is kept, including edits a failed save left unsaved.
-    const reload = async () => {
-      const fresh = await documents.get(docId);
-      if (fresh.mjml !== stored) loadMjml(fresh.mjml);
-    };
+    // Queued behind saves and earlier reloads, so a slow one never lands over a newer one.
+    const reload = () =>
+      queue.run(async () => {
+        const fresh = await documents.get(docId);
+        if (fresh.mjml !== stored) loadMjml(fresh.mjml);
+      });
 
     const loadMjml = (mjml: string) => {
       // Loading reports changes of its own. What it adds — ids, the starter body — is still

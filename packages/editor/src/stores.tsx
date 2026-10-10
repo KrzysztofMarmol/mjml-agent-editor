@@ -25,8 +25,24 @@ export interface EditorStores {
 
 const StoreContext = createContext<EditorStores | null>(null);
 const LabelContext = createContext<EditorLabels | null>(null);
-// Whether an agent turn is running, set by the chat panel and read by the canvas.
-const TurnContext = createContext<[boolean, (running: boolean) => void]>([false, () => {}]);
+type AgentTurn = {
+  /** Set by the chat panel, from its pre-turn save to the turn's end. */
+  running: boolean;
+  setRunning: (running: boolean) => void;
+  /**
+   * Set by the canvas, from a turn's start until the document it left is loaded. The chat
+   * waits for it before the next turn, so a turn never starts on a stale canvas.
+   */
+  locked: boolean;
+  setLocked: (locked: boolean) => void;
+};
+
+const TurnContext = createContext<AgentTurn>({
+  running: false,
+  setRunning: () => {},
+  locked: false,
+  setLocked: () => {},
+});
 
 export function EditorStoreProvider({
   stores,
@@ -45,7 +61,9 @@ export function EditorStoreProvider({
   children: ReactNode;
 }) {
   const merged = useMemo(() => mergeLabels(labels), [labels]);
-  const turn = useState(false);
+  const [running, setRunning] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const turn = useMemo(() => ({ running, setRunning, locked, setLocked }), [running, locked]);
   return (
     <StoreContext.Provider value={stores}>
       <LabelContext.Provider value={merged}>
@@ -56,10 +74,10 @@ export function EditorStoreProvider({
 }
 
 /**
- * Whether an agent turn is running, from its pre-turn save to its end. The canvas is read
- * only meanwhile: the agent and the visitor would otherwise both write the document.
+ * The agent turn, shared by the chat and the canvas. The canvas is read only meanwhile: the
+ * agent and the visitor would otherwise both write the document.
  */
-export function useAgentTurn(): [boolean, (running: boolean) => void] {
+export function useAgentTurn(): AgentTurn {
   return useContext(TurnContext);
 }
 

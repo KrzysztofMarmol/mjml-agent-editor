@@ -4,22 +4,24 @@ export interface SaveQueue {
   schedule(): void;
   /** Drops a scheduled autosave. */
   cancel(): void;
-  /** Runs `save` after any save under way; rejects if it fails. */
+  /** Runs `save` after any work under way; rejects if it fails. */
   flush(): Promise<void>;
+  /** Runs `task` after any work under way, such as a reload that must not race a save. */
+  run<T>(task: () => Promise<T>): Promise<T>;
 }
 
 export function createSaveQueue(save: () => Promise<void>, delayMs: number): SaveQueue {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  // Saves run one after another, so an older one can never land after a newer one.
-  let tail: Promise<void> = Promise.resolve();
+  // Work runs one after another, so an older write or read can never land after a newer one.
+  let tail: Promise<unknown> = Promise.resolve();
 
   const cancel = () => {
     if (timer) clearTimeout(timer);
     timer = null;
   };
 
-  const run = () => {
-    const next = tail.then(save);
+  const run = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = tail.then(task);
     tail = next.catch(() => {});
     return next;
   };
@@ -27,12 +29,13 @@ export function createSaveQueue(save: () => Promise<void>, delayMs: number): Sav
   return {
     schedule() {
       cancel();
-      timer = setTimeout(() => void run().catch(() => {}), delayMs);
+      timer = setTimeout(() => void run(save).catch(() => {}), delayMs);
     },
     cancel,
     flush() {
       cancel();
-      return run();
+      return run(save);
     },
+    run,
   };
 }
