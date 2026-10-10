@@ -1,58 +1,38 @@
-/** Autosave, and the flush a turn waits on before the agent reads the stored document. */
+/** Debounced autosave, and the flush a turn waits on. Whether to write is `save`'s call. */
 export interface SaveQueue {
-  /** Records an edit and restarts the debounce. */
+  /** Restarts the debounce. */
   schedule(): void;
-  /** Forgets unsaved edits, for when the document is replaced from the store. */
-  reset(): void;
-  /** Resolves once every edit so far is stored; rejects if one could not be. */
+  /** Drops a scheduled autosave. */
+  cancel(): void;
+  /** Runs `save` after any save under way; rejects if it fails. */
   flush(): Promise<void>;
 }
 
 export function createSaveQueue(save: () => Promise<void>, delayMs: number): SaveQueue {
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let dirty = false;
-  // Bumped by reset, so a save of discarded edits that fails afterwards does not restore them.
-  let generation = 0;
-  // Writes run one at a time, so an older one can never land after a newer one.
-  let running: Promise<void> | null = null;
+  // Saves run one after another, so an older one can never land after a newer one.
+  let tail: Promise<void> = Promise.resolve();
 
-  const stopTimer = () => {
+  const cancel = () => {
     if (timer) clearTimeout(timer);
     timer = null;
   };
 
-  const write = async (): Promise<void> => {
-    while (running) await running.catch(() => {});
-    if (!dirty) return;
-    dirty = false;
-    const startedIn = generation;
-    const attempt = save();
-    running = attempt;
-    try {
-      await attempt;
-    } catch (error) {
-      if (startedIn !== generation) return;
-      dirty = true;
-      throw error;
-    } finally {
-      running = null;
-    }
+  const run = () => {
+    const next = tail.then(save);
+    tail = next.catch(() => {});
+    return next;
   };
 
   return {
     schedule() {
-      dirty = true;
-      stopTimer();
-      timer = setTimeout(() => void write().catch(() => {}), delayMs);
+      cancel();
+      timer = setTimeout(() => void run().catch(() => {}), delayMs);
     },
-    reset() {
-      stopTimer();
-      dirty = false;
-      generation++;
-    },
-    async flush() {
-      stopTimer();
-      while (dirty || running) await write();
+    cancel,
+    flush() {
+      cancel();
+      return run();
     },
   };
 }

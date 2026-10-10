@@ -18,7 +18,7 @@ import {
 
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { cn } from "../../lib/utils";
-import { useLabels } from "../../stores.js";
+import { useAgentTurn, useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "../ui/empty";
@@ -379,6 +379,11 @@ export default function ChatPanel({
   }, [messages, onLiveUpdate, onSectionEditStart, onSectionEditEnd]);
 
   const busy = status === "submitted" || status === "streaming";
+
+  // The canvas is read only from the pre-turn save until the turn ends.
+  const [, setTurnRunning] = useAgentTurn();
+  useEffect(() => setTurnRunning(busy || flushing), [busy, flushing, setTurnRunning]);
+  useEffect(() => () => setTurnRunning(false), [setTurnRunning]);
 
   // Whether any tool is in progress (to avoid duplicating the global "Agent is working…").
   const lastMsg = messages[messages.length - 1];

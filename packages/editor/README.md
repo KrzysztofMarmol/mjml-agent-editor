@@ -178,7 +178,11 @@ them intact.
 `onBeforeSend` flushes unsaved canvas changes before a turn, and **a rejection stops the
 turn**, keeping the prompt in the box: the agent reads the stored document, so it would
 otherwise answer about a version the visitor has moved past. The flush writes only when
-the store is behind the canvas.
+the canvas differs from what the store last returned.
+
+While a turn runs, from that flush until the document it left is loaded, the canvas is
+read only, so the agent is the only writer. `ChatPanel` and `EmailEditor` coordinate this
+through `EditorStoreProvider`; nothing needs wiring.
 
 The visitor sees the host's own sentence when the rejection carries one:
 

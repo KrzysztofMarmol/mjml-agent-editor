@@ -14,7 +14,7 @@
  */
 
 import type { CommentStore, DocumentStore } from "@mjml-agent-editor/core";
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 import { mergeLabels, type EditorLabels } from "./labels.js";
 
@@ -25,6 +25,8 @@ export interface EditorStores {
 
 const StoreContext = createContext<EditorStores | null>(null);
 const LabelContext = createContext<EditorLabels | null>(null);
+// Whether an agent turn is running, set by the chat panel and read by the canvas.
+const TurnContext = createContext<[boolean, (running: boolean) => void]>([false, () => {}]);
 
 export function EditorStoreProvider({
   stores,
@@ -43,11 +45,22 @@ export function EditorStoreProvider({
   children: ReactNode;
 }) {
   const merged = useMemo(() => mergeLabels(labels), [labels]);
+  const turn = useState(false);
   return (
     <StoreContext.Provider value={stores}>
-      <LabelContext.Provider value={merged}>{children}</LabelContext.Provider>
+      <LabelContext.Provider value={merged}>
+        <TurnContext.Provider value={turn}>{children}</TurnContext.Provider>
+      </LabelContext.Provider>
     </StoreContext.Provider>
   );
+}
+
+/**
+ * Whether an agent turn is running, from its pre-turn save to its end. The canvas is read
+ * only meanwhile: the agent and the visitor would otherwise both write the document.
+ */
+export function useAgentTurn(): [boolean, (running: boolean) => void] {
+  return useContext(TurnContext);
 }
 
 /**

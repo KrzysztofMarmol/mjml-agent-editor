@@ -3,12 +3,13 @@
 import grapesjs, { Component, Editor } from "grapesjs";
 import GjsEditor, { Canvas, useEditorMaybe } from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { createSaveQueue } from "../../lib/save-queue.js";
+import { useAgentTurn } from "../../stores.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
 import { ChevronRight } from "lucide-react";
@@ -244,6 +245,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const selectionSource = useRef<"canvas" | "layers" | "other">("other");
   // Breadcrumb of the selected component's ancestry (Section › Column › …).
   const editorRef = useRef<Editor | null>(null);
+  const [turnRunning] = useAgentTurn();
+  // Read only from a turn's start until the document it left is loaded, not just until it
+  // ends: an edit made before that final reload would be replaced by it.
+  const [readOnly, setReadOnly] = useState(false);
+  const readOnlyRef = useRef(false);
+  const applyReadOnly = useRef<(on: boolean) => Promise<void>>(async () => {});
+  useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
 
   const onEditor = async (editor: Editor) => {
@@ -276,8 +284,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     };
     const snapshot = (): EditorState => ({
       device: editor.getDevice(),
-      canUndo: editor.UndoManager.hasUndo(),
-      canRedo: editor.UndoManager.hasRedo(),
+      canUndo: !readOnlyRef.current && editor.UndoManager.hasUndo(),
+      canRedo: !readOnlyRef.current && editor.UndoManager.hasRedo(),
       saveStatus: saveStatusRef.current,
       zoom: Math.round((editor.Canvas.getZoom?.() as number | undefined) ?? 100),
       contentWidth: bodyWidth(),
@@ -304,15 +312,10 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       return { sectionId, objectId, objectLabel: objectLabel(c) };
     };
 
-    // Set when decorate gives a section its id; loading reads it.
-    let idsAssigned = false;
     // Gives the section a sec-<id> and adds a comment button to the toolbar of
     // every commentable element (section + text/button/image/column).
     const decorate = (c: Component) => {
-      if (isSection(c) && !classMatch(c, SEC_ID_RE)) {
-        addIdClass(c, "sec");
-        idsAssigned = true;
-      }
+      if (isSection(c)) addIdClass(c, "sec");
       if (!isCommentable(c)) return;
       const toolbar = [...((c.get("toolbar") as { command?: string }[]) ?? [])];
       if (!toolbar.some((t) => t.command === "open-comments")) {
@@ -385,23 +388,21 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
     editor.on("component:deselected", () => setCrumbs([]));
 
-    // An open rich-text editor holds its text until editing ends. noCount: syncing reports
-    // a change even when the text is the same; unlike avoidStore it keeps undo history.
-    const syncOpenText = async () => {
-      const view = editor.getEditing()?.getView() as
-        { syncContent?: (opts: { noCount: boolean }) => Promise<void> } | undefined;
-      await view?.syncContent?.({ noCount: true });
-    };
+    // The MJML the store holds, as far as this editor knows. A save writes only when the
+    // canvas differs from it — the canvas is the truth, not the events that changed it.
+    let stored = "";
 
     const save = async () => {
+      // An open rich-text editor holds its text until editing ends.
+      const view = editor.getEditing()?.getView() as
+        { syncContent?: () => Promise<void> } | undefined;
+      await view?.syncContent?.();
+      const mjml = editor.getHtml();
+      if (mjml === stored) return;
       setSave("saving");
       try {
-        // Before reading either value, so both carry the text being typed.
-        await syncOpenText();
-        await documents.save(docId, {
-          mjml: editor.getHtml(),
-          projectData: editor.getProjectData(),
-        });
+        await documents.save(docId, { mjml, projectData: editor.getProjectData() });
+        stored = mjml;
         setSave("saved");
       } catch (e) {
         setSave("error");
@@ -412,23 +413,55 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     const queue = createSaveQueue(save, 1200);
 
-    // `updateBefore` fires with the change; `update` a tick later, after a flush may
-    // already have found nothing to save.
-    editor.on("updateBefore", () => {
-      if (!loadingRef.current) queue.schedule();
+    editor.on("update", () => {
+      notifyState();
+      if (!loadingRef.current && !readOnlyRef.current) queue.schedule();
     });
-    editor.on("update", notifyState);
     editor.on("change:device", notifyState);
 
+    // While a turn runs the agent writes the document, so the visitor cannot: edits made
+    // meanwhile would be overwritten by the agent's next reload, or overwrite its work.
+    const blocked = [
+      "core:undo",
+      "core:redo",
+      "core:paste",
+      "core:component-delete",
+      "tlb-delete",
+      "tlb-clone",
+      "tlb-move",
+      "open-assets",
+    ];
+    for (const id of blocked) {
+      editor.on(`command:run:before:${id}`, ({ options }: { options: { abort?: boolean } }) => {
+        if (readOnlyRef.current) options.abort = true;
+      });
+    }
+    applyReadOnly.current = async (on) => {
+      readOnlyRef.current = true;
+      setReadOnly(true);
+      if (on) {
+        queue.cancel();
+        editor.select([]);
+      } else {
+        await reload().catch(console.error);
+        readOnlyRef.current = false;
+        setReadOnly(false);
+      }
+      notifyState();
+    };
+
+    const reload = async () => {
+      const fresh = await documents.get(docId);
+      if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
+    };
+
     const loadMjml = (mjml: string) => {
-      // Loading and decorating report changes of their own, but the store already holds
-      // this document. Muted only while they run, so the visitor's next edit counts.
+      // Loading reports changes of its own. What it adds — ids, the starter body — is still
+      // written by the next save, which compares against what the store returned.
       loadingRef.current = true;
-      // Except for what loading adds: the starter body, or section ids the agent addresses
-      // sections by. Those exist only on the canvas until saved.
-      idsAssigned = false;
       try {
-        queue.reset();
+        queue.cancel();
+        stored = mjml;
         editor.setComponents(mjml || STARTER_MJML);
         editor.getWrapper()?.find("mj-section").forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
@@ -437,7 +470,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       } finally {
         loadingRef.current = false;
       }
-      if (idsAssigned || !mjml) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -502,16 +534,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     onReady({
       getMjml: () => editor.getHtml(),
       getCompiledHtml: compiledHtml,
-      flushSave: async () => {
-        const before = editor.getHtml();
-        await syncOpenText();
-        if (editor.getHtml() !== before) queue.schedule();
-        await queue.flush();
-      },
-      reloadFromDb: async () => {
-        const fresh = await documents.get(docId);
-        if (fresh.mjml !== editor.getHtml()) loadMjml(fresh.mjml);
-      },
+      flushSave: () => queue.flush(),
+      reloadFromDb: reload,
       highlightSection: (sectionId, on) => {
         ensureHighlightStyles();
         const el = sectionEl(sectionId);
@@ -528,10 +552,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         notifyState();
       },
       undo: () => {
+        if (readOnlyRef.current) return;
         editor.UndoManager.undo();
         notifyState();
       },
       redo: () => {
+        if (readOnlyRef.current) return;
         editor.UndoManager.redo();
         notifyState();
       },
@@ -574,7 +600,14 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }}
       onEditor={onEditor}
     >
-      <div className="flex h-full min-h-0 flex-1">
+      <div className="relative flex h-full min-h-0 flex-1">
+        {readOnly && (
+          <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
+            <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">
+              <Spinner /> {labels.agentWorking}
+            </span>
+          </div>
+        )}
         <LeftSidebar
           view={sidebarView}
           onViewChange={setSidebarView}

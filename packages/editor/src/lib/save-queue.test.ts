@@ -27,76 +27,18 @@ describe("createSaveQueue", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
-  it("flushes a scheduled save at once instead of waiting for the debounce", async () => {
+  it("flushes at once and drops the scheduled autosave", async () => {
     const save = vi.fn(() => Promise.resolve());
     const queue = createSaveQueue(save, 1000);
 
     queue.schedule();
     await queue.flush();
-
-    expect(save).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1000);
-    expect(save).toHaveBeenCalledTimes(1);
-  });
 
-  it("writes nothing when nothing is owed", async () => {
-    const save = vi.fn(() => Promise.resolve());
-
-    await createSaveQueue(save, 1000).flush();
-
-    expect(save).not.toHaveBeenCalled();
-  });
-
-  it("waits for an autosave already under way before resolving", async () => {
-    const inFlight = deferred();
-    const save = vi.fn(() => inFlight.promise);
-    const queue = createSaveQueue(save, 1000);
-
-    queue.schedule();
-    await vi.advanceTimersByTimeAsync(1000);
-    let flushed = false;
-    const flush = queue.flush().then(() => (flushed = true));
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(flushed).toBe(false);
-    inFlight.resolve();
-    await flush;
     expect(save).toHaveBeenCalledTimes(1);
   });
 
-  it("retries an autosave that failed while the flush waited, and rejects if it fails again", async () => {
-    const first = deferred();
-    const save = vi
-      .fn<() => Promise<void>>()
-      .mockImplementationOnce(() => first.promise)
-      .mockImplementationOnce(() => Promise.reject(new Error("too large")));
-    const queue = createSaveQueue(save, 1000);
-
-    queue.schedule();
-    await vi.advanceTimersByTimeAsync(1000);
-    const flush = queue.flush();
-    first.reject(new Error("network"));
-
-    await expect(flush).rejects.toThrow("too large");
-    expect(save).toHaveBeenCalledTimes(2);
-  });
-
-  it("owes the changes of a failed save until one succeeds", async () => {
-    const save = vi
-      .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error("down"))
-      .mockResolvedValue(undefined);
-    const queue = createSaveQueue(save, 1000);
-
-    queue.schedule();
-    await vi.advanceTimersByTimeAsync(1000);
-    await queue.flush();
-    await queue.flush();
-
-    expect(save).toHaveBeenCalledTimes(2);
-  });
-
-  it("never runs two saves at once, so an older one cannot land last", async () => {
+  it("never runs two saves at once", async () => {
     const first = deferred();
     let active = 0;
     let overlapped = false;
@@ -110,60 +52,40 @@ describe("createSaveQueue", () => {
 
     queue.schedule();
     await vi.advanceTimersByTimeAsync(1000);
-    queue.schedule();
-    await vi.advanceTimersByTimeAsync(1000);
+    const flush = queue.flush();
+    await vi.advanceTimersByTimeAsync(0);
     expect(save).toHaveBeenCalledTimes(1);
 
     first.resolve();
-    await queue.flush();
+    await flush;
     expect(save).toHaveBeenCalledTimes(2);
     expect(overlapped).toBe(false);
   });
 
-  it("also stores an edit made while the flush was waiting", async () => {
+  it("rejects the flush when its save fails, after an autosave that failed", async () => {
     const first = deferred();
     const save = vi
       .fn<() => Promise<void>>()
       .mockImplementationOnce(() => first.promise)
-      .mockResolvedValue(undefined);
+      .mockRejectedValueOnce(new Error("too large"));
     const queue = createSaveQueue(save, 1000);
 
     queue.schedule();
     await vi.advanceTimersByTimeAsync(1000);
     const flush = queue.flush();
-    queue.schedule();
-    first.resolve();
-    await flush;
+    first.reject(new Error("network"));
 
-    expect(save).toHaveBeenCalledTimes(2);
+    await expect(flush).rejects.toThrow("too large");
   });
 
-  it("forgets edits on reset", async () => {
+  it("drops a scheduled autosave on cancel", async () => {
     const save = vi.fn(() => Promise.resolve());
     const queue = createSaveQueue(save, 1000);
 
     queue.schedule();
-    queue.reset();
-    await queue.flush();
+    queue.cancel();
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(save).not.toHaveBeenCalled();
-  });
-
-  it("does not bring back edits that a reset discarded while their save failed", async () => {
-    const first = deferred();
-    const save = vi
-      .fn<() => Promise<void>>()
-      .mockImplementationOnce(() => first.promise)
-      .mockResolvedValue(undefined);
-    const queue = createSaveQueue(save, 1000);
-
-    queue.schedule();
-    await vi.advanceTimersByTimeAsync(1000);
-    queue.reset();
-    first.reject(new Error("network"));
-    await queue.flush();
-
-    expect(save).toHaveBeenCalledTimes(1);
   });
 });
