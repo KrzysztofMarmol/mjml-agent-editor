@@ -486,11 +486,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       flushSave: async () => {
         // An open rich-text editor holds its text until editing ends.
         const view = editor.getEditing()?.getView() as
-          { syncContent?: (opts: { avoidStore: boolean }) => Promise<void> } | undefined;
+          { syncContent?: (opts: { noCount: boolean }) => Promise<void> } | undefined;
         if (view?.syncContent) {
-          // avoidStore: syncing reports a change even when the text is the same.
+          // noCount: syncing reports a change even when the text is the same. Unlike
+          // avoidStore it keeps the sync in the undo history.
           const before = editor.getHtml();
-          await view.syncContent({ avoidStore: true });
+          await view.syncContent({ noCount: true });
           if (editor.getHtml() !== before) queue.schedule();
         }
         await queue.flush();
