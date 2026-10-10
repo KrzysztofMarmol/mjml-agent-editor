@@ -409,16 +409,22 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       // Loading and decorating report changes of their own, but the store already holds
       // this document. Muted only while they run, so the visitor's next edit counts.
       loadingRef.current = true;
+      // Except for what loading adds: the starter body, or section ids the agent addresses
+      // sections by. Those exist only on the canvas until saved.
+      let added = !mjml;
       try {
         queue.reset();
         editor.setComponents(mjml || STARTER_MJML);
-        editor.getWrapper()?.find("mj-section").forEach(decorate);
+        const sections = editor.getWrapper()?.find("mj-section") ?? [];
+        added ||= sections.some((c) => !classMatch(c, SEC_ID_RE));
+        sections.forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);
         }
       } finally {
         loadingRef.current = false;
       }
+      if (added) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
