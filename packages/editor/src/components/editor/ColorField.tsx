@@ -46,6 +46,7 @@ export default function ColorField({
   documentColors,
   labels,
   onChange,
+  onSelectionChange,
 }: {
   value: string;
   /** The property's default, shown when no value is set. */
@@ -56,6 +57,8 @@ export default function ColorField({
   labels: EditorLabels;
   /** `partial` while dragging, so GrapesJS records one undo step per change, not per pixel. */
   onChange: (value: string, partial: boolean) => void;
+  /** Subscribes to the selection about to change; returns the unsubscribe. */
+  onSelectionChange: (listener: () => void) => () => void;
 }) {
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
@@ -96,6 +99,18 @@ export default function ColorField({
     dragged.current = null;
     onChange(next, false);
   };
+
+  // GrapesJS writes to whatever is selected when the commit runs, so a drag still waiting
+  // for it is committed before another element is selected rather than onto that one.
+  const latestCommit = useRef(commit);
+  latestCommit.current = commit;
+  useEffect(
+    () =>
+      onSelectionChange(() => {
+        if (dragged.current !== null) latestCommit.current(dragged.current);
+      }),
+    [onSelectionChange],
+  );
 
   // react-colorful has no "drag ended"; a pause stands in for it.
   const drag = (next: string) => {

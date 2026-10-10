@@ -51,19 +51,23 @@ export default function ImagePicker({
   // render re-runs the open effect — that would wipe a half-typed URL.
   const latest = useRef({ labels, onSelect });
   latest.current = { labels, onSelect };
+  // Opening, uploading and deleting each list the gallery; only the newest answer is shown.
+  const lists = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!library) return;
+    const mine = ++lists.current;
     setLoading(true);
     try {
       const result = await library.list();
+      if (mine !== lists.current) return;
       setImages(result.images);
       setQuota(result.quota);
     } catch (err) {
       console.error(err);
-      toast.error(latest.current.labels.imagePickerLoadFailed);
+      if (mine === lists.current) toast.error(latest.current.labels.imagePickerLoadFailed);
     } finally {
-      setLoading(false);
+      if (mine === lists.current) setLoading(false);
     }
   }, [library]);
 
@@ -94,7 +98,8 @@ export default function ImagePicker({
     setPending((n) => n + list.length);
     // Settled rather than all: an upload that succeeded has already been stored and
     // counted by the host, so one failure must not hide it.
-    const results = await Promise.allSettled(list.map((f) => library.upload(f)));
+    // Async, so an adapter that throws rather than rejects still settles.
+    const results = await Promise.allSettled(list.map(async (f) => library.upload(f)));
     setPending((n) => n - list.length);
     for (const r of results) {
       if (r.status === "rejected") {

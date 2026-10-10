@@ -227,6 +227,13 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
 
   // The value set on the selection, or "" when the property only shows its default:
   // GrapesJS substitutes the default before update(), which would present it as set.
+  const selectionListeners = new Set<() => void>();
+  editor.on("component:select:before", () => selectionListeners.forEach((l) => l()));
+  const onSelectionChange = (listener: () => void) => {
+    selectionListeners.add(listener);
+    return () => void selectionListeners.delete(listener);
+  };
+
   const ownValue = (property: any): string =>
     property.hasValue?.({ noParent: true }) ? String(property.getValue?.() ?? "") : "";
 
@@ -266,6 +273,7 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
         documentColors={documentColors}
         labels={labels}
         onChange={(next, partial) => property.upValue(next, { partial })}
+        onSelectionChange={onSelectionChange}
       />
     )),
   } as never);
