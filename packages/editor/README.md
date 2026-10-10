@@ -173,6 +173,29 @@ of the message that started it; keep that message somewhere and put it back into
 written, so a host's own sentence about limits or a document that is already busy reaches
 them intact.
 
+## When the host refuses
+
+`onBeforeSend` flushes unsaved canvas changes before a turn, and **a rejection stops the
+turn**, keeping the prompt in the box: the agent reads the stored document, so it would
+otherwise answer about a version the visitor has moved past. The flush writes only when
+the canvas differs from what the store last returned.
+
+While a turn runs, from that flush until the document it left is loaded, the canvas is
+read only, so the agent is the only writer. `ChatPanel` and `EmailEditor` coordinate this
+through `EditorStoreProvider`; nothing needs wiring.
+
+The visitor sees the host's own sentence when the rejection carries one:
+
+| The rejection                            | Shown                       |
+| ---------------------------------------- | --------------------------- |
+| a `status` outside 400–499               | `labels.documentSaveFailed` |
+| message is `{"error": "..."}`            | the `error` string          |
+| a `status` of 400–499, any other message | the `message`, unless HTML  |
+| no status and no recognizable body       | `labels.documentSaveFailed` |
+
+So a `DocumentStore.save` refusing a document over a size cap should throw with
+`status: 413` and a sentence. Autosave reports the same way, under one toast id.
+
 ## A note on field names
 
 The ports are camelCase (`sectionId`, `objectId`, `projectData`); Postgres columns are

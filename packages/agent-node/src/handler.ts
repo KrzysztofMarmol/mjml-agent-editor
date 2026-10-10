@@ -68,8 +68,13 @@ export interface TurnUsage {
   readonly outputTokens: number;
   readonly cachedInputTokens: number;
   readonly totalTokens: number;
-  /** The SDK's own usage object, for anything the fields above flatten away. */
+  /** The summed counts, in the SDK's usage shape. */
   readonly raw: LanguageModelUsage;
+  /**
+   * Each finished step's usage, with the provider's own `raw` figures — the sum above
+   * cannot carry those. Shorter than the turn when it failed or was stopped mid-step.
+   */
+  readonly steps: readonly LanguageModelUsage[];
 }
 
 export interface ChatHandlerOptions extends SystemPromptOptions {
@@ -195,6 +200,33 @@ export function createChatHandler(options: ChatHandlerOptions) {
       conversation = [...(await options.session.load(body.docId)), latest];
     }
 
+    // Completed-step usage, reported when the response ends.
+    const stepUsage: LanguageModelUsage[] = [];
+    const abort = new AbortController();
+    const record = async () => {
+      if (!options.onUsage) return;
+      const total = sumUsage(stepUsage);
+      try {
+        await options.onUsage({
+          documentId: body.docId,
+          modelId: typeof options.model === "string" ? options.model : options.model.modelId,
+          // Every field is optional on the SDK type — a provider that reports no usage
+          // produces zeros rather than NaN in someone's ledger.
+          inputTokens: total.inputTokens ?? 0,
+          outputTokens: total.outputTokens ?? 0,
+          cachedInputTokens: total.cachedInputTokens ?? 0,
+          totalTokens: total.totalTokens ?? 0,
+          raw: total,
+          steps: [...stepUsage],
+        });
+      } catch (error) {
+        console.error("onUsage failed", error);
+      }
+    };
+    // One write, however many ways the response ends; every caller waits for it.
+    let reporting: Promise<void> | undefined;
+    const report = () => (reporting ??= record());
+
     const result = streamText({
       model: options.model,
       system,
@@ -209,32 +241,14 @@ export function createChatHandler(options: ChatHandlerOptions) {
         visualReviewer: options.visualReviewer,
       }),
       stopWhen: stepCountIs(maxSteps),
-      ...(options.onUsage
-        ? {
-            onFinish: async ({ usage }) => {
-              try {
-                await options.onUsage?.({
-                  documentId: body.docId,
-                  modelId:
-                    typeof options.model === "string" ? options.model : options.model.modelId,
-                  // Every field is optional on the SDK type — a provider that reports no
-                  // usage produces zeros rather than NaN in someone's ledger.
-                  inputTokens: usage.inputTokens ?? 0,
-                  outputTokens: usage.outputTokens ?? 0,
-                  cachedInputTokens: usage.cachedInputTokens ?? 0,
-                  totalTokens: usage.totalTokens ?? 0,
-                  raw: usage,
-                });
-              } catch (error) {
-                console.error("onUsage failed", error);
-              }
-            },
-          }
-        : {}),
+      abortSignal: abort.signal,
+      onStepFinish: ({ usage }) => {
+        stepUsage.push(usage);
+      },
     });
 
     const session = options.session;
-    return result.toUIMessageStreamResponse({
+    const response = result.toUIMessageStreamResponse({
       onError: (error) => formatError(error),
       // `originalMessages` is what puts the SDK into persistence mode: it gives the
       // response message an id and hands `onFinish` the whole updated conversation
@@ -254,5 +268,61 @@ export function createChatHandler(options: ChatHandlerOptions) {
           }
         : {}),
     });
+    if (!response.body) return response;
+    return new Response(endsWith(response.body, report, abort), response);
+  };
+}
+
+/**
+ * Passes `body` through and calls `ended` once it is done, failed or cancelled. A cancelled
+ * reader — the visitor pressing stop — also aborts the model, so it stops generating
+ * steps nobody will read or be charged for.
+ */
+function endsWith(
+  body: ReadableStream<Uint8Array>,
+  ended: () => Promise<void>,
+  abort: AbortController,
+): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  return new ReadableStream<Uint8Array>({
+    // `ended` is awaited before the stream closes, so a reader that has the whole response
+    // also has the usage recorded — the next turn's limit check reads it.
+    async pull(controller) {
+      const chunk = await reader.read().catch(async (error: unknown) => {
+        await ended();
+        controller.error(error);
+        return null;
+      });
+      if (!chunk) return;
+      if (!chunk.done) return controller.enqueue(chunk.value);
+      await ended();
+      controller.close();
+    },
+    async cancel(reason) {
+      abort.abort(reason);
+      await reader.cancel(reason);
+      await ended();
+    },
+  });
+}
+
+/** Field-by-field sum of the steps' token counts, which is what `totalUsage` reports. */
+function sumUsage(steps: readonly LanguageModelUsage[]): LanguageModelUsage {
+  const add = (pick: (u: LanguageModelUsage) => number | undefined) =>
+    steps.reduce((sum, u) => sum + (pick(u) ?? 0), 0);
+  return {
+    inputTokens: add((u) => u.inputTokens),
+    outputTokens: add((u) => u.outputTokens),
+    totalTokens: add((u) => u.totalTokens),
+    cachedInputTokens: add((u) => u.cachedInputTokens),
+    inputTokenDetails: {
+      noCacheTokens: add((u) => u.inputTokenDetails?.noCacheTokens),
+      cacheReadTokens: add((u) => u.inputTokenDetails?.cacheReadTokens),
+      cacheWriteTokens: add((u) => u.inputTokenDetails?.cacheWriteTokens),
+    },
+    outputTokenDetails: {
+      textTokens: add((u) => u.outputTokenDetails?.textTokens),
+      reasoningTokens: add((u) => u.outputTokenDetails?.reasoningTokens),
+    },
   };
 }

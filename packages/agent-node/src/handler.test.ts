@@ -10,7 +10,7 @@ import type { UIMessage } from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
 
-import { createChatHandler } from "./handler.js";
+import { createChatHandler, type TurnUsage } from "./handler.js";
 
 const DOCUMENT: EmailDocument = {
   id: "doc-1",
@@ -51,26 +51,35 @@ const images: ImageProvider = {
   generate: () => Promise.resolve("https://images.test/x.png"),
 };
 
-const USAGE: LanguageModelV3Usage = {
-  inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
-  outputTokens: { total: 1, text: 1, reasoning: 0 },
-};
+/** What one step reported. Takes figures so a test can tell a sum from the last step. */
+function tokens(input: number, output: number): LanguageModelV3Usage {
+  return {
+    inputTokens: { total: input, noCache: input, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: output, text: output, reasoning: 0 },
+  };
+}
 
-function textTurn(text: string): LanguageModelV3StreamPart[] {
+const USAGE: LanguageModelV3Usage = tokens(1, 1);
+
+function textTurn(text: string, usage: LanguageModelV3Usage = USAGE): LanguageModelV3StreamPart[] {
   return [
     { type: "stream-start", warnings: [] },
     { type: "text-start", id: "t1" },
     { type: "text-delta", id: "t1", delta: text },
     { type: "text-end", id: "t1" },
-    { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage: USAGE },
+    { type: "finish", finishReason: { unified: "stop", raw: "stop" }, usage },
   ];
 }
 
-function toolCallTurn(toolName: string, input: unknown): LanguageModelV3StreamPart[] {
+function toolCallTurn(
+  toolName: string,
+  input: unknown,
+  usage: LanguageModelV3Usage = USAGE,
+): LanguageModelV3StreamPart[] {
   return [
     { type: "stream-start", warnings: [] },
     { type: "tool-call", toolCallId: "call-1", toolName, input: JSON.stringify(input) },
-    { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_use" }, usage: USAGE },
+    { type: "finish", finishReason: { unified: "tool-calls", raw: "tool_use" }, usage },
   ];
 }
 
@@ -365,8 +374,11 @@ describe("onUsage", () => {
   it("reports totals for the whole turn, not one step", async () => {
     const seen: unknown[] = [];
     const handler = createChatHandler({
-      // Two steps: a tool call, then the reply. A budget cares about the sum.
-      model: modelReplaying(toolCallTurn("get_document", {}), textTurn("done")).model,
+      // Different figures per step, so the total cannot be mistaken for the last step.
+      model: modelReplaying(
+        toolCallTurn("get_document", {}, tokens(100, 7)),
+        textTurn("done", tokens(5, 3)),
+      ).model,
       documents,
       comments,
       images,
@@ -385,9 +397,188 @@ describe("onUsage", () => {
       totalTokens: number;
     };
     expect(usage.documentId).toBe("doc-7");
-    // USAGE is per step and the mock replays two steps.
-    expect(usage.inputTokens).toBeGreaterThan(0);
-    expect(usage.outputTokens).toBeGreaterThan(0);
+    // Charging the final step alone would report 5 and 3.
+    expect(usage.inputTokens).toBe(105);
+    expect(usage.outputTokens).toBe(10);
+  });
+
+  it("charges the finished steps when a later step's call fails", async () => {
+    const seen: TurnUsage[] = [];
+    let call = 0;
+    const model = new MockLanguageModelV3({
+      doStream: async () => {
+        call++;
+        if (call === 1) {
+          return {
+            stream: convertArrayToReadableStream(toolCallTurn("get_document", {}, tokens(100, 7))),
+          };
+        }
+        throw new Error("provider down");
+      },
+    });
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(100);
+    expect(seen[0]!.steps).toHaveLength(1);
+  });
+
+  it("charges the whole turn when an error part comes before the finish", async () => {
+    const seen: TurnUsage[] = [];
+    const handler = createChatHandler({
+      model: modelReplaying([
+        { type: "stream-start", warnings: [] },
+        { type: "error", error: new Error("transient") },
+        ...textTurn("recovered", tokens(30, 4)).slice(1),
+      ]).model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(30);
+  });
+
+  it("stops the model and charges the finished steps when the reader stops", async () => {
+    const seen: TurnUsage[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const model = new MockLanguageModelV3({
+      doStream: async ({ abortSignal }) => {
+        if (model.doStreamCalls.length === 1) {
+          return {
+            stream: convertArrayToReadableStream(toolCallTurn("get_document", {}, tokens(40, 2))),
+          };
+        }
+        // The second step only ends when it is aborted, like a reply the visitor stops.
+        await new Promise<void>((resolve) =>
+          abortSignal?.addEventListener("abort", () => resolve()),
+        );
+        release();
+        throw new DOMException("aborted", "AbortError");
+      },
+    });
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    const response = await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }));
+    const reader = response.body!.getReader();
+    const pump = (async () => {
+      while (!(await reader.read().catch(() => ({ done: true }))).done);
+    })();
+    while (model.doStreamCalls.length < 2) await new Promise((resolve) => setTimeout(resolve, 5));
+    await reader.cancel();
+    await held;
+    await pump;
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(40);
+    expect(model.doStreamCalls).toHaveLength(2);
+  });
+
+  it("charges nothing, once, when the reader stops before any step finishes", async () => {
+    const seen: TurnUsage[] = [];
+    const model = new MockLanguageModelV3({
+      doStream: ({ abortSignal }) =>
+        new Promise((_, reject) =>
+          abortSignal?.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          ),
+        ),
+    });
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      onUsage: (usage) => {
+        seen.push(usage);
+      },
+    });
+
+    const response = await handler(post({ messages: [USER_MESSAGE], docId: "doc-7" }));
+    while (model.doStreamCalls.length < 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    await response.body!.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.inputTokens).toBe(0);
+    expect(model.doStreamCalls).toHaveLength(1);
+  });
+
+  it("records usage before the response finishes", async () => {
+    let recorded = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("hi")).model,
+      documents,
+      comments,
+      images,
+      onUsage: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        recorded = true;
+      },
+    });
+
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(recorded).toBe(true);
+  });
+
+  it("waits for a usage write already under way when the reader stops", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let recorded = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("hi")).model,
+      documents,
+      comments,
+      images,
+      onUsage: async () => {
+        await held;
+        recorded = true;
+      },
+    });
+
+    const reader = (
+      await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))
+    ).body!.getReader();
+    // Read until the stream is waiting on the usage write before it closes.
+    const pending = (async () => {
+      while (!(await reader.read()).done);
+    })().catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    let cancelled = false;
+    const cancel = reader.cancel().then(() => (cancelled = true));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(cancelled).toBe(false);
+    release();
+    await cancel;
+    await pending;
+    expect(recorded).toBe(true);
   });
 
   it("does not break the response when the ledger write fails", async () => {
