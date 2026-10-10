@@ -85,7 +85,15 @@ export default function ColorField({
     if (dragged.current !== null) latestOnChange.current(dragged.current, false);
     dragged.current = null;
   }, []);
-  useEffect(() => release, [release]);
+  // On the document: when the captured element is removed mid-drag (the popover closing, or
+  // the alpha slider appearing), the browser sends the release there rather than to it.
+  useEffect(() => {
+    document.addEventListener("lostpointercapture", release);
+    return () => {
+      document.removeEventListener("lostpointercapture", release);
+      release();
+    };
+  }, [release]);
 
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
   // Translucent colors keep their alpha, and get the slider to change it.
@@ -165,10 +173,10 @@ export default function ColorField({
         <div
           onPointerDownCapture={(e) => {
             pressed.current = true;
-            // Captured, so a release over the canvas iframe still reaches this document.
+            // Captured, so a release over the canvas iframe still reaches this document. On the
+            // target, not this wrapper: the mousedown react-colorful handles follows the capture.
             (e.target as Element).setPointerCapture(e.pointerId);
           }}
-          onLostPointerCapture={release}
         >
           {translucent ? (
             <HexAlphaColorPicker color={hex} onChange={drag} className="color-field-picker" />

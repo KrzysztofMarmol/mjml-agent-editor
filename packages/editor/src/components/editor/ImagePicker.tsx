@@ -79,6 +79,8 @@ export default function ImagePicker({
     void refresh();
     // Once per opening; `refresh` reads the latest props through `latest`.
   }, [open]);
+  // Nor after unmount, when the editor it would select into is gone.
+  useEffect(() => () => void (session.current += 1), []);
 
   const accepts = (file: File) => matchesAccept(file, library?.accept);
 
