@@ -9,7 +9,7 @@
  * keeps a design consistent.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HexAlphaColorPicker, HexColorPicker } from "react-colorful";
 import { Pipette } from "lucide-react";
 
@@ -79,21 +79,13 @@ export default function ColorField({
   latestOnChange.current = onChange;
   // A drag ends as a real change, with an undo step, when the pointer is released: GrapesJS
   // writes to whatever is selected at that moment, and nothing else can be selected while
-  // the pointer is still down. The view going away mid-drag ends it too.
-  useEffect(() => {
-    const release = () => {
-      pressed.current = false;
-      if (dragged.current !== null) latestOnChange.current(dragged.current, false);
-      dragged.current = null;
-    };
-    window.addEventListener("pointerup", release);
-    window.addEventListener("pointercancel", release);
-    return () => {
-      window.removeEventListener("pointerup", release);
-      window.removeEventListener("pointercancel", release);
-      release();
-    };
+  // the pointer is captured. The view going away mid-drag ends it too.
+  const release = useCallback(() => {
+    pressed.current = false;
+    if (dragged.current !== null) latestOnChange.current(dragged.current, false);
+    dragged.current = null;
   }, []);
+  useEffect(() => release, [release]);
 
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
   // Translucent colors keep their alpha, and get the slider to change it.
@@ -170,7 +162,14 @@ export default function ColorField({
         sideOffset={8}
         className="editor-dark flex w-52 flex-col gap-2.5 border border-panel-border bg-panel p-2.5 text-panel-fg"
       >
-        <div onPointerDownCapture={() => (pressed.current = true)}>
+        <div
+          onPointerDownCapture={(e) => {
+            pressed.current = true;
+            // Captured, so a release over the canvas iframe still reaches this document.
+            (e.target as Element).setPointerCapture(e.pointerId);
+          }}
+          onLostPointerCapture={release}
+        >
           {translucent ? (
             <HexAlphaColorPicker color={hex} onChange={drag} className="color-field-picker" />
           ) : (

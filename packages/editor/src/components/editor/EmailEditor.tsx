@@ -602,6 +602,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         lock(true);
         queue.cancel();
         editor.select([]);
+        // Through GrapesJS, which otherwise keeps its asset command active and will not reopen.
+        editor.AssetManager.close();
         setPicker(null);
         return;
       }
