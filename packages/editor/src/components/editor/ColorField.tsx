@@ -46,7 +46,6 @@ export default function ColorField({
   documentColors,
   labels,
   onChange,
-  onSelectionChange,
 }: {
   value: string;
   /** The property's default, shown when no value is set. */
@@ -57,14 +56,12 @@ export default function ColorField({
   labels: EditorLabels;
   /** `partial` while dragging, so GrapesJS records one undo step per change, not per pixel. */
   onChange: (value: string, partial: boolean) => void;
-  /** Subscribes to the selection about to change; returns the unsubscribe. */
-  onSelectionChange: (listener: () => void) => () => void;
 }) {
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState<string[]>([]);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The value a drag left as a partial update, still to be committed.
+  // Whether a pointer is down on the picker, and the value its drag left as a partial update.
+  const pressed = useRef(false);
   const dragged = useRef<string | null>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   // The picker opens beside the panel the field sits in, level with the field. Anchored to
@@ -78,16 +75,25 @@ export default function ColorField({
   });
 
   useEffect(() => setText(value), [value]);
-  // A drag cut short by the view going away still ends as a real change, with an undo step.
   const latestOnChange = useRef(onChange);
   latestOnChange.current = onChange;
-  useEffect(
-    () => () => {
-      clearTimeout(commitTimer.current ?? undefined);
+  // A drag ends as a real change, with an undo step, when the pointer is released: GrapesJS
+  // writes to whatever is selected at that moment, and nothing else can be selected while
+  // the pointer is still down. The view going away mid-drag ends it too.
+  useEffect(() => {
+    const release = () => {
+      pressed.current = false;
       if (dragged.current !== null) latestOnChange.current(dragged.current, false);
-    },
-    [],
-  );
+      dragged.current = null;
+    };
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    return () => {
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      release();
+    };
+  }, []);
 
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
   // Translucent colors keep their alpha, and get the slider to change it.
@@ -95,30 +101,16 @@ export default function ColorField({
   const empty = !value;
 
   const commit = (next: string) => {
-    clearTimeout(commitTimer.current ?? undefined);
     dragged.current = null;
     onChange(next, false);
   };
 
-  // GrapesJS writes to whatever is selected when the commit runs, so a drag still waiting
-  // for it is committed before another element is selected rather than onto that one.
-  const latestCommit = useRef(commit);
-  latestCommit.current = commit;
-  useEffect(
-    () =>
-      onSelectionChange(() => {
-        if (dragged.current !== null) latestCommit.current(dragged.current);
-      }),
-    [onSelectionChange],
-  );
-
-  // react-colorful has no "drag ended"; a pause stands in for it.
+  // react-colorful reports no drag end, and moves by arrow keys as well; those are whole changes.
   const drag = (next: string) => {
     setText(next);
+    if (!pressed.current) return commit(next);
     dragged.current = next;
     onChange(next, true);
-    clearTimeout(commitTimer.current ?? undefined);
-    commitTimer.current = setTimeout(() => commit(next), 300);
   };
 
   const pickFromScreen = async () => {
@@ -178,11 +170,13 @@ export default function ColorField({
         sideOffset={8}
         className="editor-dark flex w-52 flex-col gap-2.5 border border-panel-border bg-panel p-2.5 text-panel-fg"
       >
-        {translucent ? (
-          <HexAlphaColorPicker color={hex} onChange={drag} className="color-field-picker" />
-        ) : (
-          <HexColorPicker color={hex} onChange={drag} className="color-field-picker" />
-        )}
+        <div onPointerDownCapture={() => (pressed.current = true)}>
+          {translucent ? (
+            <HexAlphaColorPicker color={hex} onChange={drag} className="color-field-picker" />
+          ) : (
+            <HexColorPicker color={hex} onChange={drag} className="color-field-picker" />
+          )}
+        </div>
 
         <div className="flex items-center gap-1.5">
           <span

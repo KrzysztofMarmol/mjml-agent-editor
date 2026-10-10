@@ -227,13 +227,6 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
 
   // The value set on the selection, or "" when the property only shows its default:
   // GrapesJS substitutes the default before update(), which would present it as set.
-  const selectionListeners = new Set<() => void>();
-  editor.on("component:select:before", () => selectionListeners.forEach((l) => l()));
-  const onSelectionChange = (listener: () => void) => {
-    selectionListeners.add(listener);
-    return () => void selectionListeners.delete(listener);
-  };
-
   const ownValue = (property: any): string =>
     property.hasValue?.({ noParent: true }) ? String(property.getValue?.() ?? "") : "";
 
@@ -273,7 +266,6 @@ function setupStyleFields(editor: Editor, labels: EditorLabels) {
         documentColors={documentColors}
         labels={labels}
         onChange={(next, partial) => property.upValue(next, { partial })}
-        onSelectionChange={onSelectionChange}
       />
     )),
   } as never);
@@ -803,7 +795,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }}
       onEditor={onEditor}
     >
-      <div className="relative flex h-full min-h-0 flex-1">
+      {/* Inert as well as covered, so the keyboard cannot reach the controls either. */}
+      <div className="relative flex h-full min-h-0 flex-1" inert={readOnly}>
         {readOnly && (
           <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
             <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">
@@ -833,7 +826,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
               open={picker !== null}
               currentUrl={picker?.current}
               onSelect={(url) => {
-                picker?.select(url);
+                // An upload that finished after a turn locked the canvas is not applied.
+                if (!readOnlyRef.current) picker?.select(url);
                 setPicker(null);
               }}
               // Closed here as well as through GrapesJS: its close() is a no-op whenever it
