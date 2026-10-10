@@ -304,10 +304,15 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       return { sectionId, objectId, objectLabel: objectLabel(c) };
     };
 
+    // Set when decorate gives a section its id; loading reads it.
+    let idsAssigned = false;
     // Gives the section a sec-<id> and adds a comment button to the toolbar of
     // every commentable element (section + text/button/image/column).
     const decorate = (c: Component) => {
-      if (isSection(c)) addIdClass(c, "sec");
+      if (isSection(c) && !classMatch(c, SEC_ID_RE)) {
+        addIdClass(c, "sec");
+        idsAssigned = true;
+      }
       if (!isCommentable(c)) return;
       const toolbar = [...((c.get("toolbar") as { command?: string }[]) ?? [])];
       if (!toolbar.some((t) => t.command === "open-comments")) {
@@ -380,9 +385,19 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
     editor.on("component:deselected", () => setCrumbs([]));
 
+    // An open rich-text editor holds its text until editing ends. noCount: syncing reports
+    // a change even when the text is the same; unlike avoidStore it keeps undo history.
+    const syncOpenText = async () => {
+      const view = editor.getEditing()?.getView() as
+        { syncContent?: (opts: { noCount: boolean }) => Promise<void> } | undefined;
+      await view?.syncContent?.({ noCount: true });
+    };
+
     const save = async () => {
       setSave("saving");
       try {
+        // Before reading either value, so both carry the text being typed.
+        await syncOpenText();
         await documents.save(docId, {
           mjml: editor.getHtml(),
           projectData: editor.getProjectData(),
@@ -411,20 +426,18 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       loadingRef.current = true;
       // Except for what loading adds: the starter body, or section ids the agent addresses
       // sections by. Those exist only on the canvas until saved.
-      let added = !mjml;
+      idsAssigned = false;
       try {
         queue.reset();
         editor.setComponents(mjml || STARTER_MJML);
-        const sections = editor.getWrapper()?.find("mj-section") ?? [];
-        added ||= sections.some((c) => !classMatch(c, SEC_ID_RE));
-        sections.forEach(decorate);
+        editor.getWrapper()?.find("mj-section").forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);
         }
       } finally {
         loadingRef.current = false;
       }
-      if (added) queue.schedule();
+      if (idsAssigned || !mjml) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -490,16 +503,9 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       getMjml: () => editor.getHtml(),
       getCompiledHtml: compiledHtml,
       flushSave: async () => {
-        // An open rich-text editor holds its text until editing ends.
-        const view = editor.getEditing()?.getView() as
-          { syncContent?: (opts: { noCount: boolean }) => Promise<void> } | undefined;
-        if (view?.syncContent) {
-          // noCount: syncing reports a change even when the text is the same. Unlike
-          // avoidStore it keeps the sync in the undo history.
-          const before = editor.getHtml();
-          await view.syncContent({ noCount: true });
-          if (editor.getHtml() !== before) queue.schedule();
-        }
+        const before = editor.getHtml();
+        await syncOpenText();
+        if (editor.getHtml() !== before) queue.schedule();
         await queue.flush();
       },
       reloadFromDb: async () => {
