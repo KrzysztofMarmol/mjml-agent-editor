@@ -23,6 +23,15 @@ Supabase.
 The example uses placeholder images. Image generation requires an `ImageProvider`
 implementation supplied by the host application.
 
+## Key concepts
+
+- The MJML document is the source of truth; the canvas and the assistant edit the same
+  document.
+- Every `mj-section` carries a stable id in `css-class` (`sec-<id>`). Comments and the
+  assistant's tools address sections by it, and no edit may change one.
+- A write is compiled before it is saved. Markup that does not compile is rejected, and the
+  compiler's message goes back to the model so it can correct itself.
+
 ## Run the example locally
 
 ### Requirements
