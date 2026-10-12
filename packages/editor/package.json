@@ -63,7 +63,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.232",
+    "@ai-sdk/react": "^3.0.240",
     "@grapesjs/react": "^2.0.0",
     "@mjml-agent-editor/core": "workspace:*",
     "@shadcn/react": "^0.2.1",
@@ -71,8 +71,8 @@
     "clsx": "^2.1.1",
     "grapesjs": "^0.22.16",
     "grapesjs-mjml": "^1.0.8",
-    "lucide-react": "^1.25.0",
-    "radix-ui": "^1.6.2",
+    "lucide-react": "^1.28.0",
+    "radix-ui": "^1.6.7",
     "react-colorful": "^5.8.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
@@ -80,17 +80,17 @@
     "tailwind-merge": "^3.6.0"
   },
   "peerDependencies": {
-    "ai": "^6.0.230",
+    "ai": "^6.0.238",
     "react": "^19",
     "react-dom": "^19"
   },
   "devDependencies": {
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "ai": "^6.0.230",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "ai": "^6.0.238",
     "react": "19.2.4",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   }
 }
