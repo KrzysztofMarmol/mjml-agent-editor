@@ -87,6 +87,8 @@ export interface EditorLabels {
   readonly agentWorking: string;
   readonly reasoning: string;
   readonly completedSteps: (count: number, failed: number) => string;
+  /** Under a turn that hit the backend's step ceiling before it could reply. */
+  readonly stepLimitReached: string;
   readonly applyComments: string;
   readonly chatPlaceholder: string;
   readonly stop: string;
@@ -165,6 +167,7 @@ export const DEFAULT_LABELS: EditorLabels = {
   reasoning: "Reasoning",
   completedSteps: (count, failed) =>
     failed > 0 ? `Completed steps (${count}, ${failed} failed)` : `Completed steps (${count})`,
+  stepLimitReached: "The agent ran out of steps for this turn. Ask it to continue.",
   applyComments: "Apply changes from comments",
   chatPlaceholder: "Describe what you want to change… (Enter = send, Shift+Enter = new line)",
   stop: "Stop",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import type { AgentMessageMetadata } from "@mjml-agent-editor/core";
 import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -444,6 +445,7 @@ export default function ChatPanel({
                   const isLast = mi === messages.length - 1;
                   const blocks = toBlocks(message.parts);
                   const hasText = blocks.some((block) => block.kind === "text");
+                  const metadata = message.metadata as AgentMessageMetadata | undefined;
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
                       <div className={cn("flex w-full gap-2", isUser && "flex-row-reverse")}>
@@ -507,6 +509,14 @@ export default function ChatPanel({
                               streaming — keeps things clean. */}
                               {isLast && !isUser && busy && !toolRunning && !hasText && (
                                 <BusyMarker />
+                              )}
+                              {metadata?.stepLimitReached && (
+                                <Marker className="text-panel-muted-fg">
+                                  <MarkerIcon>
+                                    <TriangleAlert className="text-amber-400" />
+                                  </MarkerIcon>
+                                  <MarkerContent>{labels.stepLimitReached}</MarkerContent>
+                                </Marker>
                               )}
                             </MessageContent>
                           </Message>

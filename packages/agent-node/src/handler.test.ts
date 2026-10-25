@@ -193,6 +193,62 @@ describe("createChatHandler", () => {
   });
 });
 
+describe("the step ceiling", () => {
+  /** A model that would keep editing forever; records the last message of every prompt. */
+  function modelThatNeverStops() {
+    const lastMessages: unknown[] = [];
+    const model = new MockLanguageModelV3({
+      doStream: (options) => {
+        lastMessages.push(options.prompt[options.prompt.length - 1]);
+        return Promise.resolve({
+          stream: convertArrayToReadableStream(toolCallTurn("get_document", {})),
+        });
+      },
+    });
+    return { model, lastMessages };
+  }
+
+  it("asks for a reply on the last step and only then", async () => {
+    const { model, lastMessages } = modelThatNeverStops();
+    const handler = createChatHandler({ model, documents, comments, images, maxSteps: 3 });
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    const asked = lastMessages.map((m) => JSON.stringify(m).includes("last step of this turn"));
+    expect(asked).toEqual([false, false, true]);
+  });
+
+  it("marks a turn that ended on a tool call, including in the saved conversation", async () => {
+    const saved: UIMessage[][] = [];
+    const handler = createChatHandler({
+      model: modelThatNeverStops().model,
+      documents,
+      comments,
+      images,
+      maxSteps: 2,
+      session: {
+        load: () => Promise.resolve([]),
+        save: (_docId, messages) => {
+          saved.push(messages);
+          return Promise.resolve();
+        },
+      },
+    });
+
+    const body = await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(body).toContain(`"messageMetadata":{"stepLimitReached":true}`);
+    // A reload renders from the stored copy, so the mark has to survive there too.
+    expect(saved[0]!.at(-1)!.metadata).toEqual({ stepLimitReached: true });
+  });
+
+  it("does not mark a turn that replied", async () => {
+    const body = await (
+      await handlerSaying("Done.")(post({ messages: [USER_MESSAGE], docId: "doc-1" }))
+    ).text();
+    expect(body).not.toContain("stepLimitReached");
+  });
+});
+
 describe("authorize", () => {
   it("stops the request before the model is called", async () => {
     const replaying = modelReplaying(textTurn("should never run"));

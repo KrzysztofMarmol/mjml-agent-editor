@@ -34,6 +34,11 @@ Failures _after_ streaming has begun must be emitted as an error part inside the
 by dropping the connection — a truncated chunked response surfaces in the browser as an opaque
 "network error" with nothing to show the user.
 
+An assistant message may carry `AgentMessageMetadata` (`packages/agent-core/src/chat.ts`).
+`stepLimitReached: true` means the turn hit the backend's step ceiling while still calling
+tools, so it has no reply; `ChatPanel` says so under the message. A backend without a ceiling
+never sends it — the Python one has none today.
+
 > **History is a host concern, not a wire concern.** The request shape above still carries
 > `messages`, and a backend that stores conversations server-side must treat that list as
 > untrusted: take the newest user message from it and load the rest from its own store. The

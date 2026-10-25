@@ -109,11 +109,13 @@ reject foreign ids. `apps/example` does not do this — see
 | Option        | Default                         | What it is for                              |
 | ------------- | ------------------------------- | ------------------------------------------- |
 | `compiler`    | Node `mjml` in strict mode      | Swap in a different MJML compiler           |
-| `maxSteps`    | 24                              | Ceiling on tool-call rounds in one turn     |
+| `maxSteps`    | 24                              | Ceiling on model calls in one turn          |
 | `formatError` | Maps 429/401 to plain sentences | What the chat panel shows when a turn fails |
 
 `maxSteps` is not decoration: the spike had no ceiling, so a confused model could loop until
-the provider cut it off, re-sending the whole conversation each round.
+the provider cut it off, re-sending the whole conversation each round. On the last step the
+model is asked to reply rather than call another tool; if it calls one anyway, the message
+carries `stepLimitReached` and the chat panel says the turn ran out of steps.
 
 ## Template validation
 
