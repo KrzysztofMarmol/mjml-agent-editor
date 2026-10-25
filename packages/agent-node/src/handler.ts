@@ -217,6 +217,7 @@ export function createChatHandler(options: ChatHandlerOptions) {
 
     // Completed-step usage, reported when the response ends.
     const stepUsage: LanguageModelUsage[] = [];
+    let lastStepCalledTools = false;
     const abort = new AbortController();
     const record = async () => {
       if (!options.onUsage) return;
@@ -262,17 +263,19 @@ export function createChatHandler(options: ChatHandlerOptions) {
           ? { messages: [...messages, { role: "user", content: LAST_STEP_NOTE }] }
           : undefined,
       abortSignal: abort.signal,
-      onStepFinish: ({ usage }) => {
+      onStepFinish: ({ usage, toolCalls }) => {
         stepUsage.push(usage);
+        lastStepCalledTools = toolCalls.length > 0;
       },
     });
 
     const session = options.session;
     const response = result.toUIMessageStreamResponse({
       onError: (error) => formatError(error),
-      // The loop only ends on a tool call when `stopWhen` ended it.
+      // From the step, not `finishReason`: Gemini's OpenAI-compatible endpoint reports "stop"
+      // on a step that called tools.
       messageMetadata: ({ part }): AgentMessageMetadata | undefined =>
-        part.type === "finish" && part.finishReason === "tool-calls"
+        part.type === "finish" && lastStepCalledTools && stepUsage.length === maxSteps
           ? { stepLimitReached: true }
           : undefined,
       // `originalMessages` is what puts the SDK into persistence mode: it gives the

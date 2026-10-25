@@ -513,7 +513,7 @@ export default function ChatPanel({
                               {metadata?.stepLimitReached && (
                                 <Marker className="text-panel-muted-fg">
                                   <MarkerIcon>
-                                    <TriangleAlert className="text-amber-400" />
+                                    <TriangleAlert />
                                   </MarkerIcon>
                                   <MarkerContent>{labels.stepLimitReached}</MarkerContent>
                                 </Marker>

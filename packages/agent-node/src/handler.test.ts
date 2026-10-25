@@ -195,14 +195,17 @@ describe("createChatHandler", () => {
 
 describe("the step ceiling", () => {
   /** A model that would keep editing forever; records the last message of every prompt. */
-  function modelThatNeverStops() {
+  function modelThatNeverStops(reported: "tool-calls" | "stop" = "tool-calls") {
     const lastMessages: unknown[] = [];
+    const turn = toolCallTurn("get_document", {}).map((part) =>
+      part.type === "finish"
+        ? { ...part, finishReason: { unified: reported, raw: reported } }
+        : part,
+    );
     const model = new MockLanguageModelV3({
       doStream: (options) => {
         lastMessages.push(options.prompt[options.prompt.length - 1]);
-        return Promise.resolve({
-          stream: convertArrayToReadableStream(toolCallTurn("get_document", {})),
-        });
+        return Promise.resolve({ stream: convertArrayToReadableStream(turn) });
       },
     });
     return { model, lastMessages };
@@ -215,6 +218,28 @@ describe("the step ceiling", () => {
 
     const asked = lastMessages.map((m) => JSON.stringify(m).includes("last step of this turn"));
     expect(asked).toEqual([false, false, true]);
+  });
+
+  it("does not ask a one-step turn, which has nothing to report yet", async () => {
+    const { model, lastMessages } = modelThatNeverStops();
+    const handler = createChatHandler({ model, documents, comments, images, maxSteps: 1 });
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(JSON.stringify(lastMessages)).not.toContain("last step of this turn");
+  });
+
+  it("marks the turn even when the provider reports a tool-calling step as stopped", async () => {
+    // Gemini's OpenAI-compatible endpoint does this.
+    const handler = createChatHandler({
+      model: modelThatNeverStops("stop").model,
+      documents,
+      comments,
+      images,
+      maxSteps: 2,
+    });
+    const body = await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(body).toContain(`"stepLimitReached":true`);
   });
 
   it("marks a turn that ended on a tool call, including in the saved conversation", async () => {

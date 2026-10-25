@@ -35,8 +35,8 @@ by dropping the connection — a truncated chunked response surfaces in the brow
 "network error" with nothing to show the user.
 
 An assistant message may carry `AgentMessageMetadata` (`packages/agent-core/src/chat.ts`).
-`stepLimitReached: true` means the turn hit the backend's step ceiling while still calling
-tools, so it has no reply; `ChatPanel` says so under the message. A backend without a ceiling
+`stepLimitReached: true` means the turn's last allowed step still called tools, so the turn
+was cut off there; `ChatPanel` says so under the message. A backend without a ceiling
 never sends it — the Python one has none today.
 
 > **History is a host concern, not a wire concern.** The request shape above still carries
