@@ -16,6 +16,15 @@ beforeAll(() => {
     disconnect() {}
   };
   Element.prototype.scrollIntoView ??= () => {};
+  // What a browser does to a focused control that becomes disabled, and when: after the
+  // commit, before React's passive effects. jsdom leaves focus where it was, and its blur()
+  // ignores a disabled element, so focus goes to <body> by way of a throwaway button.
+  const toBody = document.documentElement.appendChild(document.createElement("button"));
+  new MutationObserver(() => {
+    if (!document.activeElement?.matches(":disabled")) return;
+    toBody.focus();
+    toBody.blur();
+  }).observe(document.body, { subtree: true, attributeFilter: ["disabled"] });
 });
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -174,13 +183,23 @@ describe("ChatPanel with the agent unavailable", () => {
     expect(panel.textarea().value).toBe("Make the hero blue");
   });
 
-  it("hands focus to the reason when the focused box is disabled", () => {
+  it("keeps focus on the reason while the agent is off, then returns it to the box", async () => {
     const panel = mount();
     panel.render(false);
     act(() => panel.textarea().focus());
-    panel.render(true);
+    const status = panel.host.querySelector('[role="status"]');
 
-    expect(document.activeElement?.textContent).toBe(DEFAULT_LABELS.agentUnavailable);
+    await outsideAct(async () => {
+      panel.schedule(true);
+      await delay(20);
+    });
+    expect(document.activeElement).toBe(status);
+
+    await outsideAct(async () => {
+      panel.schedule(false);
+      await delay(20);
+    });
+    expect(document.activeElement).toBe(panel.textarea());
   });
 });
 

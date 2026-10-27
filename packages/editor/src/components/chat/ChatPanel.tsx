@@ -314,7 +314,7 @@ export default function ChatPanel({
   const labels = useLabels();
   const unavailableId = useId();
   const footerRef = useRef<HTMLDivElement>(null);
-  const noticeRef = useRef<HTMLParagraphElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // The ref blocks a second send at once; the state disables the buttons meanwhile.
@@ -421,12 +421,15 @@ export default function ChatPanel({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
-  // A focused control that becomes disabled drops focus to <body>. Before the browser does
-  // that, hand focus to the reason, so a keyboard user keeps their place and hears why.
+  // A focused control that becomes disabled loses focus to <body> before the next paint, so
+  // this cannot wait for a passive effect. The reason holds focus while the agent is off and
+  // hands it back to the box when it returns.
   useLayoutEffect(() => {
     const active = document.activeElement;
     if (agentUnavailable && active?.matches(":disabled") && footerRef.current?.contains(active)) {
-      noticeRef.current?.focus();
+      statusRef.current?.focus();
+    } else if (!agentUnavailable && active === statusRef.current) {
+      taRef.current?.focus();
     }
   }, [agentUnavailable]);
 
@@ -580,14 +583,11 @@ export default function ChatPanel({
 
       <div ref={footerRef} className="border-t border-panel-border p-3">
         {/* Mounted while empty: a live region that arrives already holding its text is often
-        not announced, and the flag can flip at runtime. */}
-        <div id={unavailableId} role="status">
+        not announced, and the flag can flip at runtime. It is also the focus target, so focus
+        survives the flag turning off and the reason is not read twice. */}
+        <div ref={statusRef} id={unavailableId} role="status" tabIndex={-1} className="rounded-lg">
           {agentUnavailable && (
-            <p
-              ref={noticeRef}
-              tabIndex={-1}
-              className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg"
-            >
+            <p className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg">
               <CirclePause className="mt-px size-3.5 shrink-0" />
               <span>{labels.agentUnavailable}</span>
             </p>
