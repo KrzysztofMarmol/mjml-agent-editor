@@ -181,9 +181,10 @@ type Props = {
    * Send and "Apply changes from comments" are disabled and `labels.agentUnavailable` says
    * why; the conversation stays readable and the rest of the editor keeps working.
    *
-   * It stops new turns only. One already running when it turns on is left to finish, and
-   * Stop still ends it: aborting mid-turn can leave half its edits written, and whether work
-   * the server has already accepted should be cut short is the server's decision.
+   * It stops new turns only, including one still in its pre-turn save, whose prompt stays in
+   * the box. One already running when it turns on is left to finish, and Stop still ends it:
+   * aborting mid-turn can leave half its edits written, and whether work the server has
+   * already accepted should be cut short is the server's decision.
    */
   agentUnavailable?: boolean;
   /**
@@ -312,6 +313,9 @@ export default function ChatPanel({
 }: Props) {
   const labels = useLabels();
   const unavailableId = useId();
+  // Read after the pre-turn save, which the host may switch the agent off during.
+  const unavailableRef = useRef(agentUnavailable);
+  unavailableRef.current = agentUnavailable;
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // The ref blocks a second send at once; the state disables the buttons meanwhile.
@@ -433,6 +437,7 @@ export default function ChatPanel({
       sending.current = false;
       setFlushing(false);
     }
+    if (unavailableRef.current) return;
     void sendMessage({ text: trimmed });
     setInput("");
     if (taRef.current) taRef.current.style.height = "auto";
