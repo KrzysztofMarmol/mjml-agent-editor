@@ -252,14 +252,15 @@ describe("agent tools", () => {
       expect(documents.mjml).toBe(VALID_DOC);
     });
 
-    it("says how many open comments a rewrite would destroy", async () => {
+    it("says how many comments a rewrite would destroy, resolved ones included", async () => {
       await comments.add(DOCUMENT_ID, { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
       await comments.add(DOCUMENT_ID, { sectionId: "bbb", objectId: null, objectLabel: null }, "y");
+      await comments.resolve("c1");
       const output = await run(tools, "set_document", {
         mjml: REBUILT,
         confirm_full_rewrite: false,
       });
-      expect(output).toContain("2 open comment(s)");
+      expect(output).toContain("2 comment(s) anchored to them (1 open, 1 resolved)");
     });
 
     it("creates from scratch without confirmation when there is nothing to lose", async () => {
