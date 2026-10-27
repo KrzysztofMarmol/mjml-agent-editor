@@ -18,6 +18,21 @@ beforeAll(() => {
   Element.prototype.scrollIntoView ??= () => {};
 });
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Lets React schedule work as it would in a browser. Inside `act` every update is flushed
+ * with its effects in one go, which hides anything that depends on when they run.
+ */
+async function outsideAct(run: () => Promise<void>) {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: false });
+  try {
+    await run();
+  } finally {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  }
+}
+
 let root: Root | null = null;
 afterEach(() => {
   act(() => root?.unmount());
@@ -47,21 +62,18 @@ function mount() {
   const host = document.body.appendChild(document.createElement("div"));
   root = createRoot(host);
 
-  const render = (agentUnavailable?: boolean) =>
-    act(() =>
-      root!.render(
-        createElement(ChatPanel, {
-          docId: "doc-1",
-          transport,
-          agentUnavailable,
-          onBeforeSend,
-          onAgentFinish: () => {},
-          onLiveUpdate: () => {},
-          onSectionEditStart: () => {},
-          onSectionEditEnd: () => {},
-        }),
-      ),
-    );
+  const panel = (agentUnavailable?: boolean) =>
+    createElement(ChatPanel, {
+      docId: "doc-1",
+      transport,
+      agentUnavailable,
+      onBeforeSend,
+      onAgentFinish: () => {},
+      onLiveUpdate: () => {},
+      onSectionEditStart: () => {},
+      onSectionEditEnd: () => {},
+    });
+  const render = (agentUnavailable?: boolean) => act(() => root!.render(panel(agentUnavailable)));
 
   const button = (label: string) =>
     [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
@@ -70,6 +82,8 @@ function mount() {
   return {
     host,
     render,
+    /** Schedules a render the way a host's setState does; for use inside `outsideAct`. */
+    schedule: (agentUnavailable?: boolean) => root!.render(panel(agentUnavailable)),
     sendMessages,
     onBeforeSend,
     finishSave: () => act(async () => finishSave()),
@@ -139,6 +153,27 @@ describe("ChatPanel with the agent unavailable", () => {
     expect(panel.textarea().value).toBe("Make the hero blue");
   });
 
+  it("drops a turn the host switches off in the same tick its save resolves", async () => {
+    const panel = mount();
+    panel.render(false);
+    panel.type("Make the hero blue");
+    // A host whose save reports that the agent is now paused.
+    panel.onBeforeSend.mockImplementation(async () => {
+      await delay(5);
+      panel.schedule(true);
+    });
+
+    await outsideAct(async () => {
+      panel.send().click();
+      await delay(50);
+    });
+
+    expect(panel.onBeforeSend).toHaveBeenCalledTimes(1);
+    expect(panel.sendMessages).not.toHaveBeenCalled();
+    expect(panel.textarea().disabled).toBe(true);
+    expect(panel.textarea().value).toBe("Make the hero blue");
+  });
+
   it("hands focus to the reason when the focused box is disabled", () => {
     const panel = mount();
     panel.render(false);
@@ -166,5 +201,6 @@ describe("ChatPanel without the prop", () => {
     await panel.finishSave();
 
     expect(panel.sendMessages).toHaveBeenCalledTimes(1);
+    expect(panel.textarea().value).toBe("");
   });
 });

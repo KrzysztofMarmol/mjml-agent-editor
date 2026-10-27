@@ -313,9 +313,6 @@ export default function ChatPanel({
 }: Props) {
   const labels = useLabels();
   const unavailableId = useId();
-  // Read after the pre-turn save, which the host may switch the agent off during.
-  const unavailableRef = useRef(agentUnavailable);
-  unavailableRef.current = agentUnavailable;
   const footerRef = useRef<HTMLDivElement>(null);
   const noticeRef = useRef<HTMLParagraphElement>(null);
   const [input, setInput] = useState("");
@@ -433,6 +430,21 @@ export default function ChatPanel({
     }
   }, [agentUnavailable]);
 
+  // A prompt whose pre-turn save has finished. Sending it from an effect means the decision
+  // sees the commit carrying whatever the host set during the save — a host that learns from
+  // its own save that the agent is off sets the flag in the same tick the save resolves.
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => {
+    if (pending === null) return;
+    setPending(null);
+    sending.current = false;
+    setFlushing(false);
+    if (agentUnavailable) return;
+    void sendMessage({ text: pending });
+    setInput("");
+    if (taRef.current) taRef.current.style.height = "auto";
+  }, [pending, agentUnavailable, sendMessage]);
+
   const send = async (text: string) => {
     if (!canStartTurn(text, gate) || sending.current) return;
     const trimmed = text.trim();
@@ -441,17 +453,13 @@ export default function ChatPanel({
     try {
       await onBeforeSend();
     } catch (error) {
+      sending.current = false;
+      setFlushing(false);
       console.error(error);
       toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
       return;
-    } finally {
-      sending.current = false;
-      setFlushing(false);
     }
-    if (unavailableRef.current) return;
-    void sendMessage({ text: trimmed });
-    setInput("");
-    if (taRef.current) taRef.current.style.height = "auto";
+    setPending(trimmed);
   };
 
   return (
