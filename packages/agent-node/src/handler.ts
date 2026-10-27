@@ -11,13 +11,14 @@
  * The SDK's `onError` puts the failure into the stream as a first-class part instead.
  */
 
-import type {
-  AgentMessageMetadata,
-  CommentStore,
-  DocumentStore,
-  EmailVisualReviewer,
-  ImageProvider,
-  MjmlCompiler,
+import {
+  isToolName,
+  type AgentMessageMetadata,
+  type CommentStore,
+  type DocumentStore,
+  type EmailVisualReviewer,
+  type ImageProvider,
+  type MjmlCompiler,
 } from "@mjml-agent-editor/core";
 import {
   convertToModelMessages,
@@ -26,6 +27,7 @@ import {
   streamText,
   type LanguageModel,
   type LanguageModelUsage,
+  type ToolSet,
   type UIMessage,
 } from "ai";
 
@@ -102,6 +104,12 @@ export interface ChatHandlerOptions extends SystemPromptOptions {
   /** Defaults to the Node `mjml` compiler in strict mode. */
   readonly compiler?: MjmlCompiler;
   readonly maxSteps?: number;
+  /**
+   * Tools this host adds beside the built-in ones, built per turn for the document the turn
+   * is about — take the id from here, never from the model. A name the built-in set already
+   * uses is refused rather than silently replacing a tool the contract defines.
+   */
+  readonly tools?: (documentId: string) => ToolSet;
   /** Maps a thrown error to the text shown in the chat panel. */
   readonly formatError?: (error: unknown) => string;
   /**
@@ -243,19 +251,26 @@ export function createChatHandler(options: ChatHandlerOptions) {
     let reporting: Promise<void> | undefined;
     const report = () => (reporting ??= record());
 
+    const hostTools = options.tools?.(body.docId) ?? {};
+    const clash = Object.keys(hostTools).find(isToolName);
+    if (clash) throw new Error(`host tool "${clash}" has the name of a built-in tool`);
+
     const result = streamText({
       model: options.model,
       system,
       // Async in AI SDK v6 — it may need to fetch file/image parts referenced by URL.
       messages: await convertToModelMessages(conversation),
-      tools: createAgentTools({
-        documentId: body.docId,
-        documents: options.documents,
-        comments: options.comments,
-        images: options.images,
-        compiler,
-        visualReviewer: options.visualReviewer,
-      }),
+      tools: {
+        ...createAgentTools({
+          documentId: body.docId,
+          documents: options.documents,
+          comments: options.comments,
+          images: options.images,
+          compiler,
+          visualReviewer: options.visualReviewer,
+        }),
+        ...hostTools,
+      },
       stopWhen: stepCountIs(maxSteps),
       // A one-step turn has nothing to report yet, so it is not asked to.
       prepareStep: ({ stepNumber, messages }) =>

@@ -6,7 +6,7 @@ import type {
   EmailDocument,
   ImageProvider,
 } from "@mjml-agent-editor/core";
-import type { UIMessage } from "ai";
+import { jsonSchema, tool, type UIMessage } from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
 
@@ -190,6 +190,63 @@ describe("createChatHandler", () => {
     await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" })).then((r) => r.text());
 
     expect(store.saved).toEqual([]);
+  });
+});
+
+describe("host tools", () => {
+  it("offers the host's tools beside the built-in ones, built for the request's document", async () => {
+    const calls: { documentId: string; input: unknown }[] = [];
+    const { model } = modelReplaying(
+      toolCallTurn("apply_template", { template_id: "receipt" }),
+      textTurn("Started from the receipt."),
+    );
+
+    const handler = createChatHandler({
+      model,
+      documents,
+      comments,
+      images,
+      tools: (documentId) => ({
+        apply_template: tool({
+          description: "Replaces the email with a template.",
+          inputSchema: jsonSchema<{ template_id: string }>({
+            type: "object",
+            properties: { template_id: { type: "string" } },
+            required: ["template_id"],
+          }),
+          execute: (input) => {
+            calls.push({ documentId, input });
+            return "Applied.";
+          },
+        }),
+      }),
+    });
+    const body = await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" })).then((r) =>
+      r.text(),
+    );
+
+    expect(calls).toEqual([{ documentId: "doc-1", input: { template_id: "receipt" } }]);
+    expect(body).toContain("Started from the receipt.");
+  });
+
+  it("refuses a host tool named like a built-in one", async () => {
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("unreachable")).model,
+      documents,
+      comments,
+      images,
+      tools: () => ({
+        set_document: tool({
+          description: "Not the real one.",
+          inputSchema: jsonSchema<Record<string, never>>({ type: "object", properties: {} }),
+          execute: () => "replaced",
+        }),
+      }),
+    });
+
+    await expect(handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).rejects.toThrow(
+      /set_document/,
+    );
   });
 });
 

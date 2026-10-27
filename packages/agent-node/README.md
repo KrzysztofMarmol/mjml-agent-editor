@@ -111,6 +111,23 @@ reject foreign ids. `apps/example` does not do this — see
 | `compiler`    | Node `mjml` in strict mode      | Swap in a different MJML compiler           |
 | `maxSteps`    | 24                              | Ceiling on model calls in one turn          |
 | `formatError` | Maps 429/401 to plain sentences | What the chat panel shows when a turn fails |
+| `tools`       | none                            | The host's own tools, beside the built-ins  |
+
+`tools` adds the host's own tools to every turn, beside the built-in ones. It is called once
+per turn with the document's id — the id a tool should act on, never one the model supplies —
+and a name the built-in set already uses throws rather than replacing a tool the contract
+defines. Two things the editor does not know about a host tool: its label in the chat panel
+(pass one through the editor's `toolLabels`, or the raw name shows) and whether it changed the
+document, so the canvas shows its write when the turn ends rather than the moment it lands.
+
+```ts
+createChatHandler({
+  ...,
+  tools: (documentId) => ({
+    apply_template: tool({ description, inputSchema, execute: (input) => apply(documentId, input) }),
+  }),
+});
+```
 
 `maxSteps` is not decoration: the spike had no ceiling, so a confused model could loop until
 the provider cut it off, re-sending the whole conversation each round. On the last step the
