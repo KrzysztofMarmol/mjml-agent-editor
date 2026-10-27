@@ -1,8 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import type { AgentMessageMetadata } from "@mjml-agent-editor/core";
 import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Brain,
@@ -14,9 +15,11 @@ import {
   Sparkles,
   MessageSquare,
   ChevronRight,
+  CirclePause,
 } from "lucide-react";
 
 import { refusal, saveToastId } from "../../lib/refusal.js";
+import { canStartTurn } from "../../lib/turn-gate.js";
 import { cn } from "../../lib/utils";
 import { useAgentTurn, useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
@@ -174,6 +177,17 @@ type Props = {
    */
   resume?: boolean;
   /**
+   * The host has switched the agent off — a spending cap, a kill switch. The message box,
+   * Send and "Apply changes from comments" are disabled and `labels.agentUnavailable` says
+   * why; the conversation stays readable and the rest of the editor keeps working.
+   *
+   * It stops new turns only, including one still in its pre-turn save, whose prompt stays in
+   * the box. One already running when it turns on is left to finish, and Stop still ends it:
+   * aborting mid-turn can leave half its edits written, and whether work the server has
+   * already accepted should be cut short is the server's decision.
+   */
+  agentUnavailable?: boolean;
+  /**
    * Flushes unsaved editor changes before the agent starts. A rejection stops the turn and
    * keeps the prompt; its message is shown when it carries a 4xx `status` or an
    * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
@@ -290,6 +304,7 @@ export default function ChatPanel({
   initialMessages,
   transport,
   resume,
+  agentUnavailable = false,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -297,6 +312,9 @@ export default function ChatPanel({
   onSectionEditEnd,
 }: Props) {
   const labels = useLabels();
+  const unavailableId = useId();
+  const footerRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // The ref blocks a second send at once; the state disables the buttons meanwhile.
@@ -382,6 +400,7 @@ export default function ChatPanel({
 
   // The canvas is read only from the pre-turn save until the turn ends.
   const { setRunning, locked } = useAgentTurn();
+  const gate = { unavailable: agentUnavailable, busy, flushing, locked };
   useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
   useEffect(() => () => setRunning(false), [setRunning]);
 
@@ -402,24 +421,49 @@ export default function ChatPanel({
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
+  // A focused control that becomes disabled loses focus to <body> before the next paint, so
+  // this cannot wait for a passive effect. The reason holds focus while the agent is off and
+  // hands it back to the box when it returns.
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (agentUnavailable && active?.matches(":disabled") && footerRef.current?.contains(active)) {
+      statusRef.current?.focus();
+    } else if (!agentUnavailable && active === statusRef.current) {
+      taRef.current?.focus();
+    }
+  }, [agentUnavailable]);
+
+  // A prompt whose pre-turn save has finished. Sending it from an effect means the decision
+  // sees the commit carrying whatever the host set during the save — a host that learns from
+  // its own save that the agent is off sets the flag in the same tick the save resolves.
+  // A prompt saved for another document is dropped, not sent to the one now open.
+  const [pending, setPending] = useState<{ text: string; docId: string } | null>(null);
+  useEffect(() => {
+    if (pending === null) return;
+    setPending(null);
+    sending.current = false;
+    setFlushing(false);
+    if (agentUnavailable || pending.docId !== docId) return;
+    void sendMessage({ text: pending.text });
+    setInput("");
+    if (taRef.current) taRef.current.style.height = "auto";
+  }, [pending, agentUnavailable, docId, sendMessage]);
+
   const send = async (text: string) => {
+    if (!canStartTurn(text, gate) || sending.current) return;
     const trimmed = text.trim();
-    if (!trimmed || busy || locked || sending.current) return;
     sending.current = true;
     setFlushing(true);
     try {
       await onBeforeSend();
     } catch (error) {
+      sending.current = false;
+      setFlushing(false);
       console.error(error);
       toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
       return;
-    } finally {
-      sending.current = false;
-      setFlushing(false);
     }
-    void sendMessage({ text: trimmed });
-    setInput("");
-    if (taRef.current) taRef.current.style.height = "auto";
+    setPending({ text: trimmed, docId });
   };
 
   return (
@@ -444,6 +488,7 @@ export default function ChatPanel({
                   const isLast = mi === messages.length - 1;
                   const blocks = toBlocks(message.parts);
                   const hasText = blocks.some((block) => block.kind === "text");
+                  const metadata = message.metadata as AgentMessageMetadata | undefined;
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id}>
                       <div className={cn("flex w-full gap-2", isUser && "flex-row-reverse")}>
@@ -508,6 +553,14 @@ export default function ChatPanel({
                               {isLast && !isUser && busy && !toolRunning && !hasText && (
                                 <BusyMarker />
                               )}
+                              {metadata?.stepLimitReached && (
+                                <Marker className="text-panel-muted-fg">
+                                  <MarkerIcon>
+                                    <TriangleAlert />
+                                  </MarkerIcon>
+                                  <MarkerContent>{labels.stepLimitReached}</MarkerContent>
+                                </Marker>
+                              )}
                             </MessageContent>
                           </Message>
                           {blocks.length > 0 && (
@@ -529,10 +582,22 @@ export default function ChatPanel({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      <div className="border-t border-panel-border p-3">
+      <div ref={footerRef} className="border-t border-panel-border p-3">
+        {/* Mounted while empty: a live region that arrives already holding its text is often
+        not announced, and the flag can flip at runtime. It is also the focus target, so focus
+        survives the flag turning off and the reason is not read twice. */}
+        <div ref={statusRef} id={unavailableId} role="status" tabIndex={-1} className="rounded-lg">
+          {agentUnavailable && (
+            <p className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg">
+              <CirclePause className="mt-px size-3.5 shrink-0" />
+              <span>{labels.agentUnavailable}</span>
+            </p>
+          )}
+        </div>
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={busy || flushing || locked}
+          disabled={!canStartTurn(APPLY_COMMENTS_PROMPT, gate)}
+          aria-describedby={agentUnavailable ? unavailableId : undefined}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -547,8 +612,11 @@ export default function ChatPanel({
           <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0"
-            placeholder={labels.chatPlaceholder}
+            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0 disabled:bg-transparent"
+            // An invitation to type would contradict the disabled box; the reason is above it.
+            placeholder={agentUnavailable ? undefined : labels.chatPlaceholder}
+            disabled={agentUnavailable}
+            aria-describedby={agentUnavailable ? unavailableId : undefined}
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -576,7 +644,8 @@ export default function ChatPanel({
             <Button
               type="submit"
               size="sm"
-              disabled={busy || flushing || locked || !input.trim()}
+              disabled={!canStartTurn(input, gate)}
+              aria-describedby={agentUnavailable ? unavailableId : undefined}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}

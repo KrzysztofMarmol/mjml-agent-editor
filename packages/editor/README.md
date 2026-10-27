@@ -143,6 +143,11 @@ exception and merges key by key — renaming one step would otherwise silently d
 eight. `DEFAULT_LABELS` and the `EditorLabels` type are exported if you want to see the full
 list or build a complete translation.
 
+New keys arrive with new features, including in 0.1.x releases. They always have English
+defaults, so a host passing `Partial<EditorLabels>` picks them up untouched; a host that
+types a complete translation as `EditorLabels` fails to compile until it adds them, which is
+the signal that there is a new string to translate.
+
 Values that interpolate are functions rather than format strings — `copied(kind)`,
 `completedSteps(count, failed)` — so word order belongs to the translator.
 
@@ -218,6 +223,43 @@ The visitor sees the host's own sentence when the rejection carries one:
 
 So a `DocumentStore.save` refusing a document over a size cap should throw with
 `status: 413` and a sentence. Autosave reports the same way, under one toast id.
+
+## Switching the agent off
+
+A host that stops the agent — a spending cap reached, a kill switch — passes
+`agentUnavailable` and says why through the label of the same name:
+
+```tsx
+<EditorStoreProvider
+  stores={stores}
+  labels={{ ...translation, agentUnavailable: "The agent is paused for maintenance." }}
+>
+  <ChatPanel docId={docId} agentUnavailable={paused} {...handlers} />
+</EditorStoreProvider>
+```
+
+The label only shows while the flag is set, so it can be passed all the time.
+
+The message box, Send and "Apply changes from comments" are disabled, and the reason is
+shown above them and linked to each through `aria-describedby`. The box shows no
+placeholder meanwhile, so `chatPlaceholder` is not the place for the reason. Nothing else in
+the panel can start a turn, including one the visitor sent just before the switch: a turn
+whose pre-turn save is still running when the flag flips is dropped, and its prompt stays in
+the box. That holds when the host sets the flag from inside `onBeforeSend`, for instance
+because its save reported the cap. The conversation stays readable, and the canvas,
+comments, preview, code, export and saving work as usual. Without the prop the panel
+behaves as it always has.
+
+The flag can flip while the page is open. The reason is announced through a live region,
+and a keyboard user whose focus was on one of the controls being disabled is moved to it
+rather than dropped to the page — and back to the message box when the agent returns.
+
+It stops new turns only. A turn already running when the flag flips is left to finish and
+Stop still ends it; `resume` still re-attaches to one. The server remains the place that
+enforces the switch — the panel only stops offering what the server would refuse.
+
+The empty-state copy (`chatEmptyTitle`, `chatEmptyDescription`) is left alone; override it
+too if an empty conversation should mention the pause.
 
 ## A note on field names
 

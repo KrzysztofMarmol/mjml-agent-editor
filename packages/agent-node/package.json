@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/agent-node",
-  "version": "0.1.14",
+  "version": "0.1.16",
   "description": "TypeScript implementation of the MJML editing agent: tools, system prompt and chat handler.",
   "keywords": [
     "mjml",
@@ -62,7 +62,7 @@
     "mjml": "^4.18.0"
   },
   "peerDependencies": {
-    "ai": "^6.0.238"
+    "ai": "^6.0.230"
   },
   "devDependencies": {
     "@ai-sdk/provider": "^3.0.14",

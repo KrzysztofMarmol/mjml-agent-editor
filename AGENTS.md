@@ -73,3 +73,9 @@ No praise, no restating the diff. If nothing needs changing, say so.
 ## Language
 
 Code, comments, documentation and commit messages are English.
+
+## Attribution
+
+Commits and pull requests are authored by the maintainer. Do not add a coding agent's
+identity: no `Co-Authored-By` trailer, no "Generated with" line, no agent as author or
+committer.

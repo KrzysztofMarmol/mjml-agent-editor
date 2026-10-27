@@ -87,11 +87,15 @@ export interface EditorLabels {
   readonly agentWorking: string;
   readonly reasoning: string;
   readonly completedSteps: (count: number, failed: number) => string;
+  /** Under a turn that hit the backend's step ceiling before it could reply. */
+  readonly stepLimitReached: string;
   readonly applyComments: string;
   readonly chatPlaceholder: string;
   readonly stop: string;
   readonly send: string;
   readonly chatError: string;
+  /** Above the disabled composer while the host has the agent switched off. */
+  readonly agentUnavailable: string;
   /** Keyed by tool name; merged key by key rather than replaced wholesale. */
   readonly toolLabels: Readonly<Record<string, string>>;
 }
@@ -165,11 +169,14 @@ export const DEFAULT_LABELS: EditorLabels = {
   reasoning: "Reasoning",
   completedSteps: (count, failed) =>
     failed > 0 ? `Completed steps (${count}, ${failed} failed)` : `Completed steps (${count})`,
+  stepLimitReached: "The agent ran out of steps for this turn. Ask it to continue.",
   applyComments: "Apply changes from comments",
   chatPlaceholder: "Describe what you want to change… (Enter = send, Shift+Enter = new line)",
   stop: "Stop",
   send: "Send",
   chatError: "Agent chat error.",
+  agentUnavailable:
+    "The agent is unavailable right now. You can still edit the email and leave comments.",
 
   toolLabels: {
     get_document: "Reading document",

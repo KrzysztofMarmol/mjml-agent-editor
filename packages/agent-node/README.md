@@ -109,11 +109,40 @@ reject foreign ids. `apps/example` does not do this — see
 | Option        | Default                         | What it is for                              |
 | ------------- | ------------------------------- | ------------------------------------------- |
 | `compiler`    | Node `mjml` in strict mode      | Swap in a different MJML compiler           |
-| `maxSteps`    | 24                              | Ceiling on tool-call rounds in one turn     |
+| `maxSteps`    | 24                              | Ceiling on model calls in one turn          |
 | `formatError` | Maps 429/401 to plain sentences | What the chat panel shows when a turn fails |
+| `tools`       | none                            | The host's own tools, beside the built-ins  |
+
+`tools` adds the host's own tools to every turn, beside the built-in ones. It is called once
+per turn with the document's id — the id a tool should act on, never one the model supplies —
+and the turn's built-in tools, so a tool that writes can go through `set_document` and keep
+its validation, its rewrite guard and its comment cleanup. A name the built-in set already
+uses throws before `authorize` runs.
+
+Write them the way the built-ins are written: give each an `execute`, since the chat panel
+answers no client-side calls, and return an `ERROR: …` sentence the model can act on rather
+than throwing — a throw reaches the chat panel through `formatError`. The editor does not know
+a host tool's label (pass one in the editor's `toolLabels`, or the raw name shows) or whether
+it changed the document, so the canvas shows its write when the turn ends.
+
+```ts
+createChatHandler({
+  ...,
+  tools: (documentId, builtIn) => ({
+    apply_template: tool({
+      description,
+      inputSchema,
+      execute: ({ id }, execution) =>
+        builtIn.set_document.execute!({ mjml: templates[id], confirm_full_rewrite: true }, execution),
+    }),
+  }),
+});
+```
 
 `maxSteps` is not decoration: the spike had no ceiling, so a confused model could loop until
-the provider cut it off, re-sending the whole conversation each round.
+the provider cut it off, re-sending the whole conversation each round. On the last step the
+model is asked to reply rather than call another tool; if it calls one anyway, the message
+carries `stepLimitReached` and the chat panel says the turn ran out of steps.
 
 ## Template validation
 

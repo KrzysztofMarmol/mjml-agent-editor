@@ -10,6 +10,8 @@ export {
   type IdPrefix,
 } from "./ids.js";
 
+export type { AgentMessageMetadata } from "./chat.js";
+
 export type {
   CommentStatus,
   CommentStore,

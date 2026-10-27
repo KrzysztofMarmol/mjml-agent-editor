@@ -6,7 +6,7 @@ import type {
   EmailDocument,
   ImageProvider,
 } from "@mjml-agent-editor/core";
-import type { UIMessage } from "ai";
+import { jsonSchema, tool, type UIMessage } from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
 import { describe, expect, it } from "vitest";
 
@@ -190,6 +190,157 @@ describe("createChatHandler", () => {
     await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" })).then((r) => r.text());
 
     expect(store.saved).toEqual([]);
+  });
+});
+
+describe("host tools", () => {
+  it("offers them beside the built-in ones, for the request's document, and returns their result to the model", async () => {
+    const store = recordingDocuments();
+    const replacement = `<mjml><mj-body><mj-section><mj-column><mj-text>Receipt</mj-text></mj-column></mj-section></mj-body></mjml>`;
+    const { model } = modelReplaying(
+      toolCallTurn("apply_template", { template_id: "receipt" }),
+      textTurn("Started from the receipt."),
+    );
+    const documentIds: string[] = [];
+
+    const handler = createChatHandler({
+      model,
+      documents: store,
+      comments,
+      images,
+      tools: (documentId, builtIn) => ({
+        apply_template: tool({
+          description: "Replaces the email with a template.",
+          inputSchema: jsonSchema<{ template_id: string }>({
+            type: "object",
+            properties: { template_id: { type: "string" } },
+            required: ["template_id"],
+          }),
+          execute: (_input, execution) => {
+            documentIds.push(documentId);
+            return builtIn.set_document.execute!(
+              { mjml: replacement, confirm_full_rewrite: true },
+              execution,
+            );
+          },
+        }),
+      }),
+    });
+    const body = await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" })).then((r) =>
+      r.text(),
+    );
+
+    expect(documentIds).toEqual(["doc-1"]);
+    // Written through the built-in tool, so it was validated and given section ids.
+    expect(store.saved[0]!.mjml).toMatch(/sec-[a-z0-9]+/);
+    expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).toContain("OK");
+    expect(body).toContain("Started from the receipt.");
+  });
+
+  it("refuses a host tool named like a built-in one, before the turn is authorized", async () => {
+    let authorized = false;
+    const handler = createChatHandler({
+      model: modelReplaying(textTurn("unreachable")).model,
+      documents,
+      comments,
+      images,
+      authorize: () => {
+        authorized = true;
+      },
+      tools: () => ({
+        set_document: tool({
+          description: "Not the real one.",
+          inputSchema: jsonSchema<Record<string, never>>({ type: "object", properties: {} }),
+          execute: () => "replaced",
+        }),
+      }),
+    });
+
+    await expect(handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).rejects.toThrow(
+      /set_document/,
+    );
+    expect(authorized).toBe(false);
+  });
+});
+
+describe("the step ceiling", () => {
+  /** A model that would keep editing forever; records the last message of every prompt. */
+  function modelThatNeverStops(reported: "tool-calls" | "stop" = "tool-calls") {
+    const lastMessages: unknown[] = [];
+    const turn = toolCallTurn("get_document", {}).map((part) =>
+      part.type === "finish"
+        ? { ...part, finishReason: { unified: reported, raw: reported } }
+        : part,
+    );
+    const model = new MockLanguageModelV3({
+      doStream: (options) => {
+        lastMessages.push(options.prompt[options.prompt.length - 1]);
+        return Promise.resolve({ stream: convertArrayToReadableStream(turn) });
+      },
+    });
+    return { model, lastMessages };
+  }
+
+  it("asks for a reply on the last step and only then", async () => {
+    const { model, lastMessages } = modelThatNeverStops();
+    const handler = createChatHandler({ model, documents, comments, images, maxSteps: 3 });
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    const asked = lastMessages.map((m) => JSON.stringify(m).includes("last step of this turn"));
+    expect(asked).toEqual([false, false, true]);
+  });
+
+  it("does not ask a one-step turn, which has nothing to report yet", async () => {
+    const { model, lastMessages } = modelThatNeverStops();
+    const handler = createChatHandler({ model, documents, comments, images, maxSteps: 1 });
+    await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(JSON.stringify(lastMessages)).not.toContain("last step of this turn");
+  });
+
+  it("marks the turn even when the provider reports a tool-calling step as stopped", async () => {
+    // Gemini's OpenAI-compatible endpoint does this.
+    const handler = createChatHandler({
+      model: modelThatNeverStops("stop").model,
+      documents,
+      comments,
+      images,
+      maxSteps: 2,
+    });
+    const body = await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(body).toContain(`"stepLimitReached":true`);
+  });
+
+  it("marks a turn that ended on a tool call, including in the saved conversation", async () => {
+    const saved: UIMessage[][] = [];
+    const handler = createChatHandler({
+      model: modelThatNeverStops().model,
+      documents,
+      comments,
+      images,
+      maxSteps: 2,
+      session: {
+        load: () => Promise.resolve([]),
+        save: (_docId, messages) => {
+          saved.push(messages);
+          return Promise.resolve();
+        },
+      },
+    });
+
+    const body = await (await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).text();
+
+    expect(body).toContain(`"messageMetadata":{"stepLimitReached":true}`);
+    // A reload renders from the stored copy, so the mark has to survive there too.
+    expect(saved[0]!.at(-1)!.metadata).toEqual({ stepLimitReached: true });
+  });
+
+  it("does not mark a turn that replied", async () => {
+    const body = await (
+      await handlerSaying("Done.")(post({ messages: [USER_MESSAGE], docId: "doc-1" }))
+    ).text();
+    expect(body).not.toContain("stepLimitReached");
   });
 });
 
