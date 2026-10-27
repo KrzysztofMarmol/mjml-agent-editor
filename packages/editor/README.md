@@ -219,6 +219,32 @@ The visitor sees the host's own sentence when the rejection carries one:
 So a `DocumentStore.save` refusing a document over a size cap should throw with
 `status: 413` and a sentence. Autosave reports the same way, under one toast id.
 
+## Switching the agent off
+
+A host that stops the agent — a spending cap reached, a kill switch — passes `unavailable`
+and says why through `labels.agentUnavailable`:
+
+```tsx
+<EditorStoreProvider
+  stores={stores}
+  labels={paused ? { agentUnavailable: "The agent is paused for maintenance." } : undefined}
+>
+  <ChatPanel docId={docId} unavailable={paused} {...handlers} />
+</EditorStoreProvider>
+```
+
+The message box, Send and "Apply changes from comments" are disabled, and the reason is
+shown above them and linked to each through `aria-describedby`. Nothing else in the panel
+can start a turn. The conversation stays readable, and the canvas, comments, preview, code,
+export and saving work as usual. Without the prop the panel behaves as it always has.
+
+It stops new turns only. A turn already running when the flag flips is left to finish and
+Stop still ends it; `resume` still re-attaches to one. The server remains the place that
+enforces the switch — the panel only stops offering what the server would refuse.
+
+The empty-state copy (`chatEmptyTitle`, `chatEmptyDescription`) is left alone; override it
+too if an empty conversation should mention the pause.
+
 ## A note on field names
 
 The ports are camelCase (`sectionId`, `objectId`, `projectData`); Postgres columns are
