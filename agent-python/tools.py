@@ -149,11 +149,15 @@ def build_tools(
             if section["section_id"] != "?"
         ]
         if existing and not confirm_full_rewrite:
-            open_count = len(await _blocking(db.list_open_comments, doc_id))
+            # Resolved comments are deleted too, so they are counted: "0 open" would read as
+            # nothing to lose.
+            anchored = await _blocking(db.list_comments, doc_id)
+            open_count = sum(1 for comment in anchored if comment["status"] == "open")
             return (
                 f"ERROR: this document already has {len(existing)} section(s) "
                 f"({', '.join(existing)}). Replacing the whole document reassigns every id "
-                f"and deletes the {open_count} open comment(s) anchored to them. For a "
+                f"and deletes the {len(anchored)} comment(s) anchored to them ({open_count} "
+                f"open, {len(anchored) - open_count} resolved). For a "
                 "targeted change use set_section, insert_section or remove_section. If the "
                 "user really asked for the email to be rebuilt from scratch, call this "
                 "again with confirm_full_rewrite: true."
