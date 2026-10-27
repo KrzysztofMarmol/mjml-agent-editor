@@ -1,7 +1,7 @@
 /** What decides whether the chat may start a turn. */
 export interface TurnGate {
   /** The host has switched the agent off. */
-  readonly unavailable?: boolean;
+  readonly unavailable: boolean;
   /** A turn is streaming. */
   readonly busy: boolean;
   /** The pre-turn save is running. */

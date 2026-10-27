@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { canStartTurn, type TurnGate } from "./turn-gate.js";
 
-const idle: TurnGate = { busy: false, flushing: false, locked: false };
+const idle: TurnGate = { unavailable: false, busy: false, flushing: false, locked: false };
 
 describe("canStartTurn", () => {
   it("starts a turn when the agent is idle and there is something to send", () => {
     expect(canStartTurn("Make the hero blue", idle)).toBe(true);
-    expect(canStartTurn("Make the hero blue", { ...idle, unavailable: false })).toBe(true);
   });
 
   it("refuses every turn while the agent is unavailable", () => {

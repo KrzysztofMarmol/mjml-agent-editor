@@ -185,7 +185,7 @@ type Props = {
    * Stop still ends it: aborting mid-turn can leave half its edits written, and whether work
    * the server has already accepted should be cut short is the server's decision.
    */
-  unavailable?: boolean;
+  agentUnavailable?: boolean;
   /**
    * Flushes unsaved editor changes before the agent starts. A rejection stops the turn and
    * keeps the prompt; its message is shown when it carries a 4xx `status` or an
@@ -303,7 +303,7 @@ export default function ChatPanel({
   initialMessages,
   transport,
   resume,
-  unavailable,
+  agentUnavailable = false,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -397,7 +397,7 @@ export default function ChatPanel({
 
   // The canvas is read only from the pre-turn save until the turn ends.
   const { setRunning, locked } = useAgentTurn();
-  const gate = { unavailable, busy, flushing, locked };
+  const gate = { unavailable: agentUnavailable, busy, flushing, locked };
   useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
   useEffect(() => () => setRunning(false), [setRunning]);
 
@@ -555,20 +555,20 @@ export default function ChatPanel({
       </MessageScrollerProvider>
 
       <div className="border-t border-panel-border p-3">
-        {unavailable && (
+        {agentUnavailable && (
           <p
             id={unavailableId}
             role="status"
             className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg"
           >
-            <CirclePause className="mt-px size-3.5 shrink-0" aria-hidden />
+            <CirclePause className="mt-px size-3.5 shrink-0" />
             <span>{labels.agentUnavailable}</span>
           </p>
         )}
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
           disabled={!canStartTurn(APPLY_COMMENTS_PROMPT, gate)}
-          aria-describedby={unavailable ? unavailableId : undefined}
+          aria-describedby={agentUnavailable ? unavailableId : undefined}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -585,9 +585,9 @@ export default function ChatPanel({
             rows={2}
             className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0 disabled:bg-transparent"
             // An invitation to type would contradict the disabled box; the reason is above it.
-            placeholder={unavailable ? undefined : labels.chatPlaceholder}
-            disabled={unavailable}
-            aria-describedby={unavailable ? unavailableId : undefined}
+            placeholder={agentUnavailable ? undefined : labels.chatPlaceholder}
+            disabled={agentUnavailable}
+            aria-describedby={agentUnavailable ? unavailableId : undefined}
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -616,7 +616,7 @@ export default function ChatPanel({
               type="submit"
               size="sm"
               disabled={!canStartTurn(input, gate)}
-              aria-describedby={unavailable ? unavailableId : undefined}
+              aria-describedby={agentUnavailable ? unavailableId : undefined}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}
