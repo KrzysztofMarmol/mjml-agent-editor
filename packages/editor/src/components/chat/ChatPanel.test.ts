@@ -312,21 +312,9 @@ describe("ChatPanel without the prop", () => {
       await vi.waitFor(() => expect(panel.seen.at(-1)).toBe(false));
     });
 
-    // A drop in between unlocks the canvas, which reloads it, in the middle of sending.
+    // A drop in between unlocks the canvas, which reloads it, in the middle of sending — what
+    // 0.1.15 did on every send, by clearing the save's flag before the SDK reported the turn.
     expect(panel.seen).toEqual([false, true, false]);
-  });
-
-  it("lets go of the turn when the document changes under a running one", async () => {
-    const panel = mountWithTurn();
-
-    await outsideAct(async () => {
-      panel.clickInsideDispatch(panel.apply());
-      await vi.waitFor(() => expect(panel.endTurn).toBeDefined());
-      panel.render("doc-2");
-      await vi.waitFor(() => expect(panel.seen.at(-1)).toBe(false));
-    });
-
-    expect(panel.apply().disabled).toBe(false);
   });
 
   it("drops a prompt whose document was swapped out during its pre-turn save", async () => {

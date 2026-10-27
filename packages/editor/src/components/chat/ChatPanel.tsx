@@ -405,11 +405,6 @@ export default function ChatPanel({
   const { setRunning, locked } = useAgentTurn();
   const gate = { unavailable: agentUnavailable, busy, flushing, locked };
   useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
-  // The pre-turn save holds the canvas until the turn does. Any earlier and one render sees
-  // neither — the canvas unlocks, reloads and locks again on every send.
-  useEffect(() => {
-    if (busy) setFlushing(false);
-  }, [busy]);
   useEffect(() => () => setRunning(false), [setRunning]);
 
   // Whether any tool is in progress (to avoid duplicating the global "Agent is working…").
@@ -450,15 +445,9 @@ export default function ChatPanel({
     if (pending === null) return;
     setPending(null);
     sending.current = false;
-    if (agentUnavailable || pending.docId !== docId) {
-      setFlushing(false);
-      return;
-    }
-    // Not released here: the SDK reports the turn submitted only after an await of its own.
-    // The effect below hands over once it does; settling covers a send that never got there.
-    void sendMessage({ text: pending.text })
-      .catch((error: unknown) => console.error(error))
-      .finally(() => setFlushing(false));
+    setFlushing(false);
+    if (agentUnavailable || pending.docId !== docId) return;
+    void sendMessage({ text: pending.text });
     setInput("");
     if (taRef.current) taRef.current.style.height = "auto";
   }, [pending, agentUnavailable, docId, sendMessage]);
