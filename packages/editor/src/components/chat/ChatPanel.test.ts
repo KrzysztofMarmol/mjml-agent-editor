@@ -71,9 +71,9 @@ function mount() {
   const host = document.body.appendChild(document.createElement("div"));
   root = createRoot(host);
 
-  const panel = (agentUnavailable?: boolean) =>
+  const panel = (agentUnavailable?: boolean, docId = "doc-1") =>
     createElement(ChatPanel, {
-      docId: "doc-1",
+      docId,
       transport,
       agentUnavailable,
       onBeforeSend,
@@ -82,7 +82,8 @@ function mount() {
       onSectionEditStart: () => {},
       onSectionEditEnd: () => {},
     });
-  const render = (agentUnavailable?: boolean) => act(() => root!.render(panel(agentUnavailable)));
+  const render = (agentUnavailable?: boolean, docId?: string) =>
+    act(() => root!.render(panel(agentUnavailable, docId)));
 
   const button = (label: string) =>
     [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(label))!;
@@ -221,5 +222,18 @@ describe("ChatPanel without the prop", () => {
 
     expect(panel.sendMessages).toHaveBeenCalledTimes(1);
     expect(panel.textarea().value).toBe("");
+  });
+
+  it("drops a prompt whose document was swapped out during its pre-turn save", async () => {
+    const panel = mount();
+    panel.render(false, "doc-A");
+    panel.type("Make the hero blue");
+    act(() => panel.send().click());
+
+    panel.render(false, "doc-B");
+    await panel.finishSave();
+
+    expect(panel.sendMessages).not.toHaveBeenCalled();
+    expect(panel.send().disabled).toBe(false);
   });
 });

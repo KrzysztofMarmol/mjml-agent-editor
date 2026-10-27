@@ -436,17 +436,18 @@ export default function ChatPanel({
   // A prompt whose pre-turn save has finished. Sending it from an effect means the decision
   // sees the commit carrying whatever the host set during the save — a host that learns from
   // its own save that the agent is off sets the flag in the same tick the save resolves.
-  const [pending, setPending] = useState<string | null>(null);
+  // A prompt saved for another document is dropped, not sent to the one now open.
+  const [pending, setPending] = useState<{ text: string; docId: string } | null>(null);
   useEffect(() => {
     if (pending === null) return;
     setPending(null);
     sending.current = false;
     setFlushing(false);
-    if (agentUnavailable) return;
-    void sendMessage({ text: pending });
+    if (agentUnavailable || pending.docId !== docId) return;
+    void sendMessage({ text: pending.text });
     setInput("");
     if (taRef.current) taRef.current.style.height = "auto";
-  }, [pending, agentUnavailable, sendMessage]);
+  }, [pending, agentUnavailable, docId, sendMessage]);
 
   const send = async (text: string) => {
     if (!canStartTurn(text, gate) || sending.current) return;
@@ -462,7 +463,7 @@ export default function ChatPanel({
       toast.error(refusal(error) ?? labels.documentSaveFailed, { id: saveToastId(docId) });
       return;
     }
-    setPending(trimmed);
+    setPending({ text: trimmed, docId });
   };
 
   return (
