@@ -597,11 +597,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       setLocked(on);
       notifyState();
     };
-    // A turn can start while the reload ending the previous one is still in flight; that
-    // reload must not unlock the canvas the new turn has just locked.
-    let lockChange = 0;
     applyReadOnly.current = async (on) => {
-      const change = ++lockChange;
       if (on) {
         lock(true);
         queue.cancel();
@@ -614,7 +610,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       try {
         await reload();
       } catch (e) {
-        if (change !== lockChange) return;
         // Unlocking a stale canvas would let the next save overwrite what the agent wrote.
         console.error(e);
         toast.error(labels.documentLoadFailed, {
@@ -624,7 +619,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         });
         return;
       }
-      if (change === lockChange) lock(false);
+      lock(false);
     };
 
     // Only the agent writes during a turn, so the store differs from `stored` exactly when it
