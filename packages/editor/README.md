@@ -245,12 +245,14 @@ shown above them and linked to each through `aria-describedby`. The box shows no
 placeholder meanwhile, so `chatPlaceholder` is not the place for the reason. Nothing else in
 the panel can start a turn, including one the visitor sent just before the switch: a turn
 whose pre-turn save is still running when the flag flips is dropped, and its prompt stays in
-the box. The conversation stays readable, and the canvas, comments, preview, code, export
-and saving work as usual. Without the prop the panel behaves as it always has.
+the box. That holds when the host sets the flag from inside `onBeforeSend`, for instance
+because its save reported the cap. The conversation stays readable, and the canvas,
+comments, preview, code, export and saving work as usual. Without the prop the panel
+behaves as it always has.
 
 The flag can flip while the page is open. The reason is announced through a live region,
 and a keyboard user whose focus was on one of the controls being disabled is moved to it
-rather than dropped to the page.
+rather than dropped to the page — and back to the message box when the agent returns.
 
 It stops new turns only. A turn already running when the flag flips is left to finish and
 Stop still ends it; `resume` still re-attaches to one. The server remains the place that
