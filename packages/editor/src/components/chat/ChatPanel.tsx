@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import type { AgentMessageMetadata } from "@mjml-agent-editor/core";
 import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessage } from "ai";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Brain,
@@ -316,6 +316,8 @@ export default function ChatPanel({
   // Read after the pre-turn save, which the host may switch the agent off during.
   const unavailableRef = useRef(agentUnavailable);
   unavailableRef.current = agentUnavailable;
+  const footerRef = useRef<HTMLDivElement>(null);
+  const noticeRef = useRef<HTMLParagraphElement>(null);
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // The ref blocks a second send at once; the state disables the buttons meanwhile.
@@ -421,6 +423,15 @@ export default function ChatPanel({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
+
+  // A focused control that becomes disabled drops focus to <body>. Before the browser does
+  // that, hand focus to the reason, so a keyboard user keeps their place and hears why.
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (agentUnavailable && active?.matches(":disabled") && footerRef.current?.contains(active)) {
+      noticeRef.current?.focus();
+    }
+  }, [agentUnavailable]);
 
   const send = async (text: string) => {
     if (!canStartTurn(text, gate) || sending.current) return;
@@ -559,17 +570,21 @@ export default function ChatPanel({
         </MessageScroller>
       </MessageScrollerProvider>
 
-      <div className="border-t border-panel-border p-3">
-        {agentUnavailable && (
-          <p
-            id={unavailableId}
-            role="status"
-            className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg"
-          >
-            <CirclePause className="mt-px size-3.5 shrink-0" />
-            <span>{labels.agentUnavailable}</span>
-          </p>
-        )}
+      <div ref={footerRef} className="border-t border-panel-border p-3">
+        {/* Mounted while empty: a live region that arrives already holding its text is often
+        not announced, and the flag can flip at runtime. */}
+        <div id={unavailableId} role="status">
+          {agentUnavailable && (
+            <p
+              ref={noticeRef}
+              tabIndex={-1}
+              className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg"
+            >
+              <CirclePause className="mt-px size-3.5 shrink-0" />
+              <span>{labels.agentUnavailable}</span>
+            </p>
+          )}
+        </div>
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
           disabled={!canStartTurn(APPLY_COMMENTS_PROMPT, gate)}

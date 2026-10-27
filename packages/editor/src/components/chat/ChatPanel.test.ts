@@ -138,10 +138,19 @@ describe("ChatPanel with the agent unavailable", () => {
     expect(panel.sendMessages).not.toHaveBeenCalled();
     expect(panel.textarea().value).toBe("Make the hero blue");
   });
+
+  it("hands focus to the reason when the focused box is disabled", () => {
+    const panel = mount();
+    panel.render(false);
+    act(() => panel.textarea().focus());
+    panel.render(true);
+
+    expect(document.activeElement?.textContent).toBe(DEFAULT_LABELS.agentUnavailable);
+  });
 });
 
 describe("ChatPanel without the prop", () => {
-  it("works as before", async () => {
+  it("works as before, with the live region mounted empty", async () => {
     const panel = mount();
     panel.render();
 
@@ -149,6 +158,7 @@ describe("ChatPanel without the prop", () => {
     expect(panel.textarea().disabled).toBe(false);
     expect(panel.textarea().placeholder).toBe(DEFAULT_LABELS.chatPlaceholder);
     expect(panel.host.querySelector("[aria-describedby]")).toBeNull();
+    expect(panel.host.querySelector('[role="status"]')!.textContent).toBe("");
 
     panel.type("Make the hero blue");
     expect(panel.send().disabled).toBe(false);
