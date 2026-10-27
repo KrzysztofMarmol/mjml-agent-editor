@@ -122,9 +122,8 @@ uses throws before `authorize` runs.
 Write them the way the built-ins are written: give each an `execute`, since the chat panel
 answers no client-side calls, and return an `ERROR: …` sentence the model can act on rather
 than throwing — a throw reaches the chat panel through `formatError`. The editor does not know
-a host tool's label (pass one in the editor's `toolLabels`, or the raw name shows), and since
-it cannot tell whether one wrote, it reloads the canvas after each of them as it does after
-`set_section`.
+a host tool's label (pass one in the editor's `toolLabels`, or the raw name shows) or whether
+it changed the document, so the canvas shows its write when the turn ends.
 
 ```ts
 createChatHandler({

@@ -20,7 +20,6 @@ import {
 
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { canStartTurn } from "../../lib/turn-gate.js";
-import { reloadsAfter } from "../../lib/live-update.js";
 import { cn } from "../../lib/utils";
 import { useAgentTurn, useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
@@ -43,6 +42,16 @@ import {
 const APPLY_COMMENTS_PROMPT =
   "Apply changes based on all open section comments. " +
   "After each successful change mark the comment as resolved and summarize what you changed.";
+
+// Tools that mutate the document or comments — after each of them we refresh
+// the preview/panel live, without waiting for the agent's turn to finish.
+const MUTATING_TOOLS = new Set([
+  "set_document",
+  "set_section",
+  "insert_section",
+  "remove_section",
+  "resolve_comment",
+]);
 
 // Tools that edit a specific section → name of the argument holding its section_id.
 // Used to highlight that section while it is being edited.
@@ -379,7 +388,7 @@ export default function ChatPanel({
           onSectionEditEnd(startedSid);
         }
         // mutating tool call finished → live reload
-        if (reloadsAfter(name) && !firedTools.current.has(key)) {
+        if (MUTATING_TOOLS.has(name) && !firedTools.current.has(key)) {
           firedTools.current.add(key);
           onLiveUpdate();
         }
