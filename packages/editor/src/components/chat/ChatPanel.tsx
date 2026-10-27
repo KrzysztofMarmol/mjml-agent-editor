@@ -193,7 +193,10 @@ type Props = {
    * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
    */
   onBeforeSend: () => Promise<void>;
-  /** After the agent's turn finishes (refresh the editor and comments). */
+  /**
+   * After the agent's turn finishes — refresh the comments. The canvas reloads itself when the
+   * turn ends, so calling `reloadFromDb` here only fetches the document a second time.
+   */
   onAgentFinish: () => void;
   /** After each single agent edit (mutating tool call) — live reload. */
   onLiveUpdate: () => void;
@@ -442,9 +445,13 @@ export default function ChatPanel({
     if (pending === null) return;
     setPending(null);
     sending.current = false;
-    setFlushing(false);
-    if (agentUnavailable || pending.docId !== docId) return;
-    void sendMessage({ text: pending.text });
+    if (agentUnavailable || pending.docId !== docId) {
+      setFlushing(false);
+      return;
+    }
+    // Held until the turn settles: the SDK reports it submitted only after an await of its
+    // own, and a render in between would show no turn at all — the canvas unlocks and reloads.
+    void sendMessage({ text: pending.text }).finally(() => setFlushing(false));
     setInput("");
     if (taRef.current) taRef.current.style.height = "auto";
   }, [pending, agentUnavailable, docId, sendMessage]);

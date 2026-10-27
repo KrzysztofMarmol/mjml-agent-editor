@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_LABELS } from "../../labels.js";
+import { EditorStoreProvider, useAgentTurn, type EditorStores } from "../../stores.js";
 import ChatPanel from "./ChatPanel.js";
 
 beforeAll(() => {
@@ -222,6 +223,74 @@ describe("ChatPanel without the prop", () => {
 
     expect(panel.sendMessages).toHaveBeenCalledTimes(1);
     expect(panel.textarea().value).toBe("");
+  });
+
+  it("holds the turn from the pre-turn save to the end of the turn without letting go", async () => {
+    let endTurn = () => {};
+    const transport: ChatTransport<UIMessage> = {
+      sendMessages: async () =>
+        new ReadableStream({
+          start: (controller) => {
+            endTurn = () => controller.close();
+          },
+        }),
+      reconnectToStream: async () => null,
+    };
+    const seen: boolean[] = [];
+    function Witness() {
+      const { running } = useAgentTurn();
+      if (seen[seen.length - 1] !== running) seen.push(running);
+      return null;
+    }
+    const host = document.body.appendChild(document.createElement("div"));
+    root = createRoot(host);
+    act(() =>
+      root!.render(
+        createElement(EditorStoreProvider, {
+          stores: {} as EditorStores,
+          children: [
+            createElement(Witness, { key: "witness" }),
+            createElement(ChatPanel, {
+              key: "panel",
+              docId: "doc-1",
+              transport,
+              // Nothing unsaved: the save resolves within the click that started it.
+              onBeforeSend: async () => {},
+              onAgentFinish: () => {},
+              onLiveUpdate: () => {},
+              onSectionEditStart: () => {},
+              onSectionEditEnd: () => {},
+            }),
+          ],
+        }),
+      ),
+    );
+    const apply = [...host.querySelectorAll("button")].find((b) =>
+      b.textContent?.includes(DEFAULT_LABELS.applyComments),
+    )!;
+
+    // A browser runs the microtasks a listener queues before its dispatch ends, so React still
+    // sees the click in `window.event` and treats what the save's continuation sets as part of
+    // it. jsdom runs them afterwards; this puts the click back for them.
+    const click = new MouseEvent("click");
+    const own = Object.getOwnPropertyDescriptor(window, "event");
+    Object.defineProperty(window, "event", { configurable: true, get: () => click });
+    await outsideAct(async () => {
+      try {
+        apply.click();
+        // Only the microtasks: everything before the next task is still inside the click.
+        await delay(0);
+      } finally {
+        if (own) Object.defineProperty(window, "event", own);
+        else Reflect.deleteProperty(window, "event");
+      }
+      await delay(50);
+      endTurn();
+      await delay(50);
+    });
+
+    // A drop in between unlocks the canvas, which reloads it, in the middle of sending.
+    expect(seen).toEqual([false, true, false]);
   });
 
   it("drops a prompt whose document was swapped out during its pre-turn save", async () => {
