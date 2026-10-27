@@ -194,19 +194,21 @@ describe("createChatHandler", () => {
 });
 
 describe("host tools", () => {
-  it("offers the host's tools beside the built-in ones, built for the request's document", async () => {
-    const calls: { documentId: string; input: unknown }[] = [];
+  it("offers them beside the built-in ones, for the request's document, and returns their result to the model", async () => {
+    const store = recordingDocuments();
+    const replacement = `<mjml><mj-body><mj-section><mj-column><mj-text>Receipt</mj-text></mj-column></mj-section></mj-body></mjml>`;
     const { model } = modelReplaying(
       toolCallTurn("apply_template", { template_id: "receipt" }),
       textTurn("Started from the receipt."),
     );
+    const documentIds: string[] = [];
 
     const handler = createChatHandler({
       model,
-      documents,
+      documents: store,
       comments,
       images,
-      tools: (documentId) => ({
+      tools: (documentId, builtIn) => ({
         apply_template: tool({
           description: "Replaces the email with a template.",
           inputSchema: jsonSchema<{ template_id: string }>({
@@ -214,9 +216,12 @@ describe("host tools", () => {
             properties: { template_id: { type: "string" } },
             required: ["template_id"],
           }),
-          execute: (input) => {
-            calls.push({ documentId, input });
-            return "Applied.";
+          execute: (_input, execution) => {
+            documentIds.push(documentId);
+            return builtIn.set_document.execute!(
+              { mjml: replacement, confirm_full_rewrite: true },
+              execution,
+            );
           },
         }),
       }),
@@ -225,16 +230,23 @@ describe("host tools", () => {
       r.text(),
     );
 
-    expect(calls).toEqual([{ documentId: "doc-1", input: { template_id: "receipt" } }]);
+    expect(documentIds).toEqual(["doc-1"]);
+    // Written through the built-in tool, so it was validated and given section ids.
+    expect(store.saved[0]!.mjml).toMatch(/sec-[a-z0-9]+/);
+    expect(JSON.stringify(model.doStreamCalls[1]!.prompt)).toContain("OK");
     expect(body).toContain("Started from the receipt.");
   });
 
-  it("refuses a host tool named like a built-in one", async () => {
+  it("refuses a host tool named like a built-in one, before the turn is authorized", async () => {
+    let authorized = false;
     const handler = createChatHandler({
       model: modelReplaying(textTurn("unreachable")).model,
       documents,
       comments,
       images,
+      authorize: () => {
+        authorized = true;
+      },
       tools: () => ({
         set_document: tool({
           description: "Not the real one.",
@@ -247,6 +259,7 @@ describe("host tools", () => {
     await expect(handler(post({ messages: [USER_MESSAGE], docId: "doc-1" }))).rejects.toThrow(
       /set_document/,
     );
+    expect(authorized).toBe(false);
   });
 });
 

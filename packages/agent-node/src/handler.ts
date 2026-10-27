@@ -33,7 +33,7 @@ import {
 
 import { createMjmlCompiler } from "./mjml-compiler.js";
 import { buildSystemPrompt, type SystemPromptOptions } from "./system-prompt.js";
-import { createAgentTools } from "./tools.js";
+import { createAgentTools, type AgentTools } from "./tools.js";
 
 /**
  * Ceiling on tool-call rounds in a single turn. The spike had none, so a confused
@@ -106,10 +106,12 @@ export interface ChatHandlerOptions extends SystemPromptOptions {
   readonly maxSteps?: number;
   /**
    * Tools this host adds beside the built-in ones, built per turn for the document the turn
-   * is about — take the id from here, never from the model. A name the built-in set already
-   * uses is refused rather than silently replacing a tool the contract defines.
+   * is about — take the id from here, never from the model. `builtIn` is this turn's own
+   * set, so a host tool that writes can do it through `set_document` and keep its rules.
+   * A name the built-in set already uses is refused rather than silently replacing a tool
+   * the contract defines.
    */
-  readonly tools?: (documentId: string) => ToolSet;
+  readonly tools?: (documentId: string, builtIn: AgentTools) => ToolSet;
   /** Maps a thrown error to the text shown in the chat panel. */
   readonly formatError?: (error: unknown) => string;
   /**
@@ -209,6 +211,19 @@ export function createChatHandler(options: ChatHandlerOptions) {
       return Response.json({ error: "`messages` is required" }, { status: 400 });
     }
 
+    const builtIn = createAgentTools({
+      documentId: body.docId,
+      documents: options.documents,
+      comments: options.comments,
+      images: options.images,
+      compiler,
+      visualReviewer: options.visualReviewer,
+    });
+    // Before `authorize`, which may count the turn against a limit: a clash fails every turn.
+    const hostTools = options.tools?.(body.docId, builtIn) ?? {};
+    const clash = Object.keys(hostTools).find(isToolName);
+    if (clash) throw new Error(`host tool "${clash}" has the name of a built-in tool`);
+
     if (options.authorize) {
       const rejection = await options.authorize(request, body);
       if (rejection) return rejection;
@@ -251,26 +266,12 @@ export function createChatHandler(options: ChatHandlerOptions) {
     let reporting: Promise<void> | undefined;
     const report = () => (reporting ??= record());
 
-    const hostTools = options.tools?.(body.docId) ?? {};
-    const clash = Object.keys(hostTools).find(isToolName);
-    if (clash) throw new Error(`host tool "${clash}" has the name of a built-in tool`);
-
     const result = streamText({
       model: options.model,
       system,
       // Async in AI SDK v6 — it may need to fetch file/image parts referenced by URL.
       messages: await convertToModelMessages(conversation),
-      tools: {
-        ...createAgentTools({
-          documentId: body.docId,
-          documents: options.documents,
-          comments: options.comments,
-          images: options.images,
-          compiler,
-          visualReviewer: options.visualReviewer,
-        }),
-        ...hostTools,
-      },
+      tools: { ...builtIn, ...hostTools },
       stopWhen: stepCountIs(maxSteps),
       // A one-step turn has nothing to report yet, so it is not asked to.
       prepareStep: ({ stepNumber, messages }) =>

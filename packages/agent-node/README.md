@@ -115,16 +115,26 @@ reject foreign ids. `apps/example` does not do this — see
 
 `tools` adds the host's own tools to every turn, beside the built-in ones. It is called once
 per turn with the document's id — the id a tool should act on, never one the model supplies —
-and a name the built-in set already uses throws rather than replacing a tool the contract
-defines. Two things the editor does not know about a host tool: its label in the chat panel
-(pass one through the editor's `toolLabels`, or the raw name shows) and whether it changed the
-document, so the canvas shows its write when the turn ends rather than the moment it lands.
+and the turn's built-in tools, so a tool that writes can go through `set_document` and keep
+its validation, its rewrite guard and its comment cleanup. A name the built-in set already
+uses throws before `authorize` runs.
+
+Write them the way the built-ins are written: give each an `execute`, since the chat panel
+answers no client-side calls, and return an `ERROR: …` sentence the model can act on rather
+than throwing — a throw reaches the chat panel through `formatError`. The editor does not know
+a host tool's label (pass one in the editor's `toolLabels`, or the raw name shows) or whether
+it changed the document, so the canvas shows its write when the turn ends.
 
 ```ts
 createChatHandler({
   ...,
-  tools: (documentId) => ({
-    apply_template: tool({ description, inputSchema, execute: (input) => apply(documentId, input) }),
+  tools: (documentId, builtIn) => ({
+    apply_template: tool({
+      description,
+      inputSchema,
+      execute: ({ id }, execution) =>
+        builtIn.set_document.execute!({ mjml: templates[id], confirm_full_rewrite: true }, execution),
+    }),
   }),
 });
 ```
