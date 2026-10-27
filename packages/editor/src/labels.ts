@@ -94,6 +94,8 @@ export interface EditorLabels {
   readonly stop: string;
   readonly send: string;
   readonly chatError: string;
+  /** Above the disabled composer while the host has the agent switched off. */
+  readonly agentUnavailable: string;
   /** Keyed by tool name; merged key by key rather than replaced wholesale. */
   readonly toolLabels: Readonly<Record<string, string>>;
 }
@@ -173,6 +175,8 @@ export const DEFAULT_LABELS: EditorLabels = {
   stop: "Stop",
   send: "Send",
   chatError: "Agent chat error.",
+  agentUnavailable:
+    "The agent is unavailable right now. You can still edit the email and leave comments.",
 
   toolLabels: {
     get_document: "Reading document",

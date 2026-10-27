@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import type { AgentMessageMetadata } from "@mjml-agent-editor/core";
 import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Brain,
@@ -15,9 +15,11 @@ import {
   Sparkles,
   MessageSquare,
   ChevronRight,
+  CirclePause,
 } from "lucide-react";
 
 import { refusal, saveToastId } from "../../lib/refusal.js";
+import { canStartTurn } from "../../lib/turn-gate.js";
 import { cn } from "../../lib/utils";
 import { useAgentTurn, useLabels } from "../../stores.js";
 import { Button } from "../ui/button";
@@ -175,6 +177,16 @@ type Props = {
    */
   resume?: boolean;
   /**
+   * The host has switched the agent off — a spending cap, a kill switch. The message box,
+   * Send and "Apply changes from comments" are disabled and `labels.agentUnavailable` says
+   * why; the conversation stays readable and the rest of the editor keeps working.
+   *
+   * It stops new turns only. One already running when it turns on is left to finish, and
+   * Stop still ends it: aborting mid-turn can leave half its edits written, and whether work
+   * the server has already accepted should be cut short is the server's decision.
+   */
+  unavailable?: boolean;
+  /**
    * Flushes unsaved editor changes before the agent starts. A rejection stops the turn and
    * keeps the prompt; its message is shown when it carries a 4xx `status` or an
    * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
@@ -291,6 +303,7 @@ export default function ChatPanel({
   initialMessages,
   transport,
   resume,
+  unavailable,
   onBeforeSend,
   onAgentFinish,
   onLiveUpdate,
@@ -298,6 +311,7 @@ export default function ChatPanel({
   onSectionEditEnd,
 }: Props) {
   const labels = useLabels();
+  const unavailableId = useId();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   // The ref blocks a second send at once; the state disables the buttons meanwhile.
@@ -383,6 +397,7 @@ export default function ChatPanel({
 
   // The canvas is read only from the pre-turn save until the turn ends.
   const { setRunning, locked } = useAgentTurn();
+  const gate = { unavailable, busy, flushing, locked };
   useEffect(() => setRunning(busy || flushing), [busy, flushing, setRunning]);
   useEffect(() => () => setRunning(false), [setRunning]);
 
@@ -404,8 +419,8 @@ export default function ChatPanel({
   };
 
   const send = async (text: string) => {
+    if (!canStartTurn(text, gate) || sending.current) return;
     const trimmed = text.trim();
-    if (!trimmed || busy || locked || sending.current) return;
     sending.current = true;
     setFlushing(true);
     try {
@@ -540,9 +555,20 @@ export default function ChatPanel({
       </MessageScrollerProvider>
 
       <div className="border-t border-panel-border p-3">
+        {unavailable && (
+          <p
+            id={unavailableId}
+            role="status"
+            className="mb-2 flex items-start gap-2 rounded-lg border border-panel-border bg-panel-elevated/60 px-3 py-2 text-xs text-panel-fg"
+          >
+            <CirclePause className="mt-px size-3.5 shrink-0" aria-hidden />
+            <span>{labels.agentUnavailable}</span>
+          </p>
+        )}
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={busy || flushing || locked}
+          disabled={!canStartTurn(APPLY_COMMENTS_PROMPT, gate)}
+          aria-describedby={unavailable ? unavailableId : undefined}
           onClick={() => void send(APPLY_COMMENTS_PROMPT)}
         >
           <Sparkles /> {labels.applyComments}
@@ -557,8 +583,11 @@ export default function ChatPanel({
           <Textarea
             ref={taRef}
             rows={2}
-            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0"
-            placeholder={labels.chatPlaceholder}
+            className="max-h-40 min-h-14 resize-none border-0 bg-transparent px-3 pt-2.5 text-panel-fg shadow-none placeholder:text-panel-muted-fg focus-visible:ring-0 disabled:bg-transparent"
+            // An invitation to type would contradict the disabled box; the reason is above it.
+            placeholder={unavailable ? undefined : labels.chatPlaceholder}
+            disabled={unavailable}
+            aria-describedby={unavailable ? unavailableId : undefined}
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
@@ -586,7 +615,8 @@ export default function ChatPanel({
             <Button
               type="submit"
               size="sm"
-              disabled={busy || flushing || locked || !input.trim()}
+              disabled={!canStartTurn(input, gate)}
+              aria-describedby={unavailable ? unavailableId : undefined}
               className="bg-brand text-brand-fg hover:bg-brand/90"
             >
               <Send /> {labels.send}
