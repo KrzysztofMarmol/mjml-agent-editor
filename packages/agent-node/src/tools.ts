@@ -178,12 +178,16 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
             (section) => section.sectionId !== null,
           );
           if (existing.length > 0 && confirm_full_rewrite !== true) {
-            const open = (await comments.listOpen(documentId)).length;
+            // Resolved comments are deleted too, so they are counted: "0 open" would read as
+            // nothing to lose.
+            const anchored = await comments.list(documentId);
+            const open = anchored.filter((comment) => comment.status === "open").length;
             const ids = existing.map((section) => section.sectionId).join(", ");
             return (
               `ERROR: this document already has ${existing.length} section(s) (${ids}). ` +
               "Replacing the whole document reassigns every id and deletes the " +
-              `${open} open comment(s) anchored to them. For a targeted change use ` +
+              `${anchored.length} comment(s) anchored to them (${open} open, ` +
+              `${anchored.length - open} resolved). For a targeted change use ` +
               "set_section, insert_section or remove_section. If the user really asked for " +
               "the email to be rebuilt from scratch, call this again with " +
               "confirm_full_rewrite: true."

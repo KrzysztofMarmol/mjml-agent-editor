@@ -21,8 +21,8 @@ class FakeDb:
     def __init__(self) -> None:
         self.mjml = DOC
         self.comments = [
-            {"id": "c1", "section_id": "aaa"},
-            {"id": "c2", "section_id": "bbb"},
+            {"id": "c1", "section_id": "aaa", "status": "open"},
+            {"id": "c2", "section_id": "bbb", "status": "resolved"},
         ]
 
     def get_document_mjml(self, doc_id: str) -> str:
@@ -100,3 +100,10 @@ def test_an_invalid_document_is_not_saved(db: FakeDb, monkeypatch: pytest.Monkey
     assert result.startswith("ERROR: MJML validation failed — document was NOT saved")
     assert db.mjml == DOC
     assert len(db.comments) == 2
+
+
+def test_a_refused_rewrite_counts_the_resolved_comments_it_would_delete(db: FakeDb) -> None:
+    result = asyncio.run(_tool("set_document")(mjml=DOC))
+
+    assert "2 comment(s) anchored to them (1 open, 1 resolved)" in result
+    assert db.mjml == DOC
