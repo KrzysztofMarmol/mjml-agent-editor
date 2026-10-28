@@ -193,7 +193,10 @@ type Props = {
    * `{"error": "..."}` body, otherwise `labels.documentSaveFailed`.
    */
   onBeforeSend: () => Promise<void>;
-  /** After the agent's turn finishes (refresh the editor and comments). */
+  /**
+   * After the agent's turn finishes — refresh the comments. The canvas reloads itself when the
+   * turn ends, so calling `reloadFromDb` here only fetches the document a second time.
+   */
   onAgentFinish: () => void;
   /** After each single agent edit (mutating tool call) — live reload. */
   onLiveUpdate: () => void;

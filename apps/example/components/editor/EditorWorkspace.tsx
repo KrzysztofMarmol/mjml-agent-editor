@@ -35,6 +35,8 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
     void editorApi.current?.reloadFromDb();
     setCommentsRefresh((n) => n + 1);
   }, []);
+  // The canvas reloads itself when the turn ends; only the pins are left.
+  const onAgentFinish = useCallback(() => setCommentsRefresh((n) => n + 1), []);
 
   const onSectionEditStart = useCallback((sectionId: string) => {
     editorApi.current?.highlightSection(sectionId, true);
@@ -100,7 +102,7 @@ export default function EditorWorkspace({ docId }: { docId: string }) {
                 onBeforeSend={async () => {
                   await editorApi.current?.flushSave();
                 }}
-                onAgentFinish={onLiveUpdate}
+                onAgentFinish={onAgentFinish}
                 onLiveUpdate={onLiveUpdate}
                 onSectionEditStart={onSectionEditStart}
                 onSectionEditEnd={onSectionEditEnd}
