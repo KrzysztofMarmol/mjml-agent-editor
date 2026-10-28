@@ -46,9 +46,9 @@ const DEFAULT_MAX_STEPS = 24;
  * Sent after the history on the last step a turn is allowed, so the model replies instead of
  * starting an edit the ceiling will cut off.
  *
- * A message rather than a `toolChoice: "none"`: `@ai-sdk/anthropic` 3.x implements "none" by
- * dropping the tools, and a history of tool calls without tool definitions is a request
- * Anthropic can refuse. Appended rather than added to the system prompt, which would miss
+ * A message rather than a `toolChoice: "none"`: `@ai-sdk/anthropic` before 3.0.129, which the
+ * range still admits, implements "none" by dropping the tools, and a history of tool calls
+ * without tool definitions is a request Anthropic can refuse. Appended rather than added to the system prompt, which would miss
  * the provider's prefix cache on the turn's most expensive call. Not enforced — a model that
  * ignores it still ends on a tool call, which `stepLimitReached` then reports.
  */

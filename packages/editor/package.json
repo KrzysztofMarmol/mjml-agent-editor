@@ -63,7 +63,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.240",
+    "@ai-sdk/react": "^3.0.232",
     "@grapesjs/react": "^2.0.0",
     "@mjml-agent-editor/core": "workspace:*",
     "@shadcn/react": "^0.2.1",
@@ -71,8 +71,8 @@
     "clsx": "^2.1.1",
     "grapesjs": "^0.22.16",
     "grapesjs-mjml": "^1.0.8",
-    "lucide-react": "^1.28.0",
-    "radix-ui": "^1.6.7",
+    "lucide-react": "^1.25.0",
+    "radix-ui": "^1.6.2",
     "react-colorful": "^5.8.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",

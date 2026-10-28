@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@mjml-agent-editor/core": "workspace:*",
-    "@supabase/supabase-js": "^2.110.9"
+    "@supabase/supabase-js": "^2.47.10"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
