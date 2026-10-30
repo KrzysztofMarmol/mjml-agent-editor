@@ -761,6 +761,10 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       options={{
         height: "100%",
         storageManager: false,
+        // On by default: every visitor's browser would post the host's domain to
+        // app.grapesjs.com and leave a session-storage entry, which a host would then have
+        // to disclose and, for the entry, ask consent for.
+        telemetry: false,
         fromElement: false,
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
