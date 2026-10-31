@@ -32,7 +32,7 @@ const COLUMN_CHILDREN = new Set([
  *   so a `"` in a tooltip, or a font name the agent quoted, broke the tag and the document.
  * - GrapesJS's `__p`, which the plugin leaves on the attributes while a colour is dragged, is
  *   never written: a save falling due mid-drag stored it.
- * - A column takes only what MJML allows in one.
+ * - A column takes only what MJML allows in one, and moves into and within a column group.
  * - An mj-table keeps its rows.
  * - An image without a picture is saved without one.
  */
@@ -48,6 +48,8 @@ export function fixPluginTypes(editor: Editor) {
           "style-default": {},
           ...(type.id === "mj-column" && {
             droppable: (source: Component) => COLUMN_CHILDREN.has(String(source.get("tagName"))),
+            // The plugin moves a column only within sections, so a group's could not even swap.
+            draggable: '[data-gjs-type="mj-section"], [data-gjs-type="mj-group"]',
           }),
           // GrapesJS's own is an SVG's markup, which the canvas wrote into `src` and saved.
           ...(type.id === "mj-image" && { src: "" }),

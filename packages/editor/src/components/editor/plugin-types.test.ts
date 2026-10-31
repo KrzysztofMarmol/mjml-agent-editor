@@ -43,6 +43,29 @@ function first(tag: string): Component {
 const strictErrors = () => mjml(editor.getHtml(), { validationLevel: "strict" }).errors;
 
 describe("fixPluginTypes", () => {
+  it("moves a column into and within a column group, and never into a column", () => {
+    const draggable = String(
+      editor.Components.getType("mj-column")!.model.prototype.defaults.draggable,
+    );
+    const target = (type: string) => {
+      const el = document.createElement("div");
+      el.setAttribute("data-gjs-type", type);
+      return el;
+    };
+    expect(target("mj-group").matches(draggable)).toBe(true);
+    expect(target("mj-section").matches(draggable)).toBe(true);
+    expect(target("mj-column").matches(draggable)).toBe(false);
+
+    editor.setComponents(
+      "<mjml><mj-body><mj-section><mj-group><mj-column><mj-text>a</mj-text></mj-column></mj-group><mj-column><mj-text>b</mj-text></mj-column></mj-section></mj-body></mjml>",
+    );
+    const loose = first("mj-section").components().at(1);
+    first("mj-group").append(loose.clone());
+    loose.remove();
+    expect(first("mj-group").components()).toHaveLength(2);
+    expect(strictErrors()).toEqual([]);
+  });
+
   it("writes a quote inside an attribute value so the document still parses", async () => {
     load('<mj-button href="https://a.com">Go</mj-button>');
     await createWriter(editor, first("mj-button"))("title", 'Shop "summer"');
