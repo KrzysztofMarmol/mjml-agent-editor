@@ -29,7 +29,9 @@ The response is an SSE stream in the AI SDK **UI Message Stream** protocol, whic
 implementation returns `result.toUIMessageStreamResponse()`, the Python one uses
 `ai.ui.ai_sdk.to_sse` with `UI_MESSAGE_STREAM_HEADERS`.
 
-Validation failures (`docId` missing, body not JSON) return `400` with `{"error": "..."}`.
+Validation failures (`docId` missing, body not JSON, a user message with a part other than
+`text`) return `400` with `{"error": "..."}`. Text only, because the AI SDK downloads a user
+message's file parts from whatever URL they name; the editor sends nothing else.
 Failures _after_ streaming has begun must be emitted as an error part inside the stream, never
 by dropping the connection — a truncated chunked response surfaces in the browser as an opaque
 "network error" with nothing to show the user.
@@ -76,6 +78,7 @@ two are interchangeable would send an adopter down the wrong path.
 | MJML compilation                      | `import mjml` in-process                  | shells out to the mjml v4 CLI — needs Node on the machine |
 | Server-side history                   | `ChatSession` (`load` / `save`)           | none: the conversation comes from the request body        |
 | Refusing a turn before the model runs | `authorize` hook                          | none                                                      |
+| User messages with non-text parts     | refused with `400`                        | not checked                                               |
 | Token accounting                      | `onUsage` hook                            | none                                                      |
 | Multi-line MJML in tool arguments     | works                                     | needs the single-line hint (see below)                    |
 | Deleting an orphaned comment          | optional `CommentStore.remove`            | `db.delete_comment`, hardwired to Supabase                |
