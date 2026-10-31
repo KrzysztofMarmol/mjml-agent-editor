@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_LABELS } from "../../../labels.js";
 import { mjmlColor } from "../ColorField.js";
 import { ALLOWED_ATTRIBUTES } from "../mjml-attributes.js";
-import { normaliseLength } from "./controls.js";
+import { normaliseLength, stepAmount } from "./controls.js";
 import { SCHEMA } from "./schema.js";
 import type { Field, Option } from "./types.js";
 
@@ -139,6 +139,17 @@ describe("what the controls make of typed values", () => {
     expect(normaliseLength("-1px", ["px", "%"])).toBeNull();
     expect(normaliseLength("-1", ["px"], true)).toBe("-1px");
     expect(normaliseLength("24", ["px"])).toBe("24px");
+    // A bare number is in the field's current unit, also where unitless is allowed.
+    expect(normaliseLength("10", ["", "px", "%"], false, "px")).toBe("10px");
+    expect(normaliseLength("1.5", ["", "px", "%"], false, "")).toBe("1.5");
+    expect(normaliseLength("120%", ["", "px", "%"], false, "px")).toBe("120%");
+  });
+
+  it("steps lengths to two decimals, not below zero unless allowed", () => {
+    expect(stepAmount("1.25", 1)).toBe("2.25");
+    expect(stepAmount("0.1", 0.2)).toBe("0.3");
+    expect(stepAmount("3", -10)).toBe("0");
+    expect(stepAmount("3", -10, true)).toBe("-7");
   });
 });
 

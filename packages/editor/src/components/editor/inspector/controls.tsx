@@ -11,6 +11,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
@@ -20,6 +21,8 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  ChevronDown,
+  ChevronUp,
   CircleHelp,
   Grid2x2,
   RotateCcw,
@@ -189,71 +192,212 @@ export function TextInput({
   );
 }
 
+const BARE_NUMBER = /^-?\d*\.?\d+$/;
+
 /**
- * A bare number gets the first unit, so typing `24` into a px field means 24px. Null for what
- * the field cannot write, a negative included unless MJML takes one there.
+ * Typed text as the length to write: a bare number takes `unit` (the field's current one),
+ * so typing `24` into a px field means 24px. Null for what the field cannot write, a negative
+ * included unless MJML takes one there.
  */
 export function normaliseLength(
   text: string,
   units: readonly Unit[],
   negative = false,
+  unit: Unit = units[0]!,
 ): string | null {
   if (text === "") return "";
-  const parsed = parseLength(text, units) ?? parseLength(`${text}${units[0]}`, units);
+  // Before parseLength, which reads a bare number as unitless where that is allowed.
+  const parsed = BARE_NUMBER.test(text) ? { amount: text, unit } : parseLength(text, units);
   if (!parsed || (!negative && parsed.amount.startsWith("-"))) return null;
   return `${parsed.amount}${parsed.unit}`;
 }
 
+/** `amount` moved by `delta`, to two decimals, and not below zero unless allowed. */
+export function stepAmount(amount: string, delta: number, negative = false): string {
+  const next = Math.round((Number(amount) + delta) * 100) / 100;
+  return String(negative ? next : Math.max(0, next));
+}
+
+// A hold on a step button keeps stepping, after a pause long enough for a single click.
+const REPEAT_AFTER_MS = 400;
+const REPEAT_EVERY_MS = 60;
+
+/**
+ * A number with its unit beside it, steppable by the arrows, the arrow keys (Shift for 10) or
+ * holding a step button. A hold is shown as it goes and recorded as one change when released.
+ * A value the field cannot read, such as one the agent wrote in another unit, shows whole.
+ */
 export function LengthInput({
   value,
   placeholder,
   units,
   negative = false,
+  compact = false,
   labelledBy,
+  labels,
   onCommit,
 }: {
   value: string;
   placeholder?: string;
   units: readonly Unit[];
   negative?: boolean;
+  /** Too narrow for the arrows to stay: they show on hover and focus. */
+  compact?: boolean;
   /** Ids naming the field, when the Row's caption alone does not. */
   labelledBy?: string;
-  onCommit: (next: string) => void;
+  labels: EditorLabels;
+  onCommit: (next: string, partial?: boolean) => void;
 }) {
   const fieldLabel = useFieldLabel();
+  const own = parseLength(value, units);
+  const fallback = parseLength(placeholder ?? "", units);
+  // Picked while the field is empty; a value carries its own unit.
+  const [picked, setPicked] = useState<Unit | null>(null);
+  const unit = own?.unit ?? picked ?? fallback?.unit ?? units[0]!;
   const [invalid, setInvalid] = useState(false);
-  const { draft, setDraft, done, onKeyDown } = useDraft(value, (next) => {
-    const normal = normaliseLength(next, units, negative);
+  const { draft, setDraft, done, onKeyDown } = useDraft(own ? own.amount : value, (next) => {
+    const normal = normaliseLength(next, units, negative, unit);
     setInvalid(normal === null);
     if (normal !== null) onCommit(normal);
   });
+
+  // Where a step starts: what is typed, else the default the field shows, else zero.
+  const from = () => {
+    const text = draft.trim();
+    if (BARE_NUMBER.test(text)) return { amount: text, unit };
+    return parseLength(text, units) ?? (text === "" ? fallback : null) ?? { amount: "0", unit };
+  };
   const step = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return onKeyDown(e);
     e.preventDefault();
-    const current = parseLength(draft || placeholder || "", units) ?? {
-      amount: "0",
-      unit: units[0]!,
-    };
-    const delta = (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1);
-    const amount = Number(current.amount) + delta;
-    const next = `${negative ? amount : Math.max(0, amount)}${current.unit}`;
-    setDraft(next);
-    onCommit(next);
+    const start = from();
+    const amount = stepAmount(
+      start.amount,
+      (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1),
+      negative,
+    );
+    setInvalid(false);
+    setDraft(amount);
+    onCommit(`${amount}${start.unit}`);
   };
+
+  // Ends a hold still running when the field goes away (another element selected, a turn).
+  const endHold = useRef<(() => void) | null>(null);
+  useEffect(() => () => endHold.current?.(), []);
+  const press = (direction: 1 | -1) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    // Focus stays where it was; the press is not a click on the field.
+    e.preventDefault();
+    const button = e.currentTarget;
+    // Captured, so a release over the canvas iframe still ends the hold.
+    button.setPointerCapture?.(e.pointerId);
+    const delta = direction * (e.shiftKey ? 10 : 1);
+    const start = from();
+    let amount = stepAmount(start.amount, delta, negative);
+    const show = () => {
+      setInvalid(false);
+      setDraft(amount);
+      onCommit(`${amount}${start.unit}`, true);
+    };
+    show();
+    let timer = window.setTimeout(function repeat() {
+      amount = stepAmount(amount, delta, negative);
+      show();
+      timer = window.setTimeout(repeat, REPEAT_EVERY_MS);
+    }, REPEAT_AFTER_MS);
+    const end = () => {
+      window.clearTimeout(timer);
+      button.removeEventListener("pointerup", end);
+      button.removeEventListener("lostpointercapture", end);
+      endHold.current = null;
+      onCommit(`${amount}${start.unit}`);
+    };
+    endHold.current = end;
+    button.addEventListener("pointerup", end);
+    button.addEventListener("lostpointercapture", end);
+  };
+
+  const pickUnit = () => {
+    const next = units[(units.indexOf(unit) + 1) % units.length]!;
+    setPicked(next);
+    const text = draft.trim();
+    if (BARE_NUMBER.test(text)) onCommit(normaliseLength(text, units, negative, next) ?? "");
+  };
+  const unitName = (u: Unit) => u || labels.noUnit;
+  // Only a value the field reads as a number has a unit to show beside it.
+  const readable = draft.trim() === "" || BARE_NUMBER.test(draft.trim());
+  // Narrow, the unit gives its place to the arrows while they show.
+  const suffix = compact && "group-hover/length:hidden group-focus-within/length:hidden";
+
+  const arrow =
+    "flex h-1/2 w-3.5 items-center justify-center text-panel-muted-fg hover:bg-panel-hover hover:text-panel-fg";
   return (
-    <input
-      className={cn(FIELD, "font-mono", invalid && "border-red-400")}
-      value={draft}
-      placeholder={placeholder}
-      inputMode="decimal"
-      {...fieldLabel}
-      aria-labelledby={labelledBy ?? fieldLabel["aria-labelledby"]}
-      aria-invalid={invalid}
-      title={units.filter(Boolean).join(", ")}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={done}
-      onKeyDown={step}
-    />
+    <div
+      className={cn(
+        "group/length flex h-7 w-full min-w-0 items-center overflow-hidden rounded-md border border-panel-border bg-panel-elevated focus-within:border-brand",
+        invalid && "border-red-400",
+      )}
+    >
+      <input
+        className="h-full w-full min-w-0 flex-1 bg-transparent pl-2 font-mono text-xs text-panel-fg outline-none placeholder:text-panel-muted-fg/70"
+        value={draft}
+        placeholder={fallback ? fallback.amount : placeholder}
+        inputMode="decimal"
+        {...fieldLabel}
+        aria-labelledby={labelledBy ?? fieldLabel["aria-labelledby"]}
+        aria-invalid={invalid}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={done}
+        onKeyDown={step}
+      />
+      {readable &&
+        (units.length > 1 ? (
+          <button
+            type="button"
+            onClick={pickUnit}
+            title={labels.changeUnit(unitName(unit))}
+            aria-label={labels.changeUnit(unitName(unit))}
+            className={cn(
+              "shrink-0 rounded px-0.5 font-mono text-[10px] text-panel-muted-fg underline decoration-dotted underline-offset-2 hover:text-panel-fg",
+              suffix,
+            )}
+          >
+            {unitName(unit)}
+          </button>
+        ) : (
+          <span
+            aria-hidden
+            className={cn("shrink-0 px-0.5 font-mono text-[10px] text-panel-muted-fg", suffix)}
+          >
+            {unitName(unit)}
+          </span>
+        ))}
+      <span
+        className={cn(
+          "h-full shrink-0 flex-col border-l border-panel-border",
+          compact ? "hidden group-hover/length:flex group-focus-within/length:flex" : "flex",
+        )}
+      >
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={labels.increase}
+          onPointerDown={press(1)}
+          className={arrow}
+        >
+          <ChevronUp className="size-2.5" />
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={labels.decrease}
+          onPointerDown={press(-1)}
+          className={arrow}
+        >
+          <ChevronDown className="size-2.5" />
+        </button>
+      </span>
+    </div>
   );
 }
 
@@ -271,7 +415,7 @@ export function BoxInput({
   placeholder?: string;
   units: readonly Unit[];
   labels: EditorLabels;
-  onCommit: (shorthand: string) => void;
+  onCommit: (shorthand: string, partial?: boolean) => void;
 }) {
   const sides = readBox(attributes, attr);
   const defaults = readBox(placeholder ? { [attr]: placeholder } : {}, attr);
@@ -281,11 +425,11 @@ export function BoxInput({
     if (!symmetric) setEach(true);
   }, [symmetric]);
 
-  const set = (indices: number[], v: string) => {
+  const set = (indices: number[], v: string, partial?: boolean) => {
     // Sides left unset keep showing MJML's default; writing them as 0 would move them.
     const next = sides.map((s, i) => s || defaults[i]!) as Sides;
     for (const i of indices) next[i] = v || defaults[i]!;
-    onCommit(next.every((s, i) => s === defaults[i]) ? "" : boxShorthand(next));
+    onCommit(next.every((s, i) => s === defaults[i]) ? "" : boxShorthand(next), partial);
   };
 
   const fieldLabel = useFieldLabel();
@@ -307,10 +451,12 @@ export function BoxInput({
               value={sides[indices[0]!]!}
               placeholder={defaults[indices[0]!] || "0"}
               units={units}
+              compact={each}
+              labels={labels}
               labelledBy={[fieldLabel["aria-labelledby"], `${sideId}-${indices[0]}`]
                 .filter(Boolean)
                 .join(" ")}
-              onCommit={(v) => set(indices, v)}
+              onCommit={(v, partial) => set(indices, v, partial)}
             />
             <span
               id={`${sideId}-${indices[0]}`}

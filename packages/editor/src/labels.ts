@@ -68,6 +68,12 @@ export interface EditorLabels {
   readonly deleteElement: string;
   readonly multipleSelected: (count: number) => string;
   readonly editEachSide: string;
+  readonly increase: string;
+  readonly decrease: string;
+  /** The unit a length is in, on the button that changes it. */
+  readonly changeUnit: (unit: string) => string;
+  /** How a length without a unit (a line-height multiplier) shows its unit. */
+  readonly noUnit: string;
   readonly sidesVertical: string;
   readonly sidesHorizontal: string;
   readonly sideTop: string;
@@ -230,6 +236,10 @@ export const DEFAULT_LABELS: EditorLabels = {
   deleteElement: "Delete",
   multipleSelected: (count) => `${count} elements selected — select one to edit its settings.`,
   editEachSide: "Edit each side",
+  increase: "Increase",
+  decrease: "Decrease",
+  changeUnit: (unit) => `Unit: ${unit}. Click to change`,
+  noUnit: "×",
   sidesVertical: "Top and bottom",
   sidesHorizontal: "Left and right",
   sideTop: "Top",

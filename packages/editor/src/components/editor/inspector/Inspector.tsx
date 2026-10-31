@@ -164,8 +164,8 @@ function ElementSettings({
   const write = (attr: string, value: string, options?: WriteOptions) =>
     locked ? Promise.resolve() : writer(attr, value, options);
   // A box writes its shorthand and drops the longhands, which would otherwise override it.
-  const writeBox = (attr: string, shorthand: string) =>
-    write(attr, shorthand, { remove: SIDES.map((s) => `${attr}-${s}`) });
+  const writeBox = (attr: string, shorthand: string, partial?: boolean) =>
+    write(attr, shorthand, { remove: SIDES.map((s) => `${attr}-${s}`), partial });
 
   const chooseImage = (attr: string) => {
     if (attr === "src" && tag === "mj-image") return void editor.runCommand("open-image-picker");
@@ -239,7 +239,8 @@ function ElementSettings({
             placeholder={f.default}
             units={c.units}
             negative={c.negative}
-            onCommit={(v) => write(f.attr, v)}
+            labels={labels}
+            onCommit={(v, partial) => write(f.attr, v, { partial })}
           />
         );
       case "box":
@@ -250,7 +251,7 @@ function ElementSettings({
             placeholder={f.default}
             units={c.units}
             labels={labels}
-            onCommit={(v) => writeBox(f.attr, v)}
+            onCommit={(v, partial) => writeBox(f.attr, v, partial)}
           />
         );
       case "segmented":
