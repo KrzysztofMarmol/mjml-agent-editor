@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
+import { createSaveBaseline } from "../../lib/save-baseline.js";
 import { createSaveQueue } from "../../lib/save-queue.js";
 import { opensBlockSearch } from "../../lib/shortcuts.js";
 import { useAgentTurn } from "../../stores.js";
@@ -456,9 +457,9 @@ export default function EmailEditor({
       buildCrumbs(editor.getSelected());
     });
 
-    // The MJML the store holds, as far as this editor knows. A save writes only when the
-    // canvas differs from it — the canvas is the truth, not the events that changed it.
-    let stored = "";
+    // A save writes only when the canvas differs from what the store holds — the canvas is
+    // the truth, not the events that changed it.
+    const baseline = createSaveBaseline();
 
     const save = async () => {
       // An open rich-text editor holds its text until editing ends.
@@ -466,11 +467,11 @@ export default function EmailEditor({
         { syncContent?: () => Promise<void> } | undefined;
       await view?.syncContent?.();
       const mjml = editor.getHtml();
-      if (mjml === stored) return;
+      if (!baseline.changed(mjml)) return;
       setSave("saving");
       try {
         await documents.save(docId, { mjml, projectData: editor.getProjectData() });
-        stored = mjml;
+        baseline.saved(mjml);
         setSave("saved");
       } catch (e) {
         setSave("error");
@@ -535,13 +536,13 @@ export default function EmailEditor({
       lock(false);
     };
 
-    // Only the agent writes during a turn, so the store differs from `stored` exactly when it
+    // Only the agent writes during a turn, so the store differs from `baseline.stored` exactly when it
     // changed something. Otherwise the canvas is kept, including edits a failed save left unsaved.
     // Queued behind saves and earlier reloads, so a slow one never lands over a newer one.
     const reload = () =>
       queue.run(async () => {
         const fresh = await documents.get(docId);
-        if (fresh.mjml !== stored) loadMjml(fresh.mjml);
+        if (fresh.mjml !== baseline.stored) loadMjml(fresh.mjml);
       });
 
     const loadMjml = (mjml: string) => {
@@ -551,10 +552,17 @@ export default function EmailEditor({
       let repaired = false;
       try {
         queue.cancel();
-        stored = mjml;
+        baseline.load(mjml, null);
         const source = sourceForEditor(mjml || STARTER_MJML);
         repaired = source.repaired;
         editor.setComponents(source.mjml);
+        // What the load adds, the store needs: a comment pinned to a new id finds nothing else.
+        const adds =
+          !mjml ||
+          !!editor
+            .getWrapper()
+            ?.find("mj-section")
+            .some((c) => !sectionIdOf(c));
         editor.getWrapper()?.find("mj-section").forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);
@@ -567,6 +575,7 @@ export default function EmailEditor({
           c.removeAttributes(illegal);
           repaired = true;
         });
+        if (!repaired && !adds) baseline.load(mjml, editor.getHtml());
         showBodyInLayers();
         // What was loaded is where undo stops: undoing the load emptied the canvas, or put
         // back what an agent turn had replaced, and the next save stored that.
