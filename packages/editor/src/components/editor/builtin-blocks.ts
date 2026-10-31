@@ -1,6 +1,7 @@
 /** The palette's own blocks: grapesjs-mjml's, with the content its defaults get wrong. */
 
 import type { EditorLabels } from "../../labels.js";
+import { tileAttributes } from "./insert-block.js";
 
 // Social and navigation children are only valid inside their parent; hero and wrapper are
 // banned from editable templates by agent-core (a hero gets no `sec-*` id, so the agent cannot
@@ -40,6 +41,7 @@ export function builtinBlock(labels: EditorLabels) {
     // By id: a regex on the label broke as soon as a host translated it.
     category: LAYOUT_BLOCKS.has(id) ? labels.blockCategoryLayout : labels.blockCategoryContent,
     ...(id in CONTENT && { content: CONTENT[id] }),
+    attributes: tileAttributes(id),
   });
 }
 

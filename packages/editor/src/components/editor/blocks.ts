@@ -10,6 +10,7 @@ import grapesjs, { type Editor } from "grapesjs";
 import grapesjsMJML from "grapesjs-mjml";
 
 import { ID_RE } from "./ids.js";
+import { tileAttributes } from "./insert-block.js";
 import { isSafeLink, isSafeNavbarLink } from "./inspector/values.js";
 import { withClosedTags } from "./mjml-attributes.js";
 
@@ -163,6 +164,7 @@ export function registerBlocks(
       category,
       media: block.media ?? media,
       content: withClosedTags(block.mjml),
+      attributes: tileAttributes(block.id),
     });
   }
 }

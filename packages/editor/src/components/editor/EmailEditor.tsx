@@ -27,6 +27,7 @@ import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { registerBlocks, type SectionBlock } from "./blocks.js";
 import { BUILTIN_BLOCKS, builtinBlock, CANVAS_CSS } from "./builtin-blocks.js";
+import { insertBlock } from "./insert-block.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
@@ -827,6 +828,15 @@ function LeftSidebar({
     editor?.getWrapper()?.onAll((c) => c.set("open", expand));
   };
 
+  // GrapesJS's tiles only drag; Enter or Space on one adds its block (see insertBlock).
+  const onTileKey = (e: React.KeyboardEvent) => {
+    const tile = (e.target as HTMLElement).closest<HTMLElement>("[data-block]");
+    const block = tile && editor?.Blocks.get(tile.dataset.block ?? "");
+    if (!editor || !block || (e.key !== "Enter" && e.key !== " ")) return;
+    e.preventDefault();
+    insertBlock(editor, block);
+  };
+
   // Filter the GrapesJS-rendered blocks (DOM lives outside React) by label;
   // hide category groups that end up empty.
   const filterBlocks = (q: string) => {
@@ -900,7 +910,7 @@ function LeftSidebar({
             {labels.noBlocksMatch}
           </p>
         )}
-        <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
+        <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" onKeyDown={onTileKey} />
       </div>
 
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>

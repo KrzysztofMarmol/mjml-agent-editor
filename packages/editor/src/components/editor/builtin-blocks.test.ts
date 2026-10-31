@@ -51,4 +51,14 @@ describe("built-in blocks", () => {
     expect(images).toHaveLength(3);
     for (const img of images) expect(img).toMatch(/\balt="[^"]+"/);
   });
+
+  it("can be reached and added from the keyboard", () => {
+    for (const id of BUILTIN_BLOCKS) {
+      expect(editor.Blocks.get(id)!.get("attributes"), id).toEqual({
+        tabindex: "0",
+        role: "button",
+        "data-block": id,
+      });
+    }
+  });
 });
