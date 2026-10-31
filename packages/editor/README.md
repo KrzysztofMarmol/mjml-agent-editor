@@ -116,7 +116,8 @@ const images: ImageLibrary = {
 
 `quota` (`{ used, limit }`) is shown in the picker and stops uploads when reached. Leave
 `remove` out for a read-only gallery — a host that caps uploads but cannot reclaim the
-storage would otherwise be handing out a way round its own cap.
+storage would otherwise be handing out a way round its own cap. Leave `upload` out, and set
+`allowUrl: false`, for a gallery of your own images and nothing else.
 
 Without a library the picker takes URLs only. The editor never inlines a file as base64:
 most mail clients block `data:` images, and every agent turn would pay for the bytes.

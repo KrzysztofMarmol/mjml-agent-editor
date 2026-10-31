@@ -87,7 +87,8 @@ export default function ImagePicker({
   const full = quota !== undefined && quota.used >= quota.limit;
 
   const upload = async (files: FileList | null) => {
-    if (!library || !files?.length) return;
+    const send = library?.upload?.bind(library);
+    if (!send || !files?.length) return;
     const mine = session.current;
     // The input's `accept` covers browsing; a drop bypasses it, so check here too rather
     // than send a whole file only to have the host refuse it.
@@ -101,7 +102,7 @@ export default function ImagePicker({
     // Settled rather than all: an upload that succeeded has already been stored and
     // counted by the host, so one failure must not hide it.
     // Async, so an adapter that throws rather than rejects still settles.
-    const results = await Promise.allSettled(list.map(async (f) => library.upload(f)));
+    const results = await Promise.allSettled(list.map(async (f) => send(f)));
     setPending((n) => n - list.length);
     for (const r of results) {
       if (r.status === "rejected") {
@@ -155,7 +156,7 @@ export default function ImagePicker({
         </DialogHeader>
 
         <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-5">
-          {library &&
+          {library?.upload &&
             (full ? (
               <p className="rounded-lg border border-panel-border bg-panel-elevated px-4 py-3 text-sm text-panel-muted-fg">
                 {labels.imagePickerQuotaFull}
@@ -199,33 +200,35 @@ export default function ImagePicker({
               </div>
             ))}
 
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const value = url.trim();
-              if (value) onSelect(value);
-            }}
-          >
-            <div className="relative flex-1">
-              <Link2 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-panel-muted-fg" />
-              <Input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder={labels.imagePickerUrlPlaceholder}
-                className="h-9 border-panel-border bg-panel-elevated pl-8 text-panel-fg placeholder:text-panel-muted-fg"
-              />
-            </div>
-            <Button
-              type="submit"
-              size="lg"
-              variant="outline"
-              disabled={!url.trim()}
-              className="border-panel-border bg-panel-elevated text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+          {library?.allowUrl !== false && (
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const value = url.trim();
+                if (value) onSelect(value);
+              }}
             >
-              {labels.imagePickerUseUrl}
-            </Button>
-          </form>
+              <div className="relative flex-1">
+                <Link2 className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-panel-muted-fg" />
+                <Input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder={labels.imagePickerUrlPlaceholder}
+                  className="h-9 border-panel-border bg-panel-elevated pl-8 text-panel-fg placeholder:text-panel-muted-fg"
+                />
+              </div>
+              <Button
+                type="submit"
+                size="lg"
+                variant="outline"
+                disabled={!url.trim()}
+                className="border-panel-border bg-panel-elevated text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+              >
+                {labels.imagePickerUseUrl}
+              </Button>
+            </form>
+          )}
 
           {library && (
             <section>

@@ -37,7 +37,8 @@ export interface ImageLibrary {
     readonly images: readonly ImageAsset[];
     readonly quota?: { readonly used: number; readonly limit: number };
   }>;
-  upload(file: File): Promise<ImageAsset>;
+  /** Omit for a gallery of the host's images only: the picker then takes no files. */
+  upload?(file: File): Promise<ImageAsset>;
   /**
    * What `upload` takes, as an `<input accept>` value ("image/png,image/jpeg"). The picker
    * refuses anything else before sending it. Defaults to any image.
@@ -48,6 +49,8 @@ export interface ImageLibrary {
    * the storage, deleting would only be a way round the cap.
    */
   remove?(id: string): Promise<void>;
+  /** `false` hides the field for an image's address, leaving the gallery and any upload. */
+  readonly allowUrl?: boolean;
 }
 
 export interface EditorStores {
