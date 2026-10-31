@@ -705,7 +705,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             close: () => setPicker(null),
           },
         },
-        canvas: { customBadgeLabel: badgeLabel(labels) },
+        canvas: {
+          customBadgeLabel: badgeLabel(labels),
+          // A file or text dragged in from outside lands as `<img>` or `<div>`, which no MJML
+          // validator accepts; drags from the palette are unaffected.
+          allowExternalDrop: false,
+        },
         deviceManager: {
           devices: [
             { id: "desktop", name: "Desktop", width: "" },
