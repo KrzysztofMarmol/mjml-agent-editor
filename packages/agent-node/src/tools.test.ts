@@ -335,6 +335,16 @@ describe("agent tools", () => {
       expect(documents.mjml).not.toContain("sec-wrong");
     });
 
+    it("edits a document stored without its closing tag", async () => {
+      await documents.save(DOCUMENT_ID, { mjml: VALID_DOC.replace("</mjml>", "") });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+      expect(documents.mjml).toContain("Changed");
+    });
+
     it("reports an unknown id without saving", async () => {
       const output = await run(tools, "set_section", {
         section_id: "zzz",

@@ -6,6 +6,9 @@ Cases marked below are the ones the original regex parser got wrong.
 
 from __future__ import annotations
 
+import json
+import pathlib
+
 import pytest
 
 import mjml_doc
@@ -235,34 +238,17 @@ class TestClassListHelpers:
         )
 
 
-BODY = "<mj-body><mj-section></mj-section></mj-body>"
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        f'<?xml version="1.0"?>\n<!-- a -->\n<mjml>{BODY}</mjml>',
-        f"<mjml>{BODY}</mjml>\n<!-- end -->",
-        f"```xml\n<mjml>{BODY}</mjml>\n```",
-        '<mjml lang="en"><mj-head></mj-head><mj-body/></mjml>',
-        "<MJML><MJ-BODY></MJ-BODY></MJML >",
-        DOC,
-    ],
+SHAPE_CASES = json.loads(
+    (
+        pathlib.Path(__file__).parents[2] / "packages/agent-core/contract/document-shape-cases.json"
+    ).read_text(encoding="utf-8")
 )
-def test_is_mjml_document_accepts(source: str) -> None:
-    assert mjml_doc.is_mjml_document(source)
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        "hello",
-        "<html><body><p>hi</p></body></html>",
-        "<mjml><mj-head></mj-head></mjml>",
-        "<mj-body></mj-body><mjml></mjml>",
-        f"<mjml>{BODY}",
-        f"<mjmlx>{BODY}</mjmlx>",
-    ],
-)
-def test_is_mjml_document_refuses(source: str) -> None:
-    assert not mjml_doc.is_mjml_document(source)
+@pytest.mark.parametrize("case", SHAPE_CASES, ids=lambda case: case["name"])
+def test_is_mjml_document_agrees_with_agent_core(case: dict) -> None:
+    assert mjml_doc.is_mjml_document(case["mjml"]) is case["expected"]
+
+
+def test_is_mjml_document_accepts_a_real_document() -> None:
+    assert mjml_doc.is_mjml_document(DOC)

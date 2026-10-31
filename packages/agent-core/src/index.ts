@@ -39,7 +39,7 @@ export {
   type DocumentSizeLimit,
 } from "./document-size.js";
 
-export { NotMjmlDocumentError, isMjmlDocument } from "./document-shape.js";
+export { NOT_MJML_DOCUMENT, NotMjmlDocumentError, isMjmlDocument } from "./document-shape.js";
 
 export {
   findTemplate,
