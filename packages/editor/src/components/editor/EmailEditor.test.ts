@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const source = readFileSync(new URL("./EmailEditor.tsx", import.meta.url), "utf8");
 
 describe("GrapesJS options", () => {
-  it("leave the visitor's browser no request to a third party", () => {
+  it("send nothing to app.grapesjs.com or cdnjs.cloudflare.com", () => {
     expect(source).toMatch(/^\s*telemetry: false,$/m);
     expect(source).toMatch(/^\s*cssIcons: "",$/m);
   });
