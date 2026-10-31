@@ -264,6 +264,26 @@ export default function EmailEditor({
       setLocked(false);
     };
   }, [turn, setLocked]);
+  // Chrome leaves the canvas deaf to the mouse wheel once the lock lifts, until a click.
+  // Hiding the frame's overflow for one frame makes it rebuild the scroller.
+  const wasLocked = useRef(false);
+  useEffect(() => {
+    if (readOnly) {
+      wasLocked.current = true;
+      return;
+    }
+    const root = wasLocked.current && editorRef.current?.Canvas.getDocument()?.documentElement;
+    wasLocked.current = false;
+    if (!root) return;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
+    void root.offsetHeight;
+    const frame = requestAnimationFrame(() => (root.style.overflow = overflow));
+    return () => {
+      cancelAnimationFrame(frame);
+      root.style.overflow = overflow;
+    };
+  }, [readOnly]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
