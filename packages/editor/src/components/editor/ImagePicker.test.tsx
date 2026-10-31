@@ -54,4 +54,11 @@ describe("ImagePicker", () => {
     expect(picker.urlInput).toBeNull();
     expect(picker.images).toBe(1);
   });
+
+  it("keeps a dropped file from replacing the editor when it takes none", async () => {
+    await open({ list: async () => ({ images: gallery }) });
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+    document.querySelector('[role="dialog"] img')!.dispatchEvent(drop);
+    expect(drop.defaultPrevented).toBe(true);
+  });
 });

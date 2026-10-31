@@ -145,7 +145,13 @@ export default function ImagePicker({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="editor-dark gap-0 overflow-hidden border border-panel-border bg-panel p-0 text-panel-fg ring-0 sm:max-w-3xl">
+      {/* A file dropped where nothing takes it would otherwise be opened by the browser in
+          place of the editor: with no upload, or with the quota full. */}
+      <DialogContent
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => e.preventDefault()}
+        className="editor-dark gap-0 overflow-hidden border border-panel-border bg-panel p-0 text-panel-fg ring-0 sm:max-w-3xl"
+      >
         <DialogHeader className="border-b border-panel-border px-5 py-4">
           <DialogTitle>{labels.imagePickerTitle}</DialogTitle>
           {quota && (
