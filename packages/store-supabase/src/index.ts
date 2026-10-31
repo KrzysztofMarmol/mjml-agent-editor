@@ -54,7 +54,8 @@ export async function createDocument(
   name: string,
   mjml: string,
 ): Promise<string> {
-  if (!isMjmlDocument(mjml)) throw new NotMjmlDocumentError();
+  // Empty is allowed: the editor opens an empty document as `STARTER_MJML`.
+  if (mjml !== "" && !isMjmlDocument(mjml)) throw new NotMjmlDocumentError();
   const { data, error } = await client
     .from("documents")
     .insert({ name, mjml })
@@ -70,7 +71,7 @@ export async function deleteDocument(client: SupabaseClient, documentId: string)
 }
 
 export function createDocumentStore(client: SupabaseClient): DocumentStore {
-  const store: DocumentStore = {
+  return {
     async get(documentId: string): Promise<EmailDocument> {
       const { data, error } = await client
         .from("documents")
@@ -92,12 +93,14 @@ export function createDocumentStore(client: SupabaseClient): DocumentStore {
     async save(documentId: string, patch: DocumentPatch): Promise<void> {
       // The editor's autosave reaches the database only through here, and no compiler sees it.
       // A document stored broken stays writable, or the editor could never save it again.
-      if (
-        patch.mjml !== undefined &&
-        !isMjmlDocument(patch.mjml) &&
-        isMjmlDocument((await store.get(documentId)).mjml)
-      ) {
-        throw new NotMjmlDocumentError();
+      if (patch.mjml !== undefined && !isMjmlDocument(patch.mjml)) {
+        const { data, error } = await client
+          .from("documents")
+          .select("mjml")
+          .eq("id", documentId)
+          .single();
+        if (error) throw new Error(`document ${documentId} not readable: ${error.message}`);
+        if (isMjmlDocument((data as { mjml: string }).mjml)) throw new NotMjmlDocumentError();
       }
       const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (patch.mjml !== undefined) update["mjml"] = patch.mjml;
@@ -108,7 +111,6 @@ export function createDocumentStore(client: SupabaseClient): DocumentStore {
       if (error) throw new Error(`document ${documentId} not writable: ${error.message}`);
     },
   };
-  return store;
 }
 
 function toComment(row: CommentRow): SectionComment {

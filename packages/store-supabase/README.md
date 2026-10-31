@@ -31,7 +31,8 @@ plain Postgres means replacing one file, not touching the editor or the agent.
 ## What `save` refuses
 
 `save` and `createDocument` throw `NotMjmlDocumentError` (status 422, which the editor shows
-as it is) for markup that is not an MJML document — see `isMjmlDocument` in core. `save`
+as it is) for markup that is not an MJML document — see `isMjmlDocument` in core. An empty
+`createDocument` is still allowed: the editor opens it as the starter. `save`
 still writes over a document that was already stored that way, or the editor could never
 save it again. In the browser this is a check, not a guarantee: whoever holds the key can
 write the table directly.
