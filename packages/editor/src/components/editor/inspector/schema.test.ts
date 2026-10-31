@@ -2,9 +2,11 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_LABELS } from "../../../labels.js";
+import { mjmlColor } from "../ColorField.js";
 import { ALLOWED_ATTRIBUTES } from "../mjml-attributes.js";
+import { normaliseLength } from "./controls.js";
 import { SCHEMA } from "./schema.js";
-import type { Field } from "./types.js";
+import type { Field, Option } from "./types.js";
 
 const require = createRequire(import.meta.url);
 const mjml = require("mjml") as (
@@ -92,11 +94,20 @@ function samples({ control, default: fallback }: Field): string[] {
       case "link":
         return [LINK];
       case "color":
-        return ["#1a2b3c"];
+        // What the field makes of typed text, the pickers and the swatches.
+        return [
+          "#1a2b3c",
+          "#ABC",
+          "#00000080",
+          "rgba(0, 0, 0, .5)",
+          "rgb(1 2 3)",
+          "Red",
+          "transparent",
+        ].map((c) => mjmlColor(c)!);
       case "image":
         return [IMAGE];
       case "length":
-        return control.units.map((u) => `12${u}`);
+        return control.units.flatMap((u) => [`12${u}`, ...(control.negative ? [`-2${u}`] : [])]);
       case "box":
         return control.units.flatMap((u) => [
           `1${u}`,
@@ -115,6 +126,21 @@ function samples({ control, default: fallback }: Field): string[] {
   })();
   return fallback === undefined ? values : [...values, fallback];
 }
+
+describe("what the controls make of typed values", () => {
+  it("refuses a colour MJML rejects rather than writing it", () => {
+    for (const text of ["blah", "#12", "hsl(0 0% 0%)", "url(x)"])
+      expect(mjmlColor(text)).toBeNull();
+    expect(mjmlColor("")).toBe("");
+  });
+
+  it("refuses a negative length where MJML's unit type does", () => {
+    expect(normaliseLength("-5", ["px"])).toBeNull();
+    expect(normaliseLength("-1px", ["px", "%"])).toBeNull();
+    expect(normaliseLength("-1", ["px"], true)).toBe("-1px");
+    expect(normaliseLength("24", ["px"])).toBe("24px");
+  });
+});
 
 describe("SCHEMA", () => {
   it("has a compile context for every tag", () => {
@@ -152,21 +178,24 @@ describe("SCHEMA", () => {
 });
 
 describe("inspector labels", () => {
-  // Font and network names are the same in every language, so they are the label itself.
-  const isLiteral = (f: Field) => f.control.type === "network" || f.attr === "font-family";
+  // Font and brand names are the same in every language, so they are the label itself.
+  const isLiteral = (f: Field) => f.attr === "font-family";
+  const optionsOf = (f: Field): readonly Option[] =>
+    "options" in f.control
+      ? f.control.options
+      : f.control.type === "network"
+        ? f.control.networks.filter((n) => /^network[A-Z]/.test(n.label))
+        : [];
 
   it.each(FIELDS)("%s %s has its field and option names", (_tag, _attr, f) => {
     expect(LABELS).toHaveProperty([f.label]);
-    if (isLiteral(f) || !("options" in f.control)) return;
-    for (const option of f.control.options) expect(LABELS).toHaveProperty([option.label]);
+    if (isLiteral(f)) return;
+    for (const option of optionsOf(f)) expect(LABELS).toHaveProperty([option.label]);
   });
 
   it("holds no key the schema does not use", () => {
     const used = new Set(
-      FIELDS.flatMap(([, , f]) => [
-        f.label,
-        ...("options" in f.control ? f.control.options.map((o) => o.label) : []),
-      ]),
+      FIELDS.flatMap(([, , f]) => [f.label, ...optionsOf(f).map((o) => o.label)]),
     );
     const unused = Object.keys(LABELS).filter((key) => !used.has(key.replace(/\.help$/, "")));
     expect(unused).toEqual([]);

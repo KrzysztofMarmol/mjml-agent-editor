@@ -43,9 +43,13 @@ export function createWriter(editor: Editor, component: Component) {
     if (dragFrom?.attr === attr && dragFrom.value !== value) {
       set(attr, dragFrom.value, { avoidStore: true });
     }
+    const dragged = dragFrom !== null;
     dragFrom = null;
     const present = remove.filter((a) => a in component.getAttributes());
     if (present.length) component.removeAttributes(present);
     set(attr, value, {});
+    // A drag that ends where it began changes nothing, so nothing above cleared the marker.
+    // It is the plugin that put it on the attributes object in place, and it goes the same way.
+    if (dragged) delete (component.get("attributes") as Record<string, unknown>).__p;
   };
 }

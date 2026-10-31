@@ -307,6 +307,9 @@ export const DEFAULT_LABELS: EditorLabels = {
     iconSize: "Icon size",
     iconSpacing: "Space around each icon",
     network: "Network",
+    // Brand names are the same in every language and are not keys; these two are words.
+    networkWebsite: "Website",
+    networkCustom: "Custom",
     customIcon: "Custom icon",
     iconColor: "Icon color",
     iconPosition: "Icon side",

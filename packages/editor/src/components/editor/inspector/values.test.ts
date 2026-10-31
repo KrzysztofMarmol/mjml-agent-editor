@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { boxShorthand, networkName, parseLength, parseNetwork, readBox } from "./values.js";
+import {
+  boxShorthand,
+  isSafeLink,
+  networkName,
+  parseLength,
+  parseNetwork,
+  readBox,
+} from "./values.js";
 
 describe("readBox", () => {
   it("expands the shorthand an agent writes", () => {
@@ -57,5 +64,37 @@ describe("social network names", () => {
     expect(networkName("x", false)).toBe("x-noshare");
     expect(networkName("x", true)).toBe("x");
     expect(networkName("custom", false)).toBe("custom");
+  });
+});
+
+describe("isSafeLink", () => {
+  it("takes web, mail and phone links, relative ones and merge tags", () => {
+    for (const link of [
+      "https://a.com",
+      "HTTP://a.com",
+      "mailto:a@b.c",
+      "tel:+48123",
+      "/x",
+      "{{url}}",
+      "#top",
+      "",
+    ]) {
+      expect(isSafeLink(link), link).toBe(true);
+    }
+  });
+
+  it("refuses a script however a browser would still read it as one", () => {
+    for (const link of [
+      "javascript:alert(1)",
+      "JavaScript:alert(1)",
+      " java\tscript:alert(1)",
+      "javascript&colon;alert(1)",
+      "&#106;avascript:alert(1)",
+      "&#x6A;avascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "vbscript:x",
+    ]) {
+      expect(isSafeLink(link), link).toBe(false);
+    }
   });
 });

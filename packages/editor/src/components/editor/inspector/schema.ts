@@ -77,7 +77,7 @@ export const NETWORKS: readonly Option[] = [
   { value: "youtube", label: "YouTube" },
   { value: "pinterest", label: "Pinterest" },
   { value: "github", label: "GitHub" },
-  { value: "web", label: "Website" },
+  { value: "web", label: "networkWebsite" },
   { value: "snapchat", label: "Snapchat" },
   { value: "vimeo", label: "Vimeo" },
   { value: "medium", label: "Medium" },
@@ -85,7 +85,7 @@ export const NETWORKS: readonly Option[] = [
   { value: "soundcloud", label: "SoundCloud" },
   { value: "tumblr", label: "Tumblr" },
   { value: "xing", label: "Xing" },
-  { value: "custom", label: "Custom" },
+  { value: "custom", label: "networkCustom" },
 ];
 
 const hasBackgroundImage = (a: Readonly<Record<string, string>>) => !!a["background-url"];
@@ -200,7 +200,7 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "color", label: "textColor", group: "style", control: { type: "color" }, default: "#000000" },
     { attr: "line-height", label: "lineHeight", group: "style", control: { type: "length", units: LINE_HEIGHT }, default: "1" },
     { attr: "container-background-color", label: "blockBackground", group: "style", control: { type: "color" } },
-    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING } },
+    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING, negative: true } },
     { attr: "text-transform", label: "textTransform", group: "advanced", control: { type: "select", options: TEXT_TRANSFORM } },
   ],
   "mj-button": [
@@ -220,7 +220,7 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "rel", label: "rel", group: "advanced", control: { type: "text", placeholder: "noopener" } },
     { attr: "container-background-color", label: "blockBackground", group: "advanced", control: { type: "color" } },
     { attr: "border", label: "border", group: "advanced", control: { type: "text", placeholder: "1px solid #cccccc" }, default: "none" },
-    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING } },
+    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING, negative: true } },
     { attr: "text-transform", label: "textTransform", group: "advanced", control: { type: "select", options: TEXT_TRANSFORM }, default: "none" },
     { attr: "line-height", label: "lineHeight", group: "advanced", control: { type: "length", units: LINE_HEIGHT }, default: "120%" },
   ],
@@ -375,7 +375,7 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "text-transform", label: "textTransform", group: "style", control: { type: "select", options: TEXT_TRANSFORM }, default: "uppercase" },
     { attr: "target", label: "opensIn", group: "advanced", control: { type: "select", options: TARGET }, default: "_blank" },
     { attr: "rel", label: "rel", group: "advanced", control: { type: "text", placeholder: "noopener" } },
-    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING } },
+    { attr: "letter-spacing", label: "letterSpacing", group: "advanced", control: { type: "length", units: LETTER_SPACING, negative: true } },
     { attr: "line-height", label: "lineHeight", group: "advanced", control: { type: "length", units: LINE_HEIGHT }, default: "22px" },
   ],
 };

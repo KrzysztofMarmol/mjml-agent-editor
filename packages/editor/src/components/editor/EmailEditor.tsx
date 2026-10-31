@@ -25,7 +25,7 @@ import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
-import { illegalAttributes } from "./mjml-attributes.js";
+import { illegalAttributes, withoutEditorProps } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -251,17 +251,14 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const [loading, setLoading] = useState(true);
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
   const blockSearchRef = useRef<HTMLInputElement>(null);
+  // Bound to the editor and its canvas, not the host page, whose own keys a host keeps.
   const onBlockSearchKey = (e: KeyboardEvent) => {
-    if (!opensBlockSearch(e)) return;
+    if (readOnlyRef.current || !opensBlockSearch(e)) return;
     e.preventDefault();
     setSidebarView("blocks");
     // The panel is hidden until the view switches, and a hidden input cannot take focus.
     requestAnimationFrame(() => blockSearchRef.current?.focus());
   };
-  useEffect(() => {
-    document.addEventListener("keydown", onBlockSearchKey);
-    return () => document.removeEventListener("keydown", onBlockSearchKey);
-  }, []);
   // Comment being composed (sparkles button) — opens the canvas popover.
   const [composeTarget, setComposeTarget] = useState<CommentTarget | null>(null);
   // Where the current selection came from — canvas click opens Settings,
@@ -549,7 +546,9 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       try {
         queue.cancel();
         stored = mjml;
-        editor.setComponents(mjml || STARTER_MJML);
+        const source = withoutEditorProps(mjml || STARTER_MJML);
+        repaired = source !== (mjml || STARTER_MJML);
+        editor.setComponents(source);
         editor.getWrapper()?.find("mj-section").forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);
@@ -563,9 +562,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           repaired = true;
         });
         showBodyInLayers();
+        // What was loaded is where undo stops: undoing the load emptied the canvas, or put
+        // back what an agent turn had replaced, and the next save stored that.
+        editor.UndoManager.clear();
       } finally {
         loadingRef.current = false;
       }
+      notifyState();
       // Written now rather than with the next edit: the agent reads the stored copy.
       if (repaired && !readOnlyRef.current) queue.schedule();
     };
@@ -738,7 +741,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       onEditor={onEditor}
     >
       {/* Inert as well as covered, so the keyboard cannot reach the controls either. */}
-      <div className="relative flex h-full min-h-0 flex-1" inert={readOnly}>
+      <div
+        className="relative flex h-full min-h-0 flex-1"
+        inert={readOnly}
+        onKeyDown={(e) => onBlockSearchKey(e.nativeEvent)}
+      >
         {readOnly && (
           <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
             <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">

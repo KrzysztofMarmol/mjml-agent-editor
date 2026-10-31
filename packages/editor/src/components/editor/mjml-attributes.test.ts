@@ -1,7 +1,12 @@
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 
-import { ALLOWED_ATTRIBUTES, illegalAttributes } from "./mjml-attributes.js";
+import {
+  ALLOWED_ATTRIBUTES,
+  illegalAttributes,
+  NAMED_COLORS,
+  withoutEditorProps,
+} from "./mjml-attributes.js";
 
 // mjml-core is mjml's dependency, not ours; resolve it from where mjml finds it.
 const require = createRequire(createRequire(import.meta.url).resolve("mjml"));
@@ -14,6 +19,15 @@ describe("ALLOWED_ATTRIBUTES", () => {
   it.each(Object.keys(ALLOWED_ATTRIBUTES))("matches the installed mjml for %s", (tag) => {
     const installed = Object.keys(components[tag]?.allowedAttributes ?? {}).sort();
     expect([...ALLOWED_ATTRIBUTES[tag]!].sort()).toEqual(installed);
+  });
+});
+
+describe("NAMED_COLORS", () => {
+  it("matches the installed mjml", () => {
+    const helper = require("mjml-core/lib/types/helpers/colors") as
+      string[] | { default: string[] };
+    const installed = Array.isArray(helper) ? helper : helper.default;
+    expect([...NAMED_COLORS].sort()).toEqual([...installed].sort());
   });
 });
 
@@ -37,5 +51,15 @@ describe("illegalAttributes", () => {
 
   it("leaves tags it has no table for alone", () => {
     expect(illegalAttributes("mj-raw", { anything: "x" })).toEqual([]);
+  });
+});
+
+describe("withoutEditorProps", () => {
+  it("drops GrapesJS's property attributes in every quoting, and nothing else", () => {
+    expect(
+      withoutEditorProps(
+        `<mj-text data-gjs-icon="<img src=x onerror=alert(1)>" css-class="obj-a"><p data-gjs-custom-name='x' DATA-GJS-name=y>data-gjs-x stays</p></mj-text>`,
+      ),
+    ).toBe('<mj-text css-class="obj-a"><p>data-gjs-x stays</p></mj-text>');
   });
 });

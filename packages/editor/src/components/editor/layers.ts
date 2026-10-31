@@ -136,7 +136,10 @@ export function setupLayerNames(editor: Editor, labels: EditorLabels) {
     if (!type.id.startsWith("mj-")) continue;
     editor.Components.addType(type.id, {
       model: {
-        defaults: { icon: ICONS[type.id] ?? "" },
+        // Ours whatever the element says: GrapesJS writes it into the row's markup as it is.
+        getIcon() {
+          return ICONS[type.id] ?? "";
+        },
         // GrapesJS writes the name into the row's markup unescaped, and it is document text.
         getName(this: Component) {
           return escapeHtml(layerName(this, labels));

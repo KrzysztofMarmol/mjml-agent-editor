@@ -62,6 +62,8 @@ const PROFILE_URLS: Readonly<Record<string, string>> = {
   x: "https://x.com/",
   linkedin: "https://linkedin.com/",
   youtube: "https://youtube.com/",
+  pinterest: "https://pinterest.com/",
+  github: "https://github.com/",
 };
 
 /** Adds the first common network the group does not have yet, as a profile link. */

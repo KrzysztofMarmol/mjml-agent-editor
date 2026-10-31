@@ -10,7 +10,7 @@
  * written, so `css-class`, which carries the agent's `sec-*` and `obj-*` ids, never is.
  */
 
-import { useEffect, useReducer, useState, type ReactNode } from "react";
+import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import type { Component, Editor } from "grapesjs";
 import { useEditorMaybe } from "@grapesjs/react";
 import { ArrowUp, ChevronRight, Copy, Monitor, Trash2, X } from "lucide-react";
@@ -26,7 +26,7 @@ import { layerName } from "../layers.js";
 import { SCHEMA } from "./schema.js";
 import StructureSection from "./StructureSection.js";
 import type { Field, Group, Option } from "./types.js";
-import { networkName, parseNetwork, SIDES } from "./values.js";
+import { isSafeLink, networkName, parseNetwork, SIDES } from "./values.js";
 import { createWriter, type WriteOptions } from "./write.js";
 
 const GROUPS: readonly Exclude<Group, "advanced">[] = ["content", "layout", "spacing", "style"];
@@ -80,36 +80,61 @@ export default function Inspector({
   const labels = useLabels();
   const { locked } = useAgentTurn();
   const [, refresh] = useReducer((n: number) => n + 1, 0);
+  const root = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
 
   // GrapesJS owns the selection and the values; re-read them whenever either changes. No
   // Component is kept in state: an agent turn's reload replaces every one of them.
   useEffect(() => {
     if (!editor) return;
-    const events = "component:toggled component:update change:device";
+    const events = "component:update change:device";
+    // A button here that changes the selection (parent, duplicate, delete, a link, Add) goes
+    // with the old element's settings; focus moves to what replaces them, not to the page.
+    const toggled = () => {
+      if (root.current?.contains(document.activeElement)) refocus.current = true;
+      refresh();
+    };
     editor.on(events, refresh);
-    return () => void editor.off(events, refresh);
+    editor.on("component:toggled", toggled);
+    return () => {
+      editor.off(events, refresh);
+      editor.off("component:toggled", toggled);
+    };
   }, [editor]);
+  useEffect(() => {
+    if (!refocus.current) return;
+    refocus.current = false;
+    root.current?.querySelector<HTMLElement>("[data-focus-target]")?.focus();
+  });
 
   if (!editor) return null;
   const selected = editor.getSelectedAll();
-  if (selected.length === 0) return <>{empty}</>;
-  if (selected.length > 1) {
-    return (
-      <p className="px-4 py-8 text-center text-xs text-panel-muted-fg">
-        {labels.multipleSelected(selected.length)}
-      </p>
-    );
-  }
-  const component = selected[0]!;
+  const component = selected[0];
   return (
-    <ElementSettings
-      key={component.cid}
-      editor={editor}
-      component={component}
-      labels={labels}
-      locked={locked}
-      onEmailSettings={onEmailSettings}
-    />
+    <div ref={root}>
+      {selected.length === 0 ? (
+        <div data-focus-target tabIndex={-1} className="outline-none">
+          {empty}
+        </div>
+      ) : selected.length > 1 ? (
+        <p
+          data-focus-target
+          tabIndex={-1}
+          className="px-4 py-8 text-center text-xs text-panel-muted-fg outline-none"
+        >
+          {labels.multipleSelected(selected.length)}
+        </p>
+      ) : (
+        <ElementSettings
+          key={component!.cid}
+          editor={editor}
+          component={component!}
+          labels={labels}
+          locked={locked}
+          onEmailSettings={onEmailSettings}
+        />
+      )}
+    </div>
   );
 }
 
@@ -169,7 +194,12 @@ function ElementSettings({
         );
       case "link":
         return (
-          <TextInput value={value} placeholder="https://" onCommit={(v) => write(f.attr, v)} />
+          <TextInput
+            value={value}
+            placeholder="https://"
+            accept={isSafeLink}
+            onCommit={(v) => write(f.attr, v)}
+          />
         );
       case "color":
         return (
@@ -196,6 +226,7 @@ function ElementSettings({
             value={value}
             placeholder={f.default}
             units={c.units}
+            negative={c.negative}
             onCommit={(v) => write(f.attr, v)}
           />
         );
@@ -411,7 +442,13 @@ function Header({
   return (
     <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-panel-border bg-panel px-3 py-2">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-panel-fg">{name}</p>
+        <p
+          data-focus-target
+          tabIndex={-1}
+          className="truncate text-sm font-medium text-panel-fg outline-none"
+        >
+          {name}
+        </p>
         {excerpt && !isBody && (
           <p className="truncate text-[11px] text-panel-muted-fg">“{excerpt}”</p>
         )}

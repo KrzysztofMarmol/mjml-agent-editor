@@ -39,6 +39,18 @@ describe("createWriter", () => {
     expect(textTag()).toBe('<mj-text css-class="obj-t">');
   });
 
+  it("leaves no marker when a drag ends on the value it started from", async () => {
+    text.addAttributes({ color: "#000000" });
+    editor.UndoManager.clear();
+    const write = createWriter(editor, text);
+    await write("color", "#111111", { partial: true });
+    await write("color", "#000000", { partial: true });
+    await write("color", "#000000");
+
+    expect(textTag()).toBe('<mj-text css-class="obj-t" color="#000000">');
+    expect(editor.UndoManager.hasUndo()).toBe(false);
+  });
+
   it("drops longhands in the same change as the shorthand that replaces them", async () => {
     text.addAttributes({ "padding-top": "4px" });
     editor.UndoManager.clear();

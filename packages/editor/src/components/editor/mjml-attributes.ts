@@ -103,9 +103,47 @@ export const ALLOWED_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 // plugin's style mirror), which it never serialises.
 const ALWAYS_ALLOWED = new Set(["mj-class", "css-class", "id", "style"]);
 
+const EDITOR_PROPS = /\sdata-gjs-[\w-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/gi;
+
+/**
+ * The MJML without `data-gjs-*` attributes, which GrapesJS reads as properties of the element
+ * rather than attributes: its layer name and icon among them, which it writes into the page
+ * as markup. Strict MJML does not look inside a text's HTML, so the agent can write them too.
+ */
+export function withoutEditorProps(mjml: string): string {
+  return mjml.replace(EDITOR_PROPS, "");
+}
+
 /** The attributes MJML would reject on `tag`; none for a tag the table does not cover. */
 export function illegalAttributes(tag: string, attributes: Record<string, unknown>): string[] {
   const allowed = ALLOWED_ATTRIBUTES[tag];
   if (!allowed) return [];
   return Object.keys(attributes).filter((a) => !ALWAYS_ALLOWED.has(a) && !allowed.includes(a));
 }
+
+/** The colour names MJML accepts, as mjml-core 4.18 lists them: CSS's, plus `inherit`. */
+// prettier-ignore
+export const NAMED_COLORS: ReadonlySet<string> = new Set([
+  "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black",
+  "blanchedalmond", "blue", "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse",
+  "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan", "darkblue", "darkcyan",
+  "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki", "darkmagenta",
+  "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen",
+  "darkslateblue", "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink",
+  "deepskyblue", "dimgray", "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen",
+  "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod", "gray", "green", "greenyellow",
+  "grey", "honeydew", "hotpink", "indianred", "indigo", "inherit", "ivory", "khaki", "lavender",
+  "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan",
+  "lightgoldenrodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink", "lightsalmon",
+  "lightseagreen", "lightskyblue", "lightslategray", "lightslategrey", "lightsteelblue",
+  "lightyellow", "lime", "limegreen", "linen", "magenta", "maroon", "mediumaquamarine",
+  "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue",
+  "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream",
+  "mistyrose", "moccasin", "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange",
+  "orangered", "orchid", "palegoldenrod", "palegreen", "paleturquoise", "palevioletred",
+  "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple", "rebeccapurple",
+  "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell",
+  "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen",
+  "steelblue", "tan", "teal", "thistle", "tomato", "transparent", "turquoise", "violet", "wheat",
+  "white", "whitesmoke", "yellow", "yellowgreen",
+]);

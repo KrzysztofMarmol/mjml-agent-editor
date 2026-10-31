@@ -138,10 +138,14 @@ building in another language overrides rather than forks:
 >
 ```
 
-Overrides are shallow-merged, so anything omitted stays English. `toolLabels` is the one
-exception and merges key by key — renaming one step would otherwise silently drop the other
-eight. `DEFAULT_LABELS` and the `EditorLabels` type are exported if you want to see the full
-list or build a complete translation.
+Overrides are shallow-merged, so anything omitted stays English. The maps keyed by an id
+are the exception and merge key by key, so translating one entry keeps the others:
+`toolLabels` (by agent tool), `blockLabels` (by block id, e.g. `mj-2-columns`),
+`elementNames` (by MJML tag) and `inspectorLabels` (the Settings tab's field and option
+names, and help as `<key>.help`). `DEFAULT_LABELS` and the `EditorLabels` type are exported
+if you want to see the full list or build a complete translation; for `inspectorLabels` the
+keys in `DEFAULT_LABELS.inspectorLabels` are the whole set. Font and brand names (Arial,
+Facebook) are shown as they are and have no key.
 
 New keys arrive with new features, including in 0.1.x releases. They always have English
 defaults, so a host passing `Partial<EditorLabels>` picks them up untouched; a host that

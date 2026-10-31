@@ -12,6 +12,8 @@ import { Pipette } from "lucide-react";
 
 import type { EditorLabels } from "../../labels.js";
 import { cn } from "../../lib/utils";
+import { useFieldLabel } from "./inspector/controls.js";
+import { NAMED_COLORS } from "./mjml-attributes.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 /** Web-safe neutrals and a few saturated hues; emails rarely want more than this. */
@@ -53,6 +55,7 @@ export default function ColorField({
   /** `partial` while dragging, so a drag is one undo step, not one per pixel. */
   onChange: (value: string, partial: boolean) => void;
 }) {
+  const label = useFieldLabel();
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState<string[]>([]);
@@ -98,11 +101,17 @@ export default function ColorField({
 
   const commit = (next: string) => {
     dragged.current = null;
-    onChange(next, false);
+    const color = mjmlColor(next);
+    // MJML would reject it, and with it every later write of the agent's; the field goes back.
+    if (color === null) return setText(value);
+    setText(color);
+    onChange(color, false);
   };
 
   // react-colorful reports no drag end, and moves by arrow keys as well; those are whole changes.
-  const drag = (next: string) => {
+  const drag = (picked: string) => {
+    // The alpha picker reports `#rrggbbaa`, which MJML rejects.
+    const next = mjmlColor(picked) ?? picked;
     setText(next);
     if (!pressed.current) return commit(next);
     dragged.current = next;
@@ -140,6 +149,7 @@ export default function ColorField({
           value={text}
           placeholder={placeholder}
           spellCheck={false}
+          aria-labelledby={label}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => text !== value && commit(text.trim())}
           onKeyDown={(e) => {
@@ -189,6 +199,7 @@ export default function ColorField({
           <input
             value={text}
             spellCheck={false}
+            aria-labelledby={label}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && commit(text.trim())}
             onBlur={() => text !== value && commit(text.trim())}
@@ -285,6 +296,22 @@ function Checkerboard() {
       }}
     />
   );
+}
+
+/**
+ * A colour as MJML accepts it — `#rrggbb`, `rgba()` when translucent, or a name — or null for
+ * anything MJML's Color type rejects. Empty stays empty: the attribute is removed.
+ */
+export function mjmlColor(value: string): string | null {
+  const v = value.trim();
+  if (v === "") return "";
+  if (NAMED_COLORS.has(v.toLowerCase())) return v.toLowerCase();
+  const hex = toHex(v);
+  if (!hex) return null;
+  if (hex.length === 7) return hex;
+  const [r, g, b, a] = [1, 3, 5, 7].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  // MJML's pattern wants a digit before the point and at most three after it.
+  return `rgba(${r},${g},${b},${Number((a! / 255).toFixed(2))})`;
 }
 
 /**

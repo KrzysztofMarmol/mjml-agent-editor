@@ -17,7 +17,8 @@ export type Control =
   | { readonly type: "color" }
   /** A picked image URL. On mj-image `src` is a model property, not an attribute. */
   | { readonly type: "image" }
-  | { readonly type: "length"; readonly units: readonly Unit[] }
+  /** `negative`: MJML takes a negative value here; elsewhere its unit type rejects one. */
+  | { readonly type: "length"; readonly units: readonly Unit[]; readonly negative?: true }
   /** One to four lengths in a shorthand attribute, with `-top`/`-right`/… longhands. */
   | { readonly type: "box"; readonly units: readonly Unit[] }
   /** Few short options, shown side by side. */

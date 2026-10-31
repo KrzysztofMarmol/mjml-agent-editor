@@ -6,7 +6,15 @@
  * undo step per keystroke is not an undo history anyone can use.
  */
 
-import { useEffect, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Grid2x2, RotateCcw } from "lucide-react";
 
 import type { EditorLabels } from "../../../labels.js";
@@ -17,6 +25,11 @@ import { boxShorthand, parseLength, readBox, SIDES, type Sides } from "./values.
 
 const FIELD =
   "h-7 w-full min-w-0 rounded-md border border-panel-border bg-panel-elevated px-2 text-xs text-panel-fg outline-none placeholder:text-panel-muted-fg/70 focus:border-brand";
+
+// The id of the caption of the Row a control sits in: the caption is not a <label>, as it
+// holds the reset button, so the control is named by reference.
+const FieldLabel = createContext<string | undefined>(undefined);
+export const useFieldLabel = () => useContext(FieldLabel);
 
 /** A label, the control, and — when the element sets its own value — a dot and a reset. */
 export function Row({
@@ -40,13 +53,17 @@ export function Row({
   onReset: () => void;
   children: ReactNode;
 }) {
+  const id = useId();
+  const control = <FieldLabel.Provider value={id}>{children}</FieldLabel.Provider>;
   const caption = (
     <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-panel-muted-fg">
       <span
         aria-hidden
         className={cn("size-1.5 shrink-0 rounded-full", own ? "bg-brand" : "bg-transparent")}
       />
-      <span className="truncate">{label}</span>
+      <span id={id} className="truncate">
+        {label}
+      </span>
       {own && (
         <button
           type="button"
@@ -65,17 +82,17 @@ export function Row({
       {wide ? (
         <div className="flex flex-col gap-1">
           {caption}
-          {children}
+          {control}
         </div>
       ) : inline ? (
         <div className="flex items-center justify-between gap-2">
           {caption}
-          {children}
+          {control}
         </div>
       ) : (
         <div className="grid grid-cols-[92px_minmax(0,1fr)] items-center gap-2">
           {caption}
-          {children}
+          {control}
         </div>
       )}
       {help && <p className="mt-1 pl-3 text-[11px] leading-snug text-panel-muted-fg/80">{help}</p>}
@@ -103,16 +120,27 @@ function useDraft(value: string, commit: (next: string) => void) {
 export function TextInput({
   value,
   placeholder,
+  accept,
   onCommit,
 }: {
   value: string;
   placeholder?: string;
+  /** False for text the field must not write; it is kept, marked, for the visitor to fix. */
+  accept?: (next: string) => boolean;
   onCommit: (next: string) => void;
 }) {
-  const { draft, setDraft, done, onKeyDown } = useDraft(value, onCommit);
+  const [invalid, setInvalid] = useState(false);
+  const label = useFieldLabel();
+  const { draft, setDraft, done, onKeyDown } = useDraft(value, (next) => {
+    const ok = !accept || accept(next);
+    setInvalid(!ok);
+    if (ok) onCommit(next);
+  });
   return (
     <input
-      className={FIELD}
+      className={cn(FIELD, invalid && "border-red-400")}
+      aria-labelledby={label}
+      aria-invalid={invalid}
       value={draft}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
@@ -122,27 +150,41 @@ export function TextInput({
   );
 }
 
-/** A bare number gets the first unit, so typing `24` into a px field means 24px. */
-function normaliseLength(text: string, units: readonly Unit[]): string | null {
+/**
+ * A bare number gets the first unit, so typing `24` into a px field means 24px. Null for what
+ * the field cannot write, a negative included unless MJML takes one there.
+ */
+export function normaliseLength(
+  text: string,
+  units: readonly Unit[],
+  negative = false,
+): string | null {
   if (text === "") return "";
   const parsed = parseLength(text, units) ?? parseLength(`${text}${units[0]}`, units);
-  return parsed ? `${parsed.amount}${parsed.unit}` : null;
+  if (!parsed || (!negative && parsed.amount.startsWith("-"))) return null;
+  return `${parsed.amount}${parsed.unit}`;
 }
 
 export function LengthInput({
   value,
   placeholder,
   units,
+  negative = false,
+  labelledBy,
   onCommit,
 }: {
   value: string;
   placeholder?: string;
   units: readonly Unit[];
+  negative?: boolean;
+  /** Ids naming the field, when the Row's caption alone does not. */
+  labelledBy?: string;
   onCommit: (next: string) => void;
 }) {
+  const fieldLabel = useFieldLabel();
   const [invalid, setInvalid] = useState(false);
   const { draft, setDraft, done, onKeyDown } = useDraft(value, (next) => {
-    const normal = normaliseLength(next, units);
+    const normal = normaliseLength(next, units, negative);
     setInvalid(normal === null);
     if (normal !== null) onCommit(normal);
   });
@@ -154,7 +196,8 @@ export function LengthInput({
       unit: units[0]!,
     };
     const delta = (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1);
-    const next = `${Math.max(0, Number(current.amount) + delta)}${current.unit}`;
+    const amount = Number(current.amount) + delta;
+    const next = `${negative ? amount : Math.max(0, amount)}${current.unit}`;
     setDraft(next);
     onCommit(next);
   };
@@ -164,6 +207,7 @@ export function LengthInput({
       value={draft}
       placeholder={placeholder}
       inputMode="decimal"
+      aria-labelledby={labelledBy ?? fieldLabel}
       aria-invalid={invalid}
       title={units.filter(Boolean).join(", ")}
       onChange={(e) => setDraft(e.target.value)}
@@ -204,6 +248,8 @@ export function BoxInput({
     onCommit(next.every((s, i) => s === defaults[i]) ? "" : boxShorthand(next));
   };
 
+  const fieldLabel = useFieldLabel();
+  const sideId = useId();
   const sideNames = [labels.sideTop, labels.sideRight, labels.sideBottom, labels.sideLeft];
   const pairs: [string, number[]][] = each
     ? SIDES.map((_, i) => [sideNames[i]!, [i]])
@@ -221,9 +267,15 @@ export function BoxInput({
               value={sides[indices[0]!]!}
               placeholder={defaults[indices[0]!] || "0"}
               units={units}
+              labelledBy={[fieldLabel, `${sideId}-${indices[0]}`].filter(Boolean).join(" ")}
               onCommit={(v) => set(indices, v)}
             />
-            <span className="truncate text-center text-[10px] text-panel-muted-fg/80">{name}</span>
+            <span
+              id={`${sideId}-${indices[0]}`}
+              className="truncate text-center text-[10px] text-panel-muted-fg/80"
+            >
+              {name}
+            </span>
           </label>
         ))}
       </div>
@@ -312,9 +364,11 @@ export function Select({
   // A value no option names (an agent's own font stack) stays visible and selected.
   const known = !value || options.some((o) => o.value === value);
   const fallbackOption = options.find((o) => o.value === fallback);
+  const label = useFieldLabel();
   return (
     <select
       className={cn(FIELD, "px-1.5")}
+      aria-labelledby={label}
       value={value || ""}
       onChange={(e) => onCommit(e.target.value)}
     >
