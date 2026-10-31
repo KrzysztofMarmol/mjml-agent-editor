@@ -170,6 +170,22 @@ function newestUserMessage(messages: UIMessage[]): UIMessage | undefined {
   return undefined;
 }
 
+/**
+ * Whether every user message is text and nothing else.
+ *
+ * The AI SDK downloads a user message's `file` and `image` parts from whatever URL they name,
+ * up to 2 GB held in memory, and with a session the message is stored and downloaded again on
+ * every later turn. The editor sends only text. Assistant messages are not checked: the SDK
+ * downloads nothing from them.
+ */
+function onlyText(messages: UIMessage[]): boolean {
+  return messages.every(
+    (message) =>
+      message?.role !== "user" ||
+      (Array.isArray(message.parts) && message.parts.every((part) => part?.type === "text")),
+  );
+}
+
 function defaultFormatError(error: unknown): string {
   console.error("agent turn failed:", error);
   const message = error instanceof Error ? error.message : String(error);
@@ -214,6 +230,10 @@ export function createChatHandler(options: ChatHandlerOptions) {
     }
     if (!Array.isArray(body.messages)) {
       return Response.json({ error: "`messages` is required" }, { status: 400 });
+    }
+    // Before `authorize`, so a refused request is not counted against a limit.
+    if (!onlyText(body.messages)) {
+      return Response.json({ error: "user messages may contain only text" }, { status: 400 });
     }
 
     const builtIn = createAgentTools({

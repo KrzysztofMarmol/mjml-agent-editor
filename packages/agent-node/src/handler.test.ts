@@ -142,6 +142,38 @@ describe("createChatHandler", () => {
     await expect(response.json()).resolves.toEqual({ error: "`messages` is required" });
   });
 
+  it.each([
+    ["a file part", [{ type: "file", mediaType: "text/plain", url: "https://attacker.test/huge" }]],
+    [
+      "an image part",
+      [{ type: "file", mediaType: "image/png", url: "https://attacker.test/x.png" }],
+    ],
+    ["parts that are not a list", "Make the header green"],
+  ])("refuses a user message with %s, before authorize or the model", async (_, parts) => {
+    const replaying = modelReplaying(textTurn("should never run"));
+    const authorize = vi.fn(() => undefined);
+    const handler = createChatHandler({
+      model: replaying.model,
+      documents,
+      comments,
+      images,
+      authorize,
+    });
+    const earlier = { id: "m0", role: "user", parts };
+
+    // An earlier message too: without a session the client's whole history reaches the model.
+    for (const messages of [[{ ...USER_MESSAGE, parts }], [earlier, USER_MESSAGE]]) {
+      const response = await handler(post({ docId: "doc-1", messages }));
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: "user messages may contain only text",
+      });
+    }
+    expect(authorize).not.toHaveBeenCalled();
+    expect(replaying.calls()).toBe(0);
+  });
+
   it("streams the assistant reply as a UI message stream", async () => {
     const response = await handlerSaying("Done — header is green now.")(
       post({ messages: [USER_MESSAGE], docId: "doc-1" }),
