@@ -7,4 +7,5 @@
  */
 
 export { default as EmailEditor } from "./components/editor/EmailEditor.js";
+export { blockProblems, type SectionBlock } from "./components/editor/blocks.js";
 export type { EditorApi, EditorState, SaveStatus } from "./components/editor/EmailEditor.js";

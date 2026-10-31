@@ -16,6 +16,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Protocol
@@ -24,6 +25,7 @@ import ai
 import openai
 
 import db
+import links
 import mjml_compile
 import mjml_doc
 from contract import load_contract
@@ -76,11 +78,51 @@ _EMPTY_ARG_HINT = (
 _blocking = asyncio.to_thread
 
 
-async def _validated_save(doc_id: str, mjml: str) -> str:
+# A comment, or a tag with its quoted values, so that <!-- inside a value starts no comment.
+_TOKEN = re.compile(
+    r"""<!--.*?(?:-->|\Z)|<([a-z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*""", re.I | re.S
+)
+
+
+def _count_tag(mjml: str, tag: str) -> int:
+    # A tag inside a comment is not an element; counting it would let a write that removes
+    # the comment add a real one unnoticed.
+    return sum(1 for m in _TOKEN.finditer(mjml) if m[1] and m[1].lower() == tag)
+
+
+def _added_uneditable_tags(before: str, after: str) -> list[str]:
+    """Tags the editor cannot edit that a write adds; ones already in the document stay."""
+    return [
+        tag for tag in CONTRACT.uneditable_tags if _count_tag(after, tag) > _count_tag(before, tag)
+    ]
+
+
+async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
     """Compiles the whole document and saves only if it is valid."""
+    added = _added_uneditable_tags(before, mjml)
+    if added:
+        tags = ", ".join(f"<{tag}>" for tag in added)
+        return (
+            f"ERROR: {tags} cannot be used — the visual editor cannot edit it. "
+            "The document was NOT saved."
+        )
     ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
     if not ok:
         return f"ERROR: MJML validation failed — document was NOT saved:\n{result}"
+    # On the compiled email, where MJML has joined a navbar's base-url to its links. The
+    # previous document is compiled only when something is found, to refuse only additions.
+    schemes = CONTRACT.link_schemes
+    found = await _blocking(links.unsafe_markup, result, schemes)
+    if found:
+        was_ok, previous = await _blocking(mjml_compile.compile_mjml, before)
+        known = await _blocking(links.unsafe_markup, previous, schemes) if was_ok else []
+        added = links.added_items(found, known)
+        if added:
+            return (
+                f"ERROR: {links.describe_items(added)} cannot be in an email — only "
+                f"{', '.join(schemes)} links or ones without a scheme, and no scripts, event "
+                "handlers, frames, embeds, SVG or MathML. The document was NOT saved."
+            )
     await _blocking(db.set_document_mjml, doc_id, mjml)
     return "OK, saved."
 
@@ -143,9 +185,10 @@ def build_tools(
         # ones the document had. A rewrite therefore renumbers every section and detaches
         # every comment anchored to it, and the model reaches for this tool out of habit
         # after an edit it has already saved.
+        before = await _blocking(db.get_document_mjml, doc_id)
         existing = [
             section["section_id"]
-            for section in mjml_doc.list_sections(await _blocking(db.get_document_mjml, doc_id))
+            for section in mjml_doc.list_sections(before)
             if section["section_id"] != "?"
         ]
         if existing and not confirm_full_rewrite:
@@ -166,7 +209,7 @@ def build_tools(
             saved = mjml_doc.ensure_section_ids(mjml)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
-        result = await _validated_save(doc_id, saved)
+        result = await _validated_save(doc_id, before, saved)
         if not result.startswith("OK"):
             return result
         return f"{result}{await _prune_orphaned_comments(doc_id, saved)}"
@@ -182,7 +225,7 @@ def build_tools(
             return f"ERROR: {error}"
         if updated is None:
             return f"ERROR: no section with id '{section_id}'"
-        return await _validated_save(doc_id, updated)
+        return await _validated_save(doc_id, doc, updated)
 
     @_described("insert_section")
     async def insert_section(mjml: str = "", after_section_id: str | None = None) -> str:
@@ -193,7 +236,7 @@ def build_tools(
             updated, section_id = mjml_doc.insert_section(doc, mjml, after_section_id)
         except mjml_doc.MjmlDocumentError as error:
             return f"ERROR: {error}"
-        result = await _validated_save(doc_id, updated)
+        result = await _validated_save(doc_id, doc, updated)
         return f"{result} New section: {section_id}" if result.startswith("OK") else result
 
     @_described("remove_section")
@@ -202,7 +245,7 @@ def build_tools(
         updated = mjml_doc.remove_section(doc, section_id)
         if updated is None:
             return f"ERROR: no section with id '{section_id}'"
-        result = await _validated_save(doc_id, updated)
+        result = await _validated_save(doc_id, doc, updated)
         if not result.startswith("OK"):
             return result
         # A section removed on request takes its comments with it — the same rule as a

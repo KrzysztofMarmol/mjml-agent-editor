@@ -119,6 +119,25 @@ documents in production.
    deleted, not marked resolved: nobody answered them, so recording them as answered would
    corrupt the only list that says what actually was. A backend whose store cannot delete must
    say so in the tool result rather than leave the orphans unmentioned.
+8. **A write may not add a tag the editor cannot edit.** `uneditable_tags` in the contract —
+   `mj-table`, `mj-hero`, `mj-accordion`, `mj-carousel` — compile, but the editor keeps a
+   table's rows only as they are, a hero's content sits outside any section, and the editor
+   cannot show the other two. Count each tag before and after the write and refuse it when there
+   are more, so a document that already holds one stays writable. Strict validation cannot catch
+   this: all four compile.
+9. **A write may not add what could run in the compiled email.** Compile first, then read the
+   HTML as a browser's tokeniser does — tags with their quotes; comments, `<!…>`, `<?…>` and
+   `<style>`-like elements (`script`, `style`, `xmp`, `iframe`, `noembed`, `noframes`,
+   `noscript`, `textarea`, `title`) ending where it ends them, so a quote inside one hides
+   nothing — and inside comments too (Outlook reads conditional markup): every `href`, `xlink:href`, `action` and `formaction` must have a scheme from
+   `link_schemes` — `http`, `https`, `mailto`, `tel`, `sms` — or none (relative, or a merge
+   tag), read with entities decoded and control characters dropped; no `on…` handler; no
+   `script`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `base`, `animate`,
+   `set` or `plaintext` element, and no `svg` or `math`, inside which a browser tokenises
+   `<style>` and `<![CDATA[` otherwise. The compiled HTML, because MJML adds what the source does not say: a
+   navbar's `base-url` from `mj-attributes` or an `mj-class`. As with rule 8 only additions
+   are refused, so compile the previous document too, but only when something was found.
+   `contract/unsafe-markup-cases.json` lists cases every backend must agree on.
 
 ## Settled: multi-line tool arguments
 

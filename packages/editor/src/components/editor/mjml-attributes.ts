@@ -122,6 +122,42 @@ export function withoutEditorProps(mjml: string): string {
   );
 }
 
+/**
+ * The MJML with every self-closed `<mj-… />` written as an open and a close tag. GrapesJS
+ * parses MJML as HTML, where `/>` does not close a custom element, so whatever follows an
+ * `<mj-image />` was nested inside it: valid MJML in, MJML the agent's strict compile rejects
+ * out.
+ */
+export function withClosedTags(mjml: string): string {
+  return mjml.replace(START_TAG, (tag) => {
+    const selfClosed = /^<(mj-[\w-]+)([\s\S]*?)\s*\/>$/i.exec(tag);
+    return selfClosed ? `<${selfClosed[1]}${selfClosed[2]}></${selfClosed[1]}>` : tag;
+  });
+}
+
+// Comments are matched to be skipped: a table one mentions is not a table.
+const TABLE =
+  /<!--[\s\S]*?(?:-->|$)|(<mj-table\b(?:[^>"']|"[^"]*"|'[^']*')*>)((?:<!--[\s\S]*?-->|(?!<!--)[\s\S])*?)(<\/mj-table\s*>)/gi;
+
+/**
+ * The MJML with each mj-table's rows inside a `<template>`. Parsed as HTML, rows outside a
+ * table are dropped and only their text kept; a template keeps them for the mj-table type.
+ */
+export function withTableRowsKept(mjml: string): string {
+  return mjml.replace(TABLE, (match, open?: string, rows?: string, close?: string) =>
+    open ? `${open}<template>${rows}</template>${close}` : match,
+  );
+}
+
+/**
+ * The MJML GrapesJS is given for a document, and whether it had to be repaired. Closing a
+ * self-closed element or holding a table's rows is not a repair: it is the same MJML.
+ */
+export function sourceForEditor(mjml: string): { mjml: string; repaired: boolean } {
+  const cleaned = withoutEditorProps(mjml);
+  return { mjml: withTableRowsKept(withClosedTags(cleaned)), repaired: cleaned !== mjml };
+}
+
 /** The attributes MJML would reject on `tag`; none for a tag the table does not cover. */
 export function illegalAttributes(tag: string, attributes: Record<string, unknown>): string[] {
   const allowed = ALLOWED_ATTRIBUTES[tag];

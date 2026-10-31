@@ -5,7 +5,11 @@
 
 import type { Component } from "grapesjs";
 
-const ID_RE = { sec: /\bsec-([A-Za-z0-9_-]+)\b/, obj: /\bobj-([A-Za-z0-9_-]+)\b/ } as const;
+// A whole class token, as agent-core reads one: `promo-sec-a` is a host's class, not an id.
+export const ID_RE = {
+  sec: /(?:^|\s)sec-([A-Za-z0-9_-]+)(?=\s|$)/,
+  obj: /(?:^|\s)obj-([A-Za-z0-9_-]+)(?=\s|$)/,
+} as const;
 type Prefix = keyof typeof ID_RE;
 
 function idOf(c: Component, prefix: Prefix): string | null {
@@ -45,7 +49,10 @@ export function freshenCopiedIds(root: Component | undefined, added: Component) 
       const id = idOf(c, prefix);
       if (!id || !used(prefix, id, c)) continue;
       const cssClass = String(c.getAttributes()["css-class"]);
-      c.addAttributes({ "css-class": cssClass.replace(`${prefix}-${id}`, `${prefix}-${newId()}`) });
+      const fresh = cssClass.replace(ID_RE[prefix], (token) =>
+        token.replace(`${prefix}-${id}`, `${prefix}-${newId()}`),
+      );
+      c.addAttributes({ "css-class": fresh });
     }
   });
 }

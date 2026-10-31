@@ -1,6 +1,7 @@
 import type { MjmlCompiler } from "./ports.js";
 import { STARTER_MJML } from "./starter.js";
 import { scanSections } from "./mjml-document.js";
+import { UNEDITABLE_TAGS } from "./uneditable.js";
 
 /**
  * A template, as far as this package is concerned: an id and a body.
@@ -85,7 +86,7 @@ export interface TemplateValidationOptions {
   readonly compiler?: MjmlCompiler;
 }
 
-const BANNED_TAGS = ["mj-hero", "mj-wrapper", "mj-table", "mj-head"] as const;
+const BANNED_TAGS = [...UNEDITABLE_TAGS, "mj-wrapper", "mj-head"] as const;
 
 function result(issues: TemplateValidationIssue[]): TemplateValidationResult {
   return issues.length === 0 ? { ok: true, issues: [] } : { ok: false, issues };

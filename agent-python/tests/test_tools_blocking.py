@@ -107,3 +107,85 @@ def test_a_refused_rewrite_counts_the_resolved_comments_it_would_delete(db: Fake
 
     assert "2 comment(s) anchored to them (1 open, 1 resolved)" in result
     assert db.mjml == DOC
+
+
+TABLE = "<mj-section><mj-column><mj-table><tr><td>Mug</td></tr></mj-table></mj-column></mj-section>"
+
+
+def test_a_table_the_editor_cannot_edit_is_not_saved(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=TABLE))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")
+    assert db.mjml == DOC
+
+
+def test_a_table_already_in_the_document_does_not_block_other_edits(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    db.mjml = DOC.replace("</mj-body>", TABLE + "</mj-body>")
+
+    result = asyncio.run(_tool("remove_section")(section_id="bbb"))
+
+    assert result.startswith("OK")
+
+
+def test_a_commented_out_table_does_not_let_a_real_one_in(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    db.mjml = DOC.replace("</mj-body>", "<!-- <mj-table> --></mj-body>")
+
+    rebuilt = f"<mjml><mj-body>{TABLE}</mj-body></mjml>"
+    result = asyncio.run(_tool("set_document")(mjml=rebuilt, confirm_full_rewrite=True))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")
+
+
+def test_a_table_between_values_that_look_like_a_comment_is_counted(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    hidden = (
+        '<mj-section css-class="<!--"><mj-column><mj-table><tr><td>1</td></tr></mj-table>'
+        '<mj-text css-class="-->">x</mj-text></mj-column></mj-section>'
+    )
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=hidden))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")
+
+
+def test_a_link_a_mail_client_could_run_is_not_saved(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The guard reads the compiled email; here the source stands in for it.
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, mjml))
+    section = (
+        "<mj-section><mj-column><mj-text><a href='javascript:alert(1)'>Hi</a>"
+        "<img src='x' onerror='alert(2)'></mj-text></mj-column></mj-section>"
+    )
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=section))
+
+    assert result.startswith('ERROR: "javascript:alert(1)", "onerror" cannot be in an email')
+    assert db.mjml == DOC
+
+
+def test_an_unsafe_link_already_in_the_document_does_not_block_other_edits(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, mjml))
+    old = (
+        "<mj-section><mj-column><mj-button href='javascript:x()'>Old</mj-button>"
+        "<mj-text><a href='https://a.com/&#99999999;'>Far</a></mj-text></mj-column></mj-section>"
+    )
+    db.mjml = DOC.replace("</mj-body>", old + "</mj-body>")
+
+    result = asyncio.run(_tool("remove_section")(section_id="bbb"))
+
+    assert result.startswith("OK")

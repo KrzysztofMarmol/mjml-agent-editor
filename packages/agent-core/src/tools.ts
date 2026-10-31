@@ -15,6 +15,8 @@
  */
 
 import { SYSTEM_PROMPT } from "./prompt.js";
+import { LINK_SCHEMES } from "./links.js";
+import { UNEDITABLE_TAGS } from "./uneditable.js";
 
 /** Minimal JSON Schema shape used for tool arguments. */
 export interface ToolInputSchema {
@@ -247,6 +249,8 @@ export function toolsAsJson(): {
   tools: Array<{ name: string; description: string; input_schema: ToolInputSchema }>;
   mutating_tools: string[];
   section_id_argument: Record<string, string>;
+  uneditable_tags: string[];
+  link_schemes: string[];
 } {
   return {
     version: 1,
@@ -258,5 +262,7 @@ export function toolsAsJson(): {
     })),
     mutating_tools: [...MUTATING_TOOLS],
     section_id_argument: { ...SECTION_ID_ARGUMENT } as Record<string, string>,
+    uneditable_tags: [...UNEDITABLE_TAGS],
+    link_schemes: [...LINK_SCHEMES],
   };
 }

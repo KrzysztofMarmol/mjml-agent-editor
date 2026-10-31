@@ -338,6 +338,79 @@ describe("agent tools", () => {
       expect(output).toContain("exactly one");
       expect(documents.saveCount).toBe(0);
     });
+    it("refuses a table, which the editor cannot edit", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-table><tr><td>Mug</td><td>£12</td></tr></mj-table></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: <mj-table> cannot be used/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("refuses a link a mail client or the preview could run", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text><a href="javascript:alert(1)">Hi</a></mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be in an email/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("refuses a navbar link made unsafe by a base-url from the head", async () => {
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace(
+          "<mj-body>",
+          `<mj-head><mj-attributes><mj-class name="nav" base-url="javascript" /></mj-attributes></mj-head><mj-body>`,
+        ),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-navbar mj-class="nav"><mj-navbar-link href=":alert(1)">Go</mj-navbar-link></mj-navbar></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be in an email/);
+      expect(documents.saveCount).toBe(1);
+    });
+
+    it("refuses an event handler inside a text", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text><img src="x" onerror="alert(1)"></mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "onerror" cannot be in an email/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("still saves an email whose existing unsafe link holds an entity out of range", async () => {
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("Welcome", `<a href="https://a.com/&#99999999;">Welcome</a>`),
+      });
+      const output = await run(tools, "remove_section", { section_id: "bbb" });
+      expect(output).toMatch(/^OK/);
+    });
+
+    it("leaves a document its existing unsafe link, so edits elsewhere still save", async () => {
+      const old = `<mj-section css-class="sec-ccc"><mj-column><mj-button href="javascript:x()">Old</mj-button></mj-column></mj-section>`;
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("</mj-body>", `${old}</mj-body>`),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+    });
+
+    it("leaves a document its existing table, so edits elsewhere still save", async () => {
+      const table = `<mj-section css-class="sec-ccc"><mj-column><mj-table><tr><td>1</td></tr></mj-table></mj-column></mj-section>`;
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("</mj-body>", `${table}</mj-body>`),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+    });
   });
 
   describe("insert_section", () => {

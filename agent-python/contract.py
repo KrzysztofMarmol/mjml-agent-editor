@@ -48,6 +48,8 @@ class Contract:
     system_prompt: str
     tools: dict[str, ToolSpec]
     mutating_tools: frozenset[str]
+    uneditable_tags: tuple[str, ...]
+    link_schemes: tuple[str, ...]
 
     def description(self, name: str) -> str:
         try:
@@ -86,6 +88,17 @@ def load_contract(path: str | os.PathLike[str] | None = None) -> Contract:
         )
 
     raw = json.loads(resolved.read_text())
+    # A contract from an older core lacks the newer keys; say so rather than raise KeyError.
+    missing = [
+        key
+        for key in ("tools", "mutating_tools", "uneditable_tags", "link_schemes")
+        if key not in raw
+    ]
+    if missing:
+        raise ContractError(
+            f"tool contract at {resolved} has no {', '.join(missing)}. Rebuild it with "
+            "`pnpm --filter @mjml-agent-editor/core build`."
+        )
     tools = {
         entry["name"]: ToolSpec(
             name=entry["name"],
@@ -99,4 +112,6 @@ def load_contract(path: str | os.PathLike[str] | None = None) -> Contract:
         system_prompt=raw["system_prompt"],
         tools=tools,
         mutating_tools=frozenset(raw["mutating_tools"]),
+        uneditable_tags=tuple(raw["uneditable_tags"]),
+        link_schemes=tuple(raw["link_schemes"]),
     )

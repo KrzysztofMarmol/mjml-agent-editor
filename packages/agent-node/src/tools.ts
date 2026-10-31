@@ -11,7 +11,12 @@
  */
 
 import {
+  LINK_SCHEMES,
   MjmlDocumentError,
+  addedItems,
+  addedUneditableTags,
+  describeItems,
+  unsafeMarkup,
   TOOLS,
   ensureSectionIds,
   getSection,
@@ -98,12 +103,28 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
   /**
    * Compiles before persisting, so an invalid document is never written. The model
    * sees the compiler output and can correct itself; the spike relied on this and it
-   * is the main reason the agent rarely leaves a document broken.
+   * is the main reason the agent rarely leaves a document broken. A tag the editor cannot
+   * edit is refused before that, when the write adds one (`addedUneditableTags`). So is what
+   * could run in the compiled email (`unsafeMarkup`), when the write adds it: the previous
+   * document is compiled for that only when something is found.
    */
-  const saveValidated = async (mjml: string): Promise<string> => {
+  const saveValidated = async (before: string, mjml: string): Promise<string> => {
+    const added = addedUneditableTags(before, mjml);
+    if (added.length > 0) {
+      const tags = added.map((tag) => `<${tag}>`).join(", ");
+      return `ERROR: ${tags} cannot be used — the visual editor cannot edit it. The document was NOT saved.`;
+    }
     const result = await compiler.compile(mjml);
     if (!result.ok) {
       return `ERROR: MJML validation failed — document was NOT saved:\n${result.errors}`;
+    }
+    const found = unsafeMarkup(result.html);
+    if (found.length > 0) {
+      const previous = await compiler.compile(before);
+      const added = addedItems(found, previous.ok ? unsafeMarkup(previous.html) : []);
+      if (added.length > 0) {
+        return `ERROR: ${describeItems(added)} cannot be in an email — only ${LINK_SCHEMES.join(", ")} links or ones without a scheme, and no scripts, event handlers, frames, embeds, SVG or MathML. The document was NOT saved.`;
+      }
     }
     await documents.save(documentId, { mjml });
     return "OK, saved.";
@@ -174,9 +195,8 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
           // it never preserves the ones the document had. A rewrite therefore renumbers
           // every section and detaches every comment — and the model reaches for this tool
           // by habit after an edit it has already saved.
-          const existing = listSections(await currentMjml()).filter(
-            (section) => section.sectionId !== null,
-          );
+          const before = await currentMjml();
+          const existing = listSections(before).filter((section) => section.sectionId !== null);
           if (existing.length > 0 && confirm_full_rewrite !== true) {
             // Resolved comments are deleted too, so they are counted: "0 open" would read as
             // nothing to lose.
@@ -195,7 +215,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
           }
 
           const saved = ensureSectionIds(mjml);
-          const result = await saveValidated(saved);
+          const result = await saveValidated(before, saved);
           if (!result.startsWith("OK")) return result;
           return `${result}${await pruneOrphanedComments(saved)}`;
         } catch (error) {
@@ -210,9 +230,10 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       execute: async ({ section_id, mjml }) => {
         if (!mjml.trim()) return "ERROR: `mjml` was empty — pass one complete <mj-section>.";
         try {
-          const updated = replaceSection(await currentMjml(), section_id, mjml);
+          const before = await currentMjml();
+          const updated = replaceSection(before, section_id, mjml);
           if (updated === null) return `ERROR: no section with id '${section_id}'`;
-          return await saveValidated(updated);
+          return await saveValidated(before, updated);
         } catch (error) {
           return describeError(error);
         }
@@ -225,12 +246,9 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       execute: async ({ mjml, after_section_id }) => {
         if (!mjml.trim()) return "ERROR: `mjml` was empty — pass one complete <mj-section>.";
         try {
-          const { mjml: updated, sectionId } = insertSection(
-            await currentMjml(),
-            mjml,
-            after_section_id,
-          );
-          const result = await saveValidated(updated);
+          const before = await currentMjml();
+          const { mjml: updated, sectionId } = insertSection(before, mjml, after_section_id);
+          const result = await saveValidated(before, updated);
           return result.startsWith("OK") ? `${result} New section: ${sectionId}` : result;
         } catch (error) {
           return describeError(error);
@@ -242,9 +260,10 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       description: TOOLS.remove_section.description,
       inputSchema: schemaOf<SectionIdInput>("remove_section"),
       execute: async ({ section_id }) => {
-        const updated = removeSection(await currentMjml(), section_id);
+        const before = await currentMjml();
+        const updated = removeSection(before, section_id);
         if (updated === null) return `ERROR: no section with id '${section_id}'`;
-        const result = await saveValidated(updated);
+        const result = await saveValidated(before, updated);
         if (!result.startsWith("OK")) return result;
         // A section removed on request takes its comments with it — the same rule as a
         // rewrite, reached from the other direction.

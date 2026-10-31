@@ -5,10 +5,12 @@ import GjsEditor, { Canvas, useEditorMaybe } from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
 import { useEffect, useRef, useState } from "react";
 
-import { STARTER_MJML } from "@mjml-agent-editor/core";
+import { listSections, STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
+import { createSaveBaseline } from "../../lib/save-baseline.js";
 import { createSaveQueue } from "../../lib/save-queue.js";
+import { createTurnFollower } from "../../lib/turn-follower.js";
 import { opensBlockSearch } from "../../lib/shortcuts.js";
 import { useAgentTurn } from "../../stores.js";
 import { cn } from "../../lib/utils";
@@ -23,10 +25,13 @@ import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
+import { registerBlocks, type SectionBlock } from "./blocks.js";
+import { BUILTIN_BLOCKS, builtinBlock, CANVAS_CSS } from "./builtin-blocks.js";
+import { addsBlock, insertBlock } from "./insert-block.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
-import { illegalAttributes, withoutEditorProps } from "./mjml-attributes.js";
+import { illegalAttributes, sourceForEditor } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -73,6 +78,11 @@ type Props = {
   commentsRefresh: number;
   /** Reports the number of open comments (for the header indicator). */
   onOpenCountChange: (n: number) => void;
+  /**
+   * Sections offered after the built-in blocks, read once when the editor starts. One that
+   * `blockProblems` refuses is left out and reported in the console.
+   */
+  blocks?: readonly SectionBlock[];
 };
 
 // Element types that can receive a comment (besides a section).
@@ -94,6 +104,10 @@ const SPARKLES_SVG =
 // "Image up" icon (lucide ImageUp), the toolbar button that opens the image picker.
 const IMAGE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/><circle cx="9" cy="9" r="2"/></svg>';
+
+// "Layout template" icon (lucide LayoutTemplate), the tile of a host's section without its own.
+const SECTION_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg>';
 
 function isSection(c: Component): boolean {
   return tagOf(c) === "mj-section";
@@ -117,31 +131,6 @@ function crumbName(c: Component, labels: EditorLabels): string {
   const t = tagOf(c);
   return labels.elementNames[t] ?? t.replace(/^mj-/, "");
 }
-
-// The palette. Social and navigation children are only valid inside their parent; hero and
-// wrapper are banned from editable templates by agent-core (a hero gets no `sec-*` id, so the
-// agent cannot address it); raw HTML is out of place for the people this editor serves.
-const BLOCKS = [
-  "mj-1-column",
-  "mj-2-columns",
-  "mj-3-columns",
-  "mj-text",
-  "mj-image",
-  "mj-button",
-  "mj-divider",
-  "mj-spacer",
-  "mj-social-group",
-  "mj-navbar",
-];
-const LAYOUT_BLOCKS = new Set(["mj-1-column", "mj-2-columns", "mj-3-columns"]);
-
-// The plugin's version links Google+ and shares the page: a bare network name makes the icon
-// open a "share this link" dialog, while `-noshare` links to the profile a footer means.
-const SOCIAL_BLOCK = `<mj-social icon-size="24px" mode="horizontal">
-  <mj-social-element name="facebook-noshare" href="https://facebook.com/"></mj-social-element>
-  <mj-social-element name="instagram-noshare" href="https://instagram.com/"></mj-social-element>
-  <mj-social-element name="x-noshare" href="https://x.com/"></mj-social-element>
-</mj-social>`;
 
 function objectLabel(c: Component): string {
   const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
@@ -229,7 +218,13 @@ function setupRichText(editor: Editor, labels: EditorLabels) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCountChange }: Props) {
+export default function EmailEditor({
+  docId,
+  onReady,
+  commentsRefresh,
+  onOpenCountChange,
+  blocks = [],
+}: Props) {
   // Injected by the host rather than imported, so the editor carries no database.
   const documents = useDocumentStore();
   const labels = useLabels();
@@ -260,8 +255,15 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const { running: turnRunning, locked: readOnly, setLocked } = useAgentTurn();
   const readOnlyRef = useRef(false);
   const applyReadOnly = useRef<(on: boolean) => Promise<void>>(async () => {});
-  useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
-  useEffect(() => () => setLocked(false), [setLocked]);
+  const [turn] = useState(createTurnFollower);
+  useEffect(() => turn.turn(turnRunning), [turn, turnRunning]);
+  useEffect(() => {
+    turn.mount();
+    return () => {
+      turn.unmount();
+      setLocked(false);
+    };
+  }, [turn, setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
@@ -378,6 +380,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     setupRichText(editor, labels);
     fixPluginTypes(editor);
+    registerBlocks(editor, blocks, labels.blockCategorySections, SECTION_SVG);
     setupLayerNames(editor, labels);
 
     // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,
@@ -439,9 +442,9 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       buildCrumbs(editor.getSelected());
     });
 
-    // The MJML the store holds, as far as this editor knows. A save writes only when the
-    // canvas differs from it — the canvas is the truth, not the events that changed it.
-    let stored = "";
+    // A save writes only when the canvas differs from what the store holds — the canvas is
+    // the truth, not the events that changed it.
+    const baseline = createSaveBaseline();
 
     const save = async () => {
       // An open rich-text editor holds its text until editing ends.
@@ -449,11 +452,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         { syncContent?: () => Promise<void> } | undefined;
       await view?.syncContent?.();
       const mjml = editor.getHtml();
-      if (mjml === stored) return;
+      if (!baseline.changed(mjml)) return;
       setSave("saving");
       try {
         await documents.save(docId, { mjml, projectData: editor.getProjectData() });
-        stored = mjml;
+        baseline.saved(mjml);
         setSave("saved");
       } catch (e) {
         setSave("error");
@@ -489,6 +492,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       });
     }
     const lock = (on: boolean) => {
+      if (!turn.mounted) return;
       readOnlyRef.current = on;
       setLocked(on);
       notifyState();
@@ -516,15 +520,17 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         return;
       }
       lock(false);
+      // What a load repaired or added while the canvas was locked; nothing, if it is unchanged.
+      queue.schedule();
     };
 
-    // Only the agent writes during a turn, so the store differs from `stored` exactly when it
+    // Only the agent writes during a turn, so the store differs from `baseline.stored` exactly when it
     // changed something. Otherwise the canvas is kept, including edits a failed save left unsaved.
     // Queued behind saves and earlier reloads, so a slow one never lands over a newer one.
     const reload = () =>
       queue.run(async () => {
         const fresh = await documents.get(docId);
-        if (fresh.mjml !== stored) loadMjml(fresh.mjml);
+        if (fresh.mjml !== baseline.stored) loadMjml(fresh.mjml);
       });
 
     const loadMjml = (mjml: string) => {
@@ -532,16 +538,15 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       // written by the next save, which compares against what the store returned.
       loadingRef.current = true;
       let repaired = false;
+      // What the load adds, the store needs: a comment pinned to a new id finds nothing else.
+      // Read from the source, as the canvas gave each section its id as it was added.
+      const adds = !mjml || listSections(mjml).some((s) => !s.sectionId);
       try {
         queue.cancel();
-        stored = mjml;
-        const source = withoutEditorProps(mjml || STARTER_MJML);
-        repaired = source !== (mjml || STARTER_MJML);
-        editor.setComponents(source);
-        editor.getWrapper()?.find("mj-section").forEach(decorate);
-        for (const t of Object.keys(TYPE_LABEL)) {
-          editor.getWrapper()?.find(t).forEach(decorate);
-        }
+        baseline.load(mjml, null);
+        const source = sourceForEditor(mjml || STARTER_MJML);
+        repaired = source.repaired;
+        editor.setComponents(source.mjml);
         // Attributes the sidebar used to write and MJML rejects. Rendering ignores them, so
         // removing them changes nothing visible, and leaving them fails every agent write.
         editor.getWrapper()?.onAll((c) => {
@@ -550,6 +555,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           c.removeAttributes(illegal);
           repaired = true;
         });
+        if (!repaired && !adds) baseline.load(mjml, editor.getHtml());
         showBodyInLayers();
         // What was loaded is where undo stops: undoing the load emptied the canvas, or put
         // back what an agent turn had replaced, and the next save stored that.
@@ -559,7 +565,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }
       notifyState();
       // Written now rather than with the next edit: the agent reads the stored copy.
-      if (repaired && !readOnlyRef.current) queue.schedule();
+      if ((repaired || adds) && !readOnlyRef.current) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -593,10 +599,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     };
 
     const sectionEl = (sectionId: string): HTMLElement | undefined => {
-      const comp = editor
-        .getWrapper()
-        ?.find("mj-section")
-        .find((c) => sectionIdOf(c) === sectionId);
+      // find() matches the rendered elements, where a section is not an mj-section.
+      let comp: Component | undefined;
+      editor.getWrapper()?.onAll((c) => {
+        if (!comp && isSection(c) && sectionIdOf(c) === sectionId) comp = c;
+      });
       return (comp?.getEl?.() as HTMLElement | undefined) ?? undefined;
     };
 
@@ -611,9 +618,10 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       }
     };
 
+    turn.ready((on) => void applyReadOnly.current(on));
     try {
-      const doc = await documents.get(docId);
-      loadMjml(doc.mjml);
+      // Queued, so the reload that ends a turn already running lands after this load.
+      await queue.run(async () => loadMjml((await documents.get(docId)).mjml));
     } catch (e) {
       toast.error(labels.documentLoadFailed);
       console.error(e);
@@ -679,6 +687,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         // app.grapesjs.com and leave a session-storage entry, which a host would then have
         // to disclose and, for the entry, ask consent for.
         telemetry: false,
+        canvasCss: CANVAS_CSS,
         fromElement: false,
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
@@ -705,7 +714,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             close: () => setPicker(null),
           },
         },
-        canvas: { customBadgeLabel: badgeLabel(labels) },
+        canvas: {
+          customBadgeLabel: badgeLabel(labels),
+          // A file or text dragged in from outside lands as `<img>` or `<div>`, which no MJML
+          // validator accepts; drags from the palette are unaffected.
+          allowExternalDrop: false,
+        },
         deviceManager: {
           devices: [
             { id: "desktop", name: "Desktop", width: "" },
@@ -715,15 +729,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         plugins: [
           (editor: Editor) =>
             grapesjsMJML(editor, {
-              blocks: BLOCKS,
-              block: (id: string) => ({
-                label: labels.blockLabels[id] ?? id,
-                // By id: a regex on the label broke as soon as a host translated it.
-                category: LAYOUT_BLOCKS.has(id)
-                  ? labels.blockCategoryLayout
-                  : labels.blockCategoryContent,
-                ...(id === "mj-social-group" && { content: SOCIAL_BLOCK }),
-              }),
+              blocks: BUILTIN_BLOCKS,
+              block: builtinBlock(labels),
             }),
         ],
       }}
@@ -823,6 +830,16 @@ function LeftSidebar({
     editor?.getWrapper()?.onAll((c) => c.set("open", expand));
   };
 
+  // GrapesJS's tiles only drag; Enter or Space on one adds its block (see insertBlock).
+  const onTileKey = (e: React.KeyboardEvent) => {
+    const tile = (e.target as HTMLElement).closest<HTMLElement>("[data-block]");
+    const block = tile && editor?.Blocks.get(tile.dataset.block ?? "");
+    if (!editor || !block || !addsBlock(e)) return;
+    e.preventDefault();
+    // Focus stays on the tile, so the change in the canvas is said aloud (toasts are live).
+    if (insertBlock(editor, block)) toast(labels.blockAdded(tile.textContent?.trim() ?? ""));
+  };
+
   // Filter the GrapesJS-rendered blocks (DOM lives outside React) by label;
   // hide category groups that end up empty.
   const filterBlocks = (q: string) => {
@@ -896,7 +913,7 @@ function LeftSidebar({
             {labels.noBlocksMatch}
           </p>
         )}
-        <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
+        <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" onKeyDown={onTileKey} />
       </div>
 
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>

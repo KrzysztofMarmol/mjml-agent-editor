@@ -88,4 +88,18 @@ export const SCENARIOS: readonly Scenario[] = [
       sectionCount: 1,
     },
   },
+  {
+    name: "refuses a table the editor cannot edit",
+    seedMjml: STARTER("table001", "Order summary"),
+    // As above: whatever the model tries, the stored document holds no mj-table.
+    prompt:
+      "Add to the only section an mj-table with two rows: Mug, £12 and Tea, £4. " +
+      "Use exactly <mj-table>, not another layout.",
+    expect: {
+      firstToolCall: "get_document",
+      preservesSectionIds: ["table001"],
+      finalOmits: ["<mj-table"],
+      finalCompiles: true,
+    },
+  },
 ];

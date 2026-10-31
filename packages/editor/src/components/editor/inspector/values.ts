@@ -56,29 +56,5 @@ export function networkName(network: string, share: boolean): string {
   return share || network === "custom" ? network : `${network}${NO_SHARE}`;
 }
 
-const LINK_SCHEMES = new Set(["http", "https", "mailto", "tel", "sms"]);
-
-/**
- * Whether a link may be written: web, mail and phone links, and those without a scheme
- * (relative, or a merge tag the sender fills in). Not `javascript:`, which the preview, the
- * export and some mail clients would run. Read as a browser reads an href: entities decoded,
- * and tabs, newlines and control characters ignored.
- */
-export function isSafeLink(value: string): boolean {
-  const decoded = value
-    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
-    .replace(/&colon;/g, ":")
-    .replace(/&(Tab|NewLine);/g, "")
-    .replace(/[\u0000-\u0020]/g, "");
-  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(decoded)?.[1];
-  return !scheme || LINK_SCHEMES.has(scheme.toLowerCase());
-}
-
-/**
- * A navigation link as MJML writes it: the bar's `base-url` in front of the link's `href`.
- * Each can look harmless alone, `javascript` and `:alert(1)`, so they are checked joined.
- */
-export function isSafeNavbarLink(baseUrl: string, href: string): boolean {
-  return isSafeLink(baseUrl) && isSafeLink(href) && isSafeLink(baseUrl + href);
-}
+// The agent backends refuse the same links, so the rule lives in core.
+export { isSafeLink, isSafeNavbarLink } from "@mjml-agent-editor/core";

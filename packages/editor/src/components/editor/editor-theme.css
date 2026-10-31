@@ -155,6 +155,10 @@
     box-shadow 0.12s ease,
     background-color 0.12s ease;
 }
+.editor-dark .gjs-block:focus-visible {
+  outline: 2px solid var(--mjml-editor-accent);
+  outline-offset: 1px;
+}
 .editor-dark .gjs-block:hover {
   border-color: var(--mjml-editor-accent);
   background-color: var(--mjml-editor-panel-raised);

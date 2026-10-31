@@ -74,6 +74,17 @@ export {
   type ToolName,
 } from "./tools.js";
 
+export { UNEDITABLE_TAGS, addedUneditableTags } from "./uneditable.js";
+
+export {
+  LINK_SCHEMES,
+  addedItems,
+  describeItems,
+  isSafeLink,
+  isSafeNavbarLink,
+  unsafeMarkup,
+} from "./links.js";
+
 export {
   MjmlDocumentError,
   ensureSectionIds,
