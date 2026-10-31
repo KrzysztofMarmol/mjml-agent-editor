@@ -27,7 +27,7 @@ import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { registerBlocks, type SectionBlock } from "./blocks.js";
 import { BUILTIN_BLOCKS, builtinBlock, CANVAS_CSS } from "./builtin-blocks.js";
-import { insertBlock } from "./insert-block.js";
+import { addsBlock, insertBlock } from "./insert-block.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
@@ -257,7 +257,13 @@ export default function EmailEditor({
   const applyReadOnly = useRef<(on: boolean) => Promise<void>>(async () => {});
   const [turn] = useState(createTurnFollower);
   useEffect(() => turn.turn(turnRunning), [turn, turnRunning]);
-  useEffect(() => () => setLocked(false), [setLocked]);
+  useEffect(() => {
+    turn.mount();
+    return () => {
+      turn.unmount();
+      setLocked(false);
+    };
+  }, [turn, setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
@@ -486,6 +492,7 @@ export default function EmailEditor({
       });
     }
     const lock = (on: boolean) => {
+      if (!turn.mounted) return;
       readOnlyRef.current = on;
       setLocked(on);
       notifyState();
@@ -832,9 +839,10 @@ function LeftSidebar({
   const onTileKey = (e: React.KeyboardEvent) => {
     const tile = (e.target as HTMLElement).closest<HTMLElement>("[data-block]");
     const block = tile && editor?.Blocks.get(tile.dataset.block ?? "");
-    if (!editor || !block || (e.key !== "Enter" && e.key !== " ")) return;
+    if (!editor || !block || !addsBlock(e)) return;
     e.preventDefault();
-    insertBlock(editor, block);
+    // Focus stays on the tile, so the change in the canvas is said aloud (toasts are live).
+    if (insertBlock(editor, block)) toast(`${labels.blockAdded}: ${tile.textContent?.trim()}`);
   };
 
   // Filter the GrapesJS-rendered blocks (DOM lives outside React) by label;

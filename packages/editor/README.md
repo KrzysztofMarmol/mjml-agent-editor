@@ -143,6 +143,15 @@ why; call it in a test of your catalog to find out before your users do. It need
 run that test under jsdom. Labels are plain text. `blocks` is read once, when the editor
 starts.
 
+Every tile, built-in or yours, also works from the keyboard: Tab to it, and Enter or Space
+adds it after the selected element or section (an element with nothing selected gets a
+section of its own), selects it and announces it.
+
+What an email loads from elsewhere: no built-in block carries a sample picture, but social
+icons without a `src` of their own come from `www.mailjet.com`, and text without a
+`font-family` gets MJML's default, Ubuntu from `fonts.googleapis.com`. Both reach every
+reader's mail client, so name them wherever you list who receives your users' data.
+
 ## Copy
 
 Every word the editor renders comes from a dictionary with English defaults, so a host

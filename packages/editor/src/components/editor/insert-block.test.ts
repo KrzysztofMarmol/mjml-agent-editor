@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_LABELS } from "../../labels.js";
 import { BUILTIN_BLOCKS, builtinBlock } from "./builtin-blocks.js";
 import { addIdClass, freshenCopiedIds } from "./ids.js";
-import { insertBlock } from "./insert-block.js";
+import { addsBlock, insertBlock } from "./insert-block.js";
 import { fixPluginTypes } from "./plugin-types.js";
 
 const mjml = createRequire(import.meta.url)("mjml") as (
@@ -78,6 +78,18 @@ describe("insertBlock", () => {
     );
   });
 
+  it("keeps a section inside the wrapper of the selected one", () => {
+    editor.setComponents(
+      `<mjml><mj-body><mj-wrapper><mj-section css-class="sec-w1"><mj-column><mj-text>W1</mj-text></mj-column></mj-section>` +
+        `<mj-section css-class="sec-w2"><mj-column><mj-text>W2</mj-text></mj-column></mj-section></mj-wrapper></mj-body></mjml>`,
+    );
+    editor.select(find("W1"));
+    insert("mj-1-column");
+    expect(body()).toMatch(
+      /<mj-wrapper><mj-section><mj-column><mj-text>W1<\/mj-text><\/mj-column><\/mj-section><mj-section><mj-column><mj-text>Content 1/,
+    );
+  });
+
   it("is strict MJML, undone in one step", () => {
     const before = editor.getHtml();
     editor.select(find("Z"));
@@ -85,5 +97,19 @@ describe("insertBlock", () => {
     expect(mjml(editor.getHtml(), { validationLevel: "strict" }).errors).toEqual([]);
     editor.UndoManager.undo();
     expect(editor.getHtml()).toBe(before);
+  });
+});
+
+describe("addsBlock", () => {
+  const key = (key: string, more: Partial<KeyboardEvent> = {}) =>
+    addsBlock({ key, repeat: false, ctrlKey: false, metaKey: false, altKey: false, ...more });
+
+  it("takes Enter and Space once, not a held key or a shortcut", () => {
+    expect([key("Enter"), key(" "), key("a")]).toEqual([true, true, false]);
+    expect([key("Enter", { repeat: true }), key("Enter", { ctrlKey: true })]).toEqual([
+      false,
+      false,
+    ]);
+    expect([key(" ", { metaKey: true }), key("Enter", { altKey: true })]).toEqual([false, false]);
   });
 });

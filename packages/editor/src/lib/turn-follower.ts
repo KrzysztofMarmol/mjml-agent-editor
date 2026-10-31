@@ -6,12 +6,27 @@
  */
 export function createTurnFollower() {
   let running = false;
+  let mounted = true;
   let apply: ((on: boolean) => unknown) | null = null;
   return {
     turn(on: boolean) {
       if (on === running) return;
       running = on;
-      apply?.(on);
+      if (mounted) apply?.(on);
+    },
+    /**
+     * Whether the canvas is still mounted. An unmounted one's late reload must not unlock
+     * the shared state a canvas mounted since has locked.
+     */
+    get mounted() {
+      return mounted;
+    },
+    // Both, as React mounts twice in development.
+    mount() {
+      mounted = true;
+    },
+    unmount() {
+      mounted = false;
     },
     /** A turn already under way is applied at once; none means nothing to apply. */
     ready(fn: (on: boolean) => unknown) {

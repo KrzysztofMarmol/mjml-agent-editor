@@ -2,6 +2,11 @@
 
 import type { Block, Component, Editor } from "grapesjs";
 
+/** Enter or Space, once: not a held key's repeats, and not a shortcut with a modifier. */
+export const addsBlock = (
+  e: Pick<KeyboardEvent, "key" | "repeat" | "ctrlKey" | "metaKey" | "altKey">,
+) => (e.key === "Enter" || e.key === " ") && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey;
+
 /** Makes a tile focusable and names the block it adds; GrapesJS sets these on the tile. */
 export const tileAttributes = (id: string) => ({ tabindex: "0", role: "button", "data-block": id });
 
@@ -34,16 +39,18 @@ export function insertBlock(editor: Editor, block: Block): Component | undefined
 
   const selected = editor.getSelected();
   const section = closest(selected, "mj-section");
-  const afterSection = section ? { at: childOf(body, section).index() + 1 } : {};
+  // Beside the selected section, so one inside an mj-wrapper stays in it.
+  const sections = section?.parent() ?? body;
+  const afterSection = section ? { at: section.index() + 1 } : {};
   const column = closest(selected, "mj-column");
   let added: Component | undefined;
   if (/^\s*<mj-section\b/i.test(content)) {
-    added = body.append(content, afterSection)[0];
+    added = sections.append(content, afterSection)[0];
   } else if (column && selected) {
     const at = selected === column ? {} : { at: childOf(column, selected).index() + 1 };
     added = column.append(content, at)[0];
   } else {
-    const [wrapper] = body.append(
+    const [wrapper] = sections.append(
       `<mj-section><mj-column>${content}</mj-column></mj-section>`,
       afterSection,
     );

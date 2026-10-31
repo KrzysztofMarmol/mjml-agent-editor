@@ -32,3 +32,17 @@ describe("createTurnFollower", () => {
     expect(apply.mock.calls).toEqual([[true]]);
   });
 });
+
+describe("an unmounted canvas", () => {
+  it("is told nothing, and says so to its late reload", () => {
+    const follower = createTurnFollower();
+    const apply = vi.fn();
+    follower.ready(apply);
+    follower.unmount();
+    follower.turn(true);
+    expect(apply).not.toHaveBeenCalled();
+    expect(follower.mounted).toBe(false);
+    follower.mount();
+    expect(follower.mounted).toBe(true);
+  });
+});
