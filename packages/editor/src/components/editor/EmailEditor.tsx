@@ -23,6 +23,7 @@ import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
+import { registerBlocks, type SectionBlock } from "./blocks.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
@@ -73,6 +74,11 @@ type Props = {
   commentsRefresh: number;
   /** Reports the number of open comments (for the header indicator). */
   onOpenCountChange: (n: number) => void;
+  /**
+   * Sections offered after the built-in blocks, read once when the editor starts. One that
+   * `blockProblems` refuses is left out and reported in the console.
+   */
+  blocks?: readonly SectionBlock[];
 };
 
 // Element types that can receive a comment (besides a section).
@@ -94,6 +100,10 @@ const SPARKLES_SVG =
 // "Image up" icon (lucide ImageUp), the toolbar button that opens the image picker.
 const IMAGE_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10l-3.1-3.1a2 2 0 0 0-2.814.014L6 21"/><path d="m14 19.5 3-3 3 3"/><path d="M17 22v-5.5"/><circle cx="9" cy="9" r="2"/></svg>';
+
+// "Layout template" icon (lucide LayoutTemplate), the tile of a host's section without its own.
+const SECTION_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="7" x="3" y="3" rx="1"/><rect width="9" height="7" x="3" y="14" rx="1"/><rect width="5" height="7" x="16" y="14" rx="1"/></svg>';
 
 function isSection(c: Component): boolean {
   return tagOf(c) === "mj-section";
@@ -229,7 +239,13 @@ function setupRichText(editor: Editor, labels: EditorLabels) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCountChange }: Props) {
+export default function EmailEditor({
+  docId,
+  onReady,
+  commentsRefresh,
+  onOpenCountChange,
+  blocks = [],
+}: Props) {
   // Injected by the host rather than imported, so the editor carries no database.
   const documents = useDocumentStore();
   const labels = useLabels();
@@ -378,6 +394,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     setupRichText(editor, labels);
     fixPluginTypes(editor);
+    registerBlocks(editor, blocks, labels.blockCategorySections, SECTION_SVG);
     setupLayerNames(editor, labels);
 
     // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,

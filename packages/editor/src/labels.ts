@@ -43,6 +43,8 @@ export interface EditorLabels {
   readonly noBlocksMatch: string;
   readonly blockCategoryLayout: string;
   readonly blockCategoryContent: string;
+  /** Where the host's own sections (the `blocks` prop) are listed. */
+  readonly blockCategorySections: string;
   /** Keyed by grapesjs-mjml block id (`mj-1-column`, `mj-social-group`, …); merged key by key. */
   readonly blockLabels: Readonly<Record<string, string>>;
   /** Keyed by MJML tag, for the breadcrumb; merged key by key. */
@@ -187,6 +189,7 @@ export const DEFAULT_LABELS: EditorLabels = {
   noBlocksMatch: "No blocks match.",
   blockCategoryLayout: "Layout",
   blockCategoryContent: "Content",
+  blockCategorySections: "Sections",
   blockLabels: {
     "mj-1-column": "1 column",
     "mj-2-columns": "2 columns",

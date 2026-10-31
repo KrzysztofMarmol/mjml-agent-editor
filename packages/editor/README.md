@@ -9,7 +9,7 @@ on the canvas.
 | -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
 | `@mjml-agent-editor/editor`            | stores, `EditorHeader`, `ChatPanel`, `CanvasComments`, types | Safe to import anywhere                                |
 | `@mjml-agent-editor/editor/ui`         | the shadcn primitives and `cn`                               | Light; no canvas                                       |
-| `@mjml-agent-editor/editor/canvas`     | `EmailEditor`                                                | **Browser only** — GrapesJS touches `window` at import |
+| `@mjml-agent-editor/editor/canvas`     | `EmailEditor`, `blockProblems`                               | **Browser only** — GrapesJS touches `window` at import |
 | `@mjml-agent-editor/editor/styles.css` | editor chrome stylesheet                                     | Import from your Tailwind entry                        |
 
 The split is not cosmetic. With a single barrel, a layout file importing a tooltip provider
@@ -120,6 +120,26 @@ storage would otherwise be handing out a way round its own cap.
 
 Without a library the picker takes URLs only. The editor never inlines a file as base64:
 most mail clients block `data:` images, and every agent turn would pay for the bytes.
+
+## Your own sections
+
+`EmailEditor` takes `blocks`: sections of your own, listed in the palette after the built-in
+blocks, under `blockCategorySections`. Each is one `<mj-section>` of MJML; once dropped it is
+ordinary MJML that the agent edits like any other section, and it gets its `sec-*` id then.
+
+```tsx
+const BLOCKS = [{ id: "footer", label: "Footer", mjml: FOOTER_MJML }] satisfies SectionBlock[];
+
+<EmailEditor docId={docId} blocks={BLOCKS} /* … */ />;
+```
+
+The agent compiles the whole email strictly on every write, so a section the editor cannot
+keep would block it in every email it is dropped in. `blockProblems(mjml)` says why a block
+cannot be offered — it is not strict MJML, not exactly one section, carries a `sec-*`/`obj-*`
+id, a `javascript:` link or a `data:` image, or uses a tag the editor does not round-trip
+(`mj-table`, `mj-hero`, `mj-wrapper`, `mj-raw`, accordion, carousel). The editor leaves such
+a block out and logs why; call it in a test of your catalog to find out before your users do.
+It needs a DOM, so run that test under jsdom. `blocks` is read once, when the editor starts.
 
 ## Copy
 
