@@ -108,9 +108,9 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
    * is the main reason the agent rarely leaves a document broken. A tag the editor cannot
    * edit is refused before that, when the write adds one (`addedUneditableTags`). So is what
    * could run in the compiled email (`unsafeMarkup`), when the write adds it: the previous
-   * document is compiled for that only when something is found. And a write may not break
-   * the document itself, which the compiler allows by accepting a root never closed — only
-   * break it, so a document stored that way stays editable.
+   * document is compiled for that only when something is found. Nor may a write break the
+   * document itself, which the compiler allows by accepting a root never closed; as with the
+   * other two, a document already stored that way stays editable.
    */
   const saveValidated = async (before: string, mjml: string): Promise<string> => {
     if (isMjmlDocument(before) && !isMjmlDocument(mjml)) {

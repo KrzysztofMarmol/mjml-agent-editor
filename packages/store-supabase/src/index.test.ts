@@ -43,6 +43,13 @@ describe("createDocumentStore().save", () => {
 });
 
 describe("createDocument", () => {
+  // The editor opens an empty document as the starter, so hosts may create one empty.
+  it("creates an empty document", async () => {
+    const { client, insert } = fakeClient(DOCUMENT);
+    await createDocument(client, "x", "");
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
   it("refuses to create one that is not a document", async () => {
     const { client, insert } = fakeClient(DOCUMENT);
     await expect(createDocument(client, "x", "<p>hi</p>")).rejects.toBeInstanceOf(
