@@ -174,6 +174,13 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "direction", label: "reverseColumns", group: "advanced", control: { type: "toggle", on: "rtl" } },
     { attr: "border", label: "border", group: "advanced", control: { type: "text", placeholder: "1px solid #cccccc" } },
   ],
+  // MJML allows a group these four only: padding or a border fails strict, so none are offered.
+  "mj-group": [
+    { attr: "vertical-align", label: "verticalAlign", group: "layout", control: { type: "segmented", options: VERTICAL_ALIGN } },
+    { attr: "background-color", label: "backgroundColor", group: "style", control: { type: "color" } },
+    { attr: "width", label: "width", group: "advanced", control: { type: "length", units: PX_PCT } },
+    { attr: "direction", label: "reverseColumns", group: "advanced", control: { type: "toggle", on: "rtl" } },
+  ],
   "mj-column": [
     { attr: "vertical-align", label: "verticalAlign", group: "layout", control: { type: "segmented", options: VERTICAL_ALIGN }, default: "top" },
     { attr: "padding", label: "padding", group: "spacing", control: { type: "box", units: PX_PCT } },
