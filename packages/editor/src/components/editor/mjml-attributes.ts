@@ -122,6 +122,19 @@ export function withoutEditorProps(mjml: string): string {
   );
 }
 
+/**
+ * The MJML with every self-closed `<mj-… />` written as an open and a close tag. GrapesJS
+ * parses MJML as HTML, where `/>` does not close a custom element, so whatever follows an
+ * `<mj-image />` was nested inside it: valid MJML in, MJML the agent's strict compile rejects
+ * out.
+ */
+export function withClosedTags(mjml: string): string {
+  return mjml.replace(START_TAG, (tag) => {
+    const selfClosed = /^<(mj-[\w-]+)([\s\S]*?)\s*\/>$/i.exec(tag);
+    return selfClosed ? `<${selfClosed[1]}${selfClosed[2]}></${selfClosed[1]}>` : tag;
+  });
+}
+
 /** The attributes MJML would reject on `tag`; none for a tag the table does not cover. */
 export function illegalAttributes(tag: string, attributes: Record<string, unknown>): string[] {
   const allowed = ALLOWED_ATTRIBUTES[tag];

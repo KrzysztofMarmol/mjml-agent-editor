@@ -5,6 +5,7 @@ import grapesjsMJML from "grapesjs-mjml";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createWriter } from "./inspector/write.js";
+import { withClosedTags } from "./mjml-attributes.js";
 import { fixPluginTypes } from "./plugin-types.js";
 
 const require = createRequire(import.meta.url);
@@ -68,5 +69,31 @@ describe("fixPluginTypes", () => {
   it("keeps a value that equals the plugin's own default", () => {
     load('<mj-navbar><mj-navbar-link padding="25px">Home</mj-navbar-link></mj-navbar>');
     expect(editor.getHtml()).toContain('<mj-navbar-link padding="25px">');
+  });
+
+  it("keeps a column to what MJML allows in one", () => {
+    load("<mj-text><p>Hi</p></mj-text><mj-button>Go</mj-button>");
+    const column = first("mj-column");
+    let paragraph: Component | undefined;
+    first("mj-text").onAll((c) => {
+      if (c.get("tagName") === "p") paragraph = c;
+    });
+    expect(editor.Components.canMove(column, paragraph!).result).toBe(false);
+    const accepts = column.get("droppable") as (source: Component) => boolean;
+    expect(accepts(first("mj-button"))).toBe(true);
+  });
+});
+
+describe("withClosedTags", () => {
+  it("keeps what follows a self-closed element beside it rather than inside it", () => {
+    editor.setComponents(
+      withClosedTags(
+        '<mjml><mj-body><mj-section><mj-column><mj-image src="https://a.com/x.png" alt="a" /><mj-spacer height="8px"/><mj-text>after</mj-text></mj-column></mj-section></mj-body></mjml>',
+      ),
+    );
+    expect(editor.getHtml()).toContain(
+      '<mj-image src="https://a.com/x.png" alt="a"></mj-image><mj-spacer height="8px"></mj-spacer><mj-text>after</mj-text>',
+    );
+    expect(strictErrors()).toEqual([]);
   });
 });

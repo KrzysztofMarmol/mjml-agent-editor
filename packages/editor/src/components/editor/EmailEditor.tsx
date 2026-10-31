@@ -26,7 +26,7 @@ import Inspector from "./inspector/Inspector.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
-import { illegalAttributes, withoutEditorProps } from "./mjml-attributes.js";
+import { illegalAttributes, withClosedTags, withoutEditorProps } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -535,7 +535,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       try {
         queue.cancel();
         stored = mjml;
-        const source = withoutEditorProps(mjml || STARTER_MJML);
+        const source = withClosedTags(withoutEditorProps(mjml || STARTER_MJML));
         repaired = source !== (mjml || STARTER_MJML);
         editor.setComponents(source);
         editor.getWrapper()?.find("mj-section").forEach(decorate);
