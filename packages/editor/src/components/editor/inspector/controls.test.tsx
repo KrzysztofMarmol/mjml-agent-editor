@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_LABELS } from "../../../labels.js";
-import { TooltipProvider } from "../../ui/tooltip.js";
 import { BoxInput, LengthInput, Row, Select, TextInput } from "./controls.js";
 import type { Unit } from "./types.js";
 
@@ -82,7 +81,8 @@ describe("Row", () => {
   it("keeps the help out of the panel, behind a button, and describes the control with it", () => {
     act(() =>
       root.render(
-        <TooltipProvider>
+        // No TooltipProvider around it: hosts are not asked for one.
+        <>
           <Row
             label="Space around"
             help="Empty space outside the button."
@@ -92,7 +92,7 @@ describe("Row", () => {
           >
             <TextInput value="" onCommit={noop} />
           </Row>
-        </TooltipProvider>,
+        </>,
       ),
     );
     const input = container.querySelector("input")!;

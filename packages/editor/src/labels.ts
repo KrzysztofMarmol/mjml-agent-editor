@@ -340,7 +340,8 @@ export const DEFAULT_LABELS: EditorLabels = {
     menuIconSize: "Menu icon size",
     menuIconAlign: "Menu icon align",
     baseUrl: "Link prefix",
-    "baseUrl.help": "Added in front of every link that does not start with http.",
+    "baseUrl.help":
+      "Added in front of every link in the bar, full addresses included, so links then give only the path.",
 
     // Options
     alignLeft: "Left",

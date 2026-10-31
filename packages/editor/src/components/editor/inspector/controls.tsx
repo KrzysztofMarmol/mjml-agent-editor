@@ -31,7 +31,7 @@ import {
 import type { EditorLabels } from "../../../labels.js";
 import { cn } from "../../../lib/utils";
 import { Switch } from "../../ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../../ui/tooltip";
 import type { Option, Unit } from "./types.js";
 import { boxShorthand, parseLength, readBox, SIDES, type Sides } from "./values.js";
 
@@ -88,22 +88,25 @@ export function Row({
       </span>
       {/* On demand: shown under every field, the help doubled the panel's length. */}
       {help && (
+        // Its own provider: a host need not wrap the editor in one, as only EditorHeader asked.
         // Opened by a tap as well: Radix opens a tooltip on hover and focus, not on touch.
-        <Tooltip open={helpOpen} onOpenChange={setHelpOpen}>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={help}
-              onClick={() => setHelpOpen((open) => !open)}
-              className="-m-0.5 shrink-0 rounded p-0.5 text-panel-muted-fg/70 hover:text-panel-fg focus-visible:text-panel-fg"
-            >
-              <CircleHelp className="size-3" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-56 leading-snug">
-            {help}
-          </TooltipContent>
-        </Tooltip>
+        <TooltipProvider>
+          <Tooltip open={helpOpen} onOpenChange={setHelpOpen}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={help}
+                onClick={() => setHelpOpen((open) => !open)}
+                className="-m-0.5 shrink-0 rounded p-0.5 text-panel-muted-fg/70 hover:text-panel-fg focus-visible:text-panel-fg"
+              >
+                <CircleHelp className="size-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-56 leading-snug">
+              {help}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )}
       {own && (
         <button
