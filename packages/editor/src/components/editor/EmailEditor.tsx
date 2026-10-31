@@ -760,10 +760,11 @@ export default function EmailEditor({
       }}
       onEditor={onEditor}
     >
-      {/* Inert as well as covered, so the keyboard cannot reach the controls either. */}
+      {/* Inert as well as covered, so the keyboard cannot reach the controls either. Until the
+          email has loaded too: a block added from the keyboard before then was lost to the load. */}
       <div
         className="relative flex h-full min-h-0 flex-1"
-        inert={readOnly}
+        inert={readOnly || loading}
         onKeyDown={(e) => onBlockSearchKey(e.nativeEvent)}
       >
         {readOnly && (
