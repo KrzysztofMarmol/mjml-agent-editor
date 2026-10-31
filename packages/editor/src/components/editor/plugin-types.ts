@@ -47,6 +47,7 @@ export function fixPluginTypes(editor: Editor) {
     const view = type.view.prototype as ColumnView;
     editor.Components.addType(type.id, {
       ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
+      ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
       model: {
         defaults: {
           "style-default": {},
@@ -73,6 +74,9 @@ export function fixPluginTypes(editor: Editor) {
 
 interface ColumnView {
   model: Component;
+  init(): void;
+  render(): unknown;
+  listenTo(target: unknown, events: string, callback: () => unknown): void;
   getMjmlTemplate(): { start: string; end: string };
   getTemplateFromEl(container: HTMLElement): HTMLElement | null;
 }
@@ -92,8 +96,16 @@ function groupedColumnView(base: ColumnView): Partial<ColumnView> {
       const siblings = "<mj-column></mj-column>".repeat(
         Math.max((this.model.collection?.length ?? 1) - 1, 0),
       );
+      // A px width is a share of the group, so the template carries the widths around it. The
+      // section's padding is left out; it narrows a px column's share a little on Mobile only.
+      const width = (c: Component | undefined) => {
+        const value = c?.getAttributes().width;
+        return typeof value === "string" && value ? ` width="${value.replace(/"/g, "")}"` : "";
+      };
+      let body: Component | undefined = this.model;
+      while (body && body.get("type") !== "mj-body") body = body.parent();
       return {
-        start: "<mjml><mj-body><mj-section><mj-group>",
+        start: `<mjml><mj-body${width(body)}><mj-section><mj-group${width(this.model.parent())}>`,
         end: `${siblings}</mj-group></mj-section></mj-body></mjml>`,
       };
     },
@@ -104,6 +116,19 @@ function groupedColumnView(base: ColumnView): Partial<ColumnView> {
           "div > table > tbody > tr > td > div > div",
         ) ?? null
       );
+    },
+  };
+}
+
+/**
+ * A group redraws its columns when one arrives or leaves, as the plugin's section does for its
+ * own: each column's drawn width depends on how many share the group.
+ */
+function redrawnGroupView(base: ColumnView): Partial<ColumnView> {
+  return {
+    init(this: ColumnView) {
+      base.init.call(this);
+      this.listenTo(this.model.components(), "add remove", this.render);
     },
   };
 }

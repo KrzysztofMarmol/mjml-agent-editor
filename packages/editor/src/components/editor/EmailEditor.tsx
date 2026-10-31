@@ -767,6 +767,12 @@ export default function EmailEditor({
         inert={readOnly || loading}
         onKeyDown={(e) => onBlockSearchKey(e.nativeEvent)}
       >
+        {/* Over the sidebar too, which is as inert as the canvas until the email arrives. */}
+        {loading && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
+            <Spinner /> {labels.loadingEditor}
+          </div>
+        )}
         {readOnly && (
           <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
             <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">
@@ -806,11 +812,6 @@ export default function EmailEditor({
                 editorRef.current?.AssetManager.close();
               }}
             />
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-                <Spinner /> {labels.loadingEditor}
-              </div>
-            )}
           </div>
           <Breadcrumb crumbs={crumbs} onSelect={(c) => editorRef.current?.select(c)} />
         </div>
