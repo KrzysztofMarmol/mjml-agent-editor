@@ -103,15 +103,23 @@ export const ALLOWED_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 // plugin's style mirror), which it never serialises.
 const ALWAYS_ALLOWED = new Set(["mj-class", "css-class", "id", "style"]);
 
-const EDITOR_PROPS = /\sdata-gjs-[\w-]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/gi;
+// A start tag, with quoted values read whole so a `>` inside one does not end it; and one
+// attribute in it, with its value, so a value's own text is never taken for an attribute.
+const START_TAG = /<[a-z][^\s/>]*(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+const ATTRIBUTE = /\s+([^\s"'>/=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>]+))?/g;
 
 /**
  * The MJML without `data-gjs-*` attributes, which GrapesJS reads as properties of the element
  * rather than attributes: its layer name and icon among them, which it writes into the page
  * as markup. Strict MJML does not look inside a text's HTML, so the agent can write them too.
+ * Only attributes are touched; text that mentions one is left as it is.
  */
 export function withoutEditorProps(mjml: string): string {
-  return mjml.replace(EDITOR_PROPS, "");
+  return mjml.replace(START_TAG, (tag) =>
+    tag.replace(ATTRIBUTE, (attribute, name: string) =>
+      name.toLowerCase().startsWith("data-gjs-") ? "" : attribute,
+    ),
+  );
 }
 
 /** The attributes MJML would reject on `tag`; none for a tag the table does not cover. */

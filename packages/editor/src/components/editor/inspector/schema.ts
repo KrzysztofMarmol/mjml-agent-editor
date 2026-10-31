@@ -363,7 +363,7 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "ico-color", label: "menuIconColor", group: "advanced", control: { type: "color" }, default: "#000000", when: (a) => !!a.hamburger },
     { attr: "ico-font-size", label: "menuIconSize", group: "advanced", control: { type: "length", units: PX_PCT }, default: "30px", when: (a) => !!a.hamburger },
     { attr: "ico-align", label: "menuIconAlign", group: "advanced", control: { type: "segmented", options: ALIGN }, default: "center", when: (a) => !!a.hamburger },
-    { attr: "base-url", label: "baseUrl", group: "advanced", control: { type: "text", placeholder: "https://example.com" } },
+    { attr: "base-url", label: "baseUrl", group: "advanced", control: { type: "link" } },
   ],
   "mj-navbar-link": [
     { attr: "href", label: "link", group: "content", control: { type: "link" } },

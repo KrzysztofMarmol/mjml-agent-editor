@@ -26,7 +26,7 @@ import { layerName } from "../layers.js";
 import { SCHEMA } from "./schema.js";
 import StructureSection from "./StructureSection.js";
 import type { Field, Group, Option } from "./types.js";
-import { isSafeLink, networkName, parseNetwork, SIDES } from "./values.js";
+import { isSafeLink, isSafeNavbarLink, networkName, parseNetwork, SIDES } from "./values.js";
 import { createWriter, type WriteOptions } from "./write.js";
 
 const GROUPS: readonly Exclude<Group, "advanced">[] = ["content", "layout", "spacing", "style"];
@@ -180,6 +180,18 @@ function ElementSettings({
     } as never);
   };
 
+  const safeLink = (attr: string) => (link: string) => {
+    if (tag === "mj-navbar-link" && attr === "href") {
+      return isSafeNavbarLink(String(component.parent()?.getAttributes()["base-url"] ?? ""), link);
+    }
+    if (tag === "mj-navbar" && attr === "base-url") {
+      return component
+        .components()
+        .every((c: Component) => isSafeNavbarLink(link, String(c.getAttributes().href ?? "")));
+    }
+    return isSafeLink(link);
+  };
+
   const control = (f: Field): ReactNode => {
     const value = attributes[f.attr] ?? "";
     const c = f.control;
@@ -197,7 +209,7 @@ function ElementSettings({
           <TextInput
             value={value}
             placeholder="https://"
-            accept={isSafeLink}
+            accept={safeLink(f.attr)}
             onCommit={(v) => write(f.attr, v)}
           />
         );

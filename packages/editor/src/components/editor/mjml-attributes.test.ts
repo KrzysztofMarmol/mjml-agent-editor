@@ -55,6 +55,11 @@ describe("illegalAttributes", () => {
 });
 
 describe("withoutEditorProps", () => {
+  it("leaves text and attribute values that only mention one", () => {
+    const source = `<mj-text css-class="a"><p title='x > data-gjs-name="y"'>Use data-gjs-name="z" here</p></mj-text><mj-image alt="data-gjs-icon docs" src="https://a.com/x.png"></mj-image>`;
+    expect(withoutEditorProps(source)).toBe(source);
+  });
+
   it("drops GrapesJS's property attributes in every quoting, and nothing else", () => {
     expect(
       withoutEditorProps(

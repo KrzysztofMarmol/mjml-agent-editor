@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   boxShorthand,
   isSafeLink,
+  isSafeNavbarLink,
   networkName,
   parseLength,
   parseNetwork,
@@ -96,5 +97,14 @@ describe("isSafeLink", () => {
     ]) {
       expect(isSafeLink(link), link).toBe(false);
     }
+  });
+});
+
+describe("isSafeNavbarLink", () => {
+  it("refuses a script split between the bar's base URL and a link", () => {
+    expect(isSafeNavbarLink("javascript", ":alert(1)")).toBe(false);
+    expect(isSafeNavbarLink("java", "script:alert(1)")).toBe(false);
+    expect(isSafeNavbarLink("https://shop.com", "/sale")).toBe(true);
+    expect(isSafeNavbarLink("", "https://shop.com")).toBe(true);
   });
 });

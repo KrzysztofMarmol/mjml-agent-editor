@@ -74,3 +74,11 @@ export function isSafeLink(value: string): boolean {
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(decoded)?.[1];
   return !scheme || LINK_SCHEMES.has(scheme.toLowerCase());
 }
+
+/**
+ * A navigation link as MJML writes it: the bar's `base-url` in front of the link's `href`.
+ * Each can look harmless alone, `javascript` and `:alert(1)`, so they are checked joined.
+ */
+export function isSafeNavbarLink(baseUrl: string, href: string): boolean {
+  return isSafeLink(baseUrl) && isSafeLink(href) && isSafeLink(baseUrl + href);
+}

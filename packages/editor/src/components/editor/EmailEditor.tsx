@@ -25,6 +25,7 @@ import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
+import { fixPluginTypes } from "./plugin-types.js";
 import { illegalAttributes, withoutEditorProps } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -141,18 +142,6 @@ const SOCIAL_BLOCK = `<mj-social icon-size="24px" mode="horizontal">
   <mj-social-element name="instagram-noshare" href="https://instagram.com/"></mj-social-element>
   <mj-social-element name="x-noshare" href="https://x.com/"></mj-social-element>
 </mj-social>`;
-
-/**
- * Drops the plugin's `style-default`s, which differ from MJML's in places. It stripped any
- * attribute equal to one on save (a navigation link's 25px padding came back as MJML's
- * 15px) and seeded each element with them, so every element looked as if it set them.
- */
-function dropPluginDefaults(editor: Editor) {
-  for (const type of editor.Components.getTypes()) {
-    if (!type.id.startsWith("mj-")) continue;
-    editor.Components.addType(type.id, { model: { defaults: { "style-default": {} } } } as never);
-  }
-}
 
 function objectLabel(c: Component): string {
   const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
@@ -388,7 +377,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
 
     setupRichText(editor, labels);
-    dropPluginDefaults(editor);
+    fixPluginTypes(editor);
     setupLayerNames(editor, labels);
 
     // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,
