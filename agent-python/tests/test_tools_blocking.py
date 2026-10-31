@@ -189,3 +189,26 @@ def test_an_unsafe_link_already_in_the_document_does_not_block_other_edits(
     result = asyncio.run(_tool("remove_section")(section_id="bbb"))
 
     assert result.startswith("OK")
+
+
+def test_a_root_never_closed_is_not_saved(db: FakeDb) -> None:
+    # The compiler accepts it, so without the check it would be stored.
+    unclosed = DOC.replace("</mjml>", "")
+
+    result = asyncio.run(_tool("set_document")(mjml=unclosed, confirm_full_rewrite=True))
+
+    assert result.startswith("ERROR: This is not an MJML document")
+    assert db.mjml == DOC
+
+
+def test_a_document_stored_without_its_closing_tag_stays_editable(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    db.mjml = DOC.replace("</mjml>", "")
+    section = "<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>"
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=section))
+
+    assert result == "OK, saved."
+    assert "Changed" in db.mjml

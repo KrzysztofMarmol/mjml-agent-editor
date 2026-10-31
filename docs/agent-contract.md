@@ -141,6 +141,14 @@ documents in production.
    navbar's `base-url` from `mj-attributes` or an `mj-class`. As with rule 8 only additions
    are refused, so compile the previous document too, but only when something was found.
    `contract/unsafe-markup-cases.json` lists cases every backend must agree on.
+10. **A write may not stop the document being an MJML document:** an `<mjml>` root, closed,
+    with an `<mj-body>` in it (`isMjmlDocument` in agent-core;
+    `contract/document-shape-cases.json` lists cases every backend must agree on). Rule 1 does
+    not cover it — `mjml` accepts a root that is never closed. As with rules 8 and 9 only a
+    write that breaks it is refused, so a document stored broken stays editable. Text around
+    the root is not refused: the compiler accepts a stray comment or code fence beside it and
+    the editor keeps it through a reload. The editor's own saves are not compiled at all, so a
+    `DocumentStore` adapter checks them too and throws `NotMjmlDocumentError`.
 
 ## Settled: multi-line tool arguments
 

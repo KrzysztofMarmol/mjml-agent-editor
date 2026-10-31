@@ -16,6 +16,7 @@ import type {
   ImageProvider,
   SectionComment,
 } from "@mjml-agent-editor/core";
+import { NotMjmlDocumentError, isMjmlDocument } from "@mjml-agent-editor/core";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 interface DocumentRow {
@@ -53,6 +54,7 @@ export async function createDocument(
   name: string,
   mjml: string,
 ): Promise<string> {
+  if (!isMjmlDocument(mjml)) throw new NotMjmlDocumentError();
   const { data, error } = await client
     .from("documents")
     .insert({ name, mjml })
@@ -68,7 +70,7 @@ export async function deleteDocument(client: SupabaseClient, documentId: string)
 }
 
 export function createDocumentStore(client: SupabaseClient): DocumentStore {
-  return {
+  const store: DocumentStore = {
     async get(documentId: string): Promise<EmailDocument> {
       const { data, error } = await client
         .from("documents")
@@ -88,6 +90,15 @@ export function createDocumentStore(client: SupabaseClient): DocumentStore {
     },
 
     async save(documentId: string, patch: DocumentPatch): Promise<void> {
+      // The editor's autosave reaches the database only through here, and no compiler sees it.
+      // A document stored broken stays writable, or the editor could never save it again.
+      if (
+        patch.mjml !== undefined &&
+        !isMjmlDocument(patch.mjml) &&
+        isMjmlDocument((await store.get(documentId)).mjml)
+      ) {
+        throw new NotMjmlDocumentError();
+      }
       const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (patch.mjml !== undefined) update["mjml"] = patch.mjml;
       if (patch.name !== undefined) update["name"] = patch.name;
@@ -97,6 +108,7 @@ export function createDocumentStore(client: SupabaseClient): DocumentStore {
       if (error) throw new Error(`document ${documentId} not writable: ${error.message}`);
     },
   };
+  return store;
 }
 
 function toComment(row: CommentRow): SectionComment {

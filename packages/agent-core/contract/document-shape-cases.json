@@ -1,0 +1,77 @@
+[
+  {
+    "name": "a declaration and a comment before the root",
+    "mjml": "<?xml version=\"1.0\"?>\n<!-- a -->\n<mjml><mj-body><mj-section></mj-section></mj-body></mjml>",
+    "expected": true
+  },
+  {
+    "name": "a comment after the root",
+    "mjml": "<mjml><mj-body><mj-section></mj-section></mj-body></mjml>\n<!-- end -->",
+    "expected": true
+  },
+  {
+    "name": "a code fence around the root",
+    "mjml": "```xml\n<mjml><mj-body><mj-section></mj-section></mj-body></mjml>\n```",
+    "expected": true
+  },
+  {
+    "name": "attributes, a head and a self-closed body",
+    "mjml": "<mjml lang=\"en\"><mj-head></mj-head><mj-body/></mjml>",
+    "expected": true
+  },
+  {
+    "name": "upper case",
+    "mjml": "<MJML><MJ-BODY></MJ-BODY></MJML >",
+    "expected": true
+  },
+  {
+    "name": "a tab and a newline after the tag names",
+    "mjml": "<mjml\tlang=\"en\">\n<mj-body\nwidth=\"600px\"></mj-body></mjml>",
+    "expected": true
+  },
+  {
+    "name": "plain text",
+    "mjml": "hello",
+    "expected": false
+  },
+  {
+    "name": "HTML",
+    "mjml": "<html><body><p>hi</p></body></html>",
+    "expected": false
+  },
+  {
+    "name": "a section without a document",
+    "mjml": "<mj-section><mj-column></mj-column></mj-section>",
+    "expected": false
+  },
+  {
+    "name": "a root with no body",
+    "mjml": "<mjml><mj-head></mj-head></mjml>",
+    "expected": false
+  },
+  {
+    "name": "a body outside the root",
+    "mjml": "<mj-body></mj-body><mjml></mjml>",
+    "expected": false
+  },
+  {
+    "name": "a root never closed, which strict compilation accepts",
+    "mjml": "<mjml><mj-body><mj-section></mj-section></mj-body>",
+    "expected": false
+  },
+  {
+    "name": "a tag that only starts like the root",
+    "mjml": "<mjmlx><mj-body><mj-section></mj-section></mj-body></mjmlx>",
+    "expected": false
+  },
+  {
+    "name": "a separator only one language's \\s matches",
+    "mjml": "<mjml\u0085><mj-body><mj-section></mj-section></mj-body></mjml>",
+    "expected": false
+  },
+  {
+    "name": "a byte-order mark only JavaScript's \\s matches",
+    "mjml": "<mjml\ufeff><mj-body><mj-section></mj-section></mj-body></mjml>",
+    "expected": false
+  }
+]

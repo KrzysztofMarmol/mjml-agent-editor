@@ -45,6 +45,28 @@ def new_section_id() -> str:
     return secrets.token_hex(4)
 
 
+NOT_MJML_DOCUMENT = (
+    "This is not an MJML document: it needs an <mjml> root, closed with </mjml>, "
+    "with an <mj-body> inside."
+)
+
+
+def is_mjml_document(source: str) -> bool:
+    """Mirrors ``isMjmlDocument`` in agent-core; ``contract/document-shape-cases.json`` pins both.
+
+    HTML's whitespace is spelled out because ``\\s`` matches different characters here and in
+    JavaScript.
+    """
+    text = source.lower()
+    opening = re.search(r"<mjml[\t\n\f\r >]", text)
+    close = text.rfind("</mjml")
+    return (
+        opening is not None
+        and close > opening.start()
+        and re.search(r"<mj-body[\t\n\f\r >/]", text[opening.start() : close]) is not None
+    )
+
+
 @dataclass(frozen=True)
 class SectionSpan:
     """One ``mj-section`` element located in the source."""

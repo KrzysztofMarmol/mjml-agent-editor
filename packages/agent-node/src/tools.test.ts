@@ -227,6 +227,17 @@ describe("agent tools", () => {
       expect(documents.mjml).toBe(VALID_DOC);
     });
 
+    // The compiler accepts this, so without the check it would be stored.
+    it("refuses a root that is never closed", async () => {
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT.replace("</mjml>", ""),
+        confirm_full_rewrite: true,
+      });
+      expect(output).toContain("not an MJML document");
+      expect(output).toContain("NOT saved");
+      expect(documents.saveCount).toBe(0);
+    });
+
     it("rejects an empty argument", async () => {
       expect(
         await run(tools, "set_document", { mjml: "   ", confirm_full_rewrite: true }),
@@ -322,6 +333,16 @@ describe("agent tools", () => {
       expect(documents.mjml).toContain("Changed");
       expect(documents.mjml).toContain(`sec-aaa`);
       expect(documents.mjml).not.toContain("sec-wrong");
+    });
+
+    it("edits a document stored without its closing tag", async () => {
+      await documents.save(DOCUMENT_ID, { mjml: VALID_DOC.replace("</mjml>", "") });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+      expect(documents.mjml).toContain("Changed");
     });
 
     it("reports an unknown id without saving", async () => {

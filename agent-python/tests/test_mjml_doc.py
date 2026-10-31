@@ -6,6 +6,9 @@ Cases marked below are the ones the original regex parser got wrong.
 
 from __future__ import annotations
 
+import json
+import pathlib
+
 import pytest
 
 import mjml_doc
@@ -233,3 +236,19 @@ class TestClassListHelpers:
             mjml_doc.set_id_in_class_list("obj-keep sec-old", mjml_doc.SECTION_PREFIX, "new")
             == "obj-keep sec-new"
         )
+
+
+SHAPE_CASES = json.loads(
+    (
+        pathlib.Path(__file__).parents[2] / "packages/agent-core/contract/document-shape-cases.json"
+    ).read_text(encoding="utf-8")
+)
+
+
+@pytest.mark.parametrize("case", SHAPE_CASES, ids=lambda case: case["name"])
+def test_is_mjml_document_agrees_with_agent_core(case: dict) -> None:
+    assert mjml_doc.is_mjml_document(case["mjml"]) is case["expected"]
+
+
+def test_is_mjml_document_accepts_a_real_document() -> None:
+    assert mjml_doc.is_mjml_document(DOC)
