@@ -7,7 +7,9 @@
 import { isSafeLink } from "@mjml-agent-editor/core";
 import type { Component, Editor } from "grapesjs";
 
-const DROPPED = "script, style, link, iframe, frame, object, embed, applet, base, meta";
+// What the agent's guard refuses too, and a nested template, whose content no query reaches.
+const DROPPED =
+  "script, style, link, iframe, frame, object, embed, applet, base, meta, animate, set, svg, math, template";
 const LINK_ATTRIBUTES = new Set(["href", "xlink:href", "action", "formaction"]);
 
 /**

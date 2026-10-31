@@ -5,7 +5,7 @@ import GjsEditor, { Canvas, useEditorMaybe } from "@grapesjs/react";
 import grapesjsMJML from "grapesjs-mjml";
 import { useEffect, useRef, useState } from "react";
 
-import { STARTER_MJML } from "@mjml-agent-editor/core";
+import { listSections, STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { createSaveBaseline } from "../../lib/save-baseline.js";
@@ -520,6 +520,8 @@ export default function EmailEditor({
         return;
       }
       lock(false);
+      // What a load repaired or added while the canvas was locked; nothing, if it is unchanged.
+      queue.schedule();
     };
 
     // Only the agent writes during a turn, so the store differs from `baseline.stored` exactly when it
@@ -536,23 +538,15 @@ export default function EmailEditor({
       // written by the next save, which compares against what the store returned.
       loadingRef.current = true;
       let repaired = false;
+      // What the load adds, the store needs: a comment pinned to a new id finds nothing else.
+      // Read from the source, as the canvas gave each section its id as it was added.
+      const adds = !mjml || listSections(mjml).some((s) => !s.sectionId);
       try {
         queue.cancel();
         baseline.load(mjml, null);
         const source = sourceForEditor(mjml || STARTER_MJML);
         repaired = source.repaired;
         editor.setComponents(source.mjml);
-        // What the load adds, the store needs: a comment pinned to a new id finds nothing else.
-        const adds =
-          !mjml ||
-          !!editor
-            .getWrapper()
-            ?.find("mj-section")
-            .some((c) => !sectionIdOf(c));
-        editor.getWrapper()?.find("mj-section").forEach(decorate);
-        for (const t of Object.keys(TYPE_LABEL)) {
-          editor.getWrapper()?.find(t).forEach(decorate);
-        }
         // Attributes the sidebar used to write and MJML rejects. Rendering ignores them, so
         // removing them changes nothing visible, and leaving them fails every agent write.
         editor.getWrapper()?.onAll((c) => {
@@ -571,7 +565,7 @@ export default function EmailEditor({
       }
       notifyState();
       // Written now rather than with the next edit: the agent reads the stored copy.
-      if (repaired && !readOnlyRef.current) queue.schedule();
+      if ((repaired || adds) && !readOnlyRef.current) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -605,10 +599,11 @@ export default function EmailEditor({
     };
 
     const sectionEl = (sectionId: string): HTMLElement | undefined => {
-      const comp = editor
-        .getWrapper()
-        ?.find("mj-section")
-        .find((c) => sectionIdOf(c) === sectionId);
+      // find() matches the rendered elements, where a section is not an mj-section.
+      let comp: Component | undefined;
+      editor.getWrapper()?.onAll((c) => {
+        if (!comp && isSection(c) && sectionIdOf(c) === sectionId) comp = c;
+      });
       return (comp?.getEl?.() as HTMLElement | undefined) ?? undefined;
     };
 
@@ -842,7 +837,7 @@ function LeftSidebar({
     if (!editor || !block || !addsBlock(e)) return;
     e.preventDefault();
     // Focus stays on the tile, so the change in the canvas is said aloud (toasts are live).
-    if (insertBlock(editor, block)) toast(`${labels.blockAdded}: ${tile.textContent?.trim()}`);
+    if (insertBlock(editor, block)) toast(labels.blockAdded(tile.textContent?.trim() ?? ""));
   };
 
   // Filter the GrapesJS-rendered blocks (DOM lives outside React) by label;

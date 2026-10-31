@@ -135,6 +135,13 @@ describe("mj-table", () => {
     );
   });
 
+  it("drops from the rows animations, SVG and templates, which no query reaches inside", () => {
+    loadTable(
+      `<mj-table><tr><td>A<svg><animate attributeName="href" values="javascript:x"/></svg><template><img src=x onerror=y></template></td></tr></mj-table>`,
+    );
+    expect(editor.getHtml()).toContain("<mj-table><tr><td>A</td></tr></mj-table>");
+  });
+
   it("is not confused by a table mentioned in a comment", () => {
     loadTable(
       `<mj-text><!-- <mj-table> --></mj-text><mj-table><tr><td>A</td></tr><!-- </mj-table> --><tr><td>B</td></tr></mj-table>`,

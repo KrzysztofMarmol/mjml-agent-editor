@@ -136,12 +136,12 @@ const BLOCKS = [{ id: "footer", label: "Footer", mjml: FOOTER_MJML }] satisfies 
 The agent compiles the whole email strictly on every write, so a section the editor cannot
 keep would block it in every email it is dropped in. `blockProblems(mjml)` says why a block
 cannot be offered — it is not strict MJML, not exactly one section, carries a `sec-*`/`obj-*`
-id, a `javascript:` link or a `data:` image, holds markup the editor drops, or uses a tag a
-section here cannot hold (`mj-table`, `mj-hero`, accordion and carousel, which the editor
-cannot edit; `mj-wrapper` and `mj-raw`). The editor leaves such a block out and logs
-why; call it in a test of your catalog to find out before your users do. It needs a DOM, so
-run that test under jsdom. Labels are plain text. `blocks` is read once, when the editor
-starts.
+id, a link whose scheme is not http, https, mailto, tel or sms, or a `data:` image, holds markup
+the editor drops, or uses a tag a section here cannot hold (`mj-table`, `mj-hero`, accordion
+and carousel, which the editor cannot edit; `mj-wrapper` and `mj-raw`). The editor leaves such
+a block out and logs why; call it in a test of your catalog to find out before your users do.
+It needs a DOM, so run that test under jsdom. Labels are plain text. `blocks` is read once,
+when the editor starts.
 
 Every tile, built-in or yours, also works from the keyboard: Tab to it, and Enter or Space
 adds it after the selected element or section (an element with nothing selected gets a

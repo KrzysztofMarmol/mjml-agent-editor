@@ -41,8 +41,8 @@ export interface EditorLabels {
   readonly tabLayers: string;
   readonly searchBlocks: string;
   readonly noBlocksMatch: string;
-  /** Announced after a block is added from the keyboard, before its name. */
-  readonly blockAdded: string;
+  /** Announced after a block is added from the keyboard, with the name on its tile. */
+  readonly blockAdded: (block: string) => string;
   readonly blockCategoryLayout: string;
   readonly blockCategoryContent: string;
   /** Where the host's own sections (the `blocks` prop) are listed. */
@@ -189,7 +189,7 @@ export const DEFAULT_LABELS: EditorLabels = {
   tabLayers: "Layers",
   searchBlocks: "Search blocks…",
   noBlocksMatch: "No blocks match.",
-  blockAdded: "Added",
+  blockAdded: (block) => `Added: ${block}`,
   blockCategoryLayout: "Layout",
   blockCategoryContent: "Content",
   blockCategorySections: "Sections",
