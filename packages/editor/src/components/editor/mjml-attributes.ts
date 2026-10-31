@@ -135,14 +135,18 @@ export function withClosedTags(mjml: string): string {
   });
 }
 
-const TABLE = /(<mj-table\b(?:[^>"']|"[^"]*"|'[^']*')*>)([\s\S]*?)(<\/mj-table\s*>)/gi;
+// Comments are matched to be skipped: a table one mentions is not a table.
+const TABLE =
+  /<!--[\s\S]*?(?:-->|$)|(<mj-table\b(?:[^>"']|"[^"]*"|'[^']*')*>)((?:<!--[\s\S]*?-->|(?!<!--)[\s\S])*?)(<\/mj-table\s*>)/gi;
 
 /**
  * The MJML with each mj-table's rows inside a `<template>`. Parsed as HTML, rows outside a
  * table are dropped and only their text kept; a template keeps them for the mj-table type.
  */
 export function withTableRowsKept(mjml: string): string {
-  return mjml.replace(TABLE, "$1<template>$2</template>$3");
+  return mjml.replace(TABLE, (match, open?: string, rows?: string, close?: string) =>
+    open ? `${open}<template>${rows}</template>${close}` : match,
+  );
 }
 
 /**

@@ -113,6 +113,37 @@ describe("mj-table", () => {
     expect(strictErrors()).toEqual([]);
   });
 
+  const loadTable = (column: string) =>
+    editor.setComponents(
+      sourceForEditor(
+        `<mjml><mj-body><mj-section><mj-column>${column}<mj-text>Hi</mj-text></mj-column></mj-section></mj-body></mjml>`,
+      ).mjml,
+    );
+
+  it("writes a quote in a table's attribute once", async () => {
+    loadTable(`<mj-table font-family='"Helvetica Neue", Arial'><tr><td>A</td></tr></mj-table>`);
+    await createWriter(editor, first("mj-text"))("color", "#ff0000");
+    expect(editor.getHtml()).toContain('font-family="&quot;Helvetica Neue&quot;, Arial"');
+  });
+
+  it("drops from the rows what GrapesJS drops anywhere else: scripts, handlers, script links", () => {
+    loadTable(
+      `<mj-table><tr><td><img src="x.png" onerror="alert(1)"><script>alert(2)</script><a href="javascript:alert(3)">A</a><a href="https://a.com">B</a></td></tr></mj-table>`,
+    );
+    expect(editor.getHtml()).toContain(
+      '<mj-table><tr><td><img src="x.png"><a>A</a><a href="https://a.com">B</a></td></tr></mj-table>',
+    );
+  });
+
+  it("is not confused by a table mentioned in a comment", () => {
+    loadTable(
+      `<mj-text><!-- <mj-table> --></mj-text><mj-table><tr><td>A</td></tr><!-- </mj-table> --><tr><td>B</td></tr></mj-table>`,
+    );
+    expect(editor.getHtml()).toContain(
+      "<mj-table><tr><td>A</td></tr><!-- </mj-table> --><tr><td>B</td></tr></mj-table><mj-text>Hi</mj-text>",
+    );
+  });
+
   it("keeps an empty or self-closed table", () => {
     editor.setComponents(
       sourceForEditor(
@@ -129,5 +160,30 @@ describe("mj-image", () => {
     // The canvas writes the model's src into the element, so the model's is what is saved.
     expect(first("mj-image").get("src")).toBe("");
     expect(editor.getHtml()).toContain('<mj-image alt="Hero"></mj-image>');
+  });
+});
+
+describe("mj-table in the canvas", () => {
+  it("stays a row when its attributes change", () => {
+    editor.setComponents(
+      sourceForEditor(
+        "<mjml><mj-body><mj-section><mj-column><mj-table><tr><td>A</td></tr></mj-table></mj-column></mj-section></mj-body></mjml>",
+      ).mjml,
+    );
+    const table = first("mj-table");
+    const View = editor.Components.getType("mj-table")!.view as unknown as new (o: object) => {
+      el: HTMLElement;
+      render: () => void;
+    };
+    const view = new View({
+      model: table,
+      config: {},
+      em: (editor as unknown as { em: unknown }).em,
+    });
+    view.render();
+    expect(view.el.style.display).toBe("table");
+    table.addAttributes({ cellpadding: "2" });
+    expect(view.el.style.display).toBe("table");
+    expect(view.el.textContent).toBe("A");
   });
 });

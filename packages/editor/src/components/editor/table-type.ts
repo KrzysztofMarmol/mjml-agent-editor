@@ -4,7 +4,31 @@
  * so the first edit to an email with a table stored it flattened (see `withTableRowsKept`).
  */
 
+import { isSafeLink } from "@mjml-agent-editor/core";
 import type { Component, Editor } from "grapesjs";
+
+const DROPPED = "script, style, link, iframe, frame, object, embed, applet, base, meta";
+const LINK_ATTRIBUTES = new Set(["href", "xlink:href", "action", "formaction"]);
+
+/**
+ * What GrapesJS's parser removes everywhere else, removed from the rows too: it never looks
+ * inside a template. Scripts and embeds, `on…` handlers, links with another scheme.
+ */
+function cleanRows(rows: DocumentFragment) {
+  rows.querySelectorAll(DROPPED).forEach((el) => el.remove());
+  rows.querySelectorAll("*").forEach((el) => {
+    for (const { name, value } of [...el.attributes]) {
+      const lower = name.toLowerCase();
+      const script = /^(java|vb)script:/i.test(value.replace(/[\u0000-\u0020]/g, ""));
+      if (lower.startsWith("on") || script || (LINK_ATTRIBUTES.has(lower) && !isSafeLink(value))) {
+        el.removeAttribute(name);
+      }
+    }
+  });
+}
+
+// A column's children are table rows in the canvas, as the plugin renders its own.
+const ROW_STYLE = "pointer-events: all; display: table; width: 100%;";
 
 /**
  * The table as the canvas shows it: its rows and cells as text, aligned as written. Built from
@@ -38,7 +62,6 @@ export function tablePreview(doc: Document, attributes: Record<string, unknown>,
     }
   }
 
-  // A column's children are table rows in the canvas, as the plugin renders its own.
   const cell = doc.createElement("td");
   cell.style.padding = attr("padding", "10px 25px");
   cell.append(table);
@@ -46,19 +69,27 @@ export function tablePreview(doc: Document, attributes: Record<string, unknown>,
 }
 
 export function addTableType(editor: Editor) {
+  const base = editor.Components.getType("default")!.view.prototype as {
+    updateAttributes: (...args: unknown[]) => void;
+  };
   editor.Components.addType("mj-table", {
-    isComponent: (el: HTMLElement) =>
-      el.tagName?.toLowerCase() === "mj-table" && {
-        type: "mj-table",
-        content: el.querySelector(":scope > template")?.innerHTML ?? "",
-        components: [],
-      },
+    isComponent: (el: HTMLElement) => {
+      if (el.tagName?.toLowerCase() !== "mj-table") return false;
+      const rows = el.querySelector<HTMLTemplateElement>(":scope > template");
+      if (rows) cleanRows(rows.content);
+      return { type: "mj-table", content: rows?.innerHTML ?? "", components: [] };
+    },
     model: { defaults: { tagName: "mj-table", droppable: false, editable: false } },
     view: {
       tagName: "tr",
+      // GrapesJS clears the element's attributes, style among them, when the model's change.
+      updateAttributes(this: { el: HTMLElement }, ...args: unknown[]) {
+        base.updateAttributes.apply(this, args);
+        this.el.style.cssText = ROW_STYLE;
+      },
       updateContent(this: { el: HTMLElement; model: Component }) {
         const { el, model } = this;
-        el.style.cssText = "pointer-events: all; display: table; width: 100%;";
+        el.style.cssText = ROW_STYLE;
         el.replaceChildren(
           tablePreview(el.ownerDocument, model.getAttributes(), String(model.get("content") ?? "")),
         );

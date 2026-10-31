@@ -39,7 +39,8 @@ const COLUMN_CHILDREN = new Set([
 export function fixPluginTypes(editor: Editor) {
   addTableType(editor);
   for (const type of editor.Components.getTypes()) {
-    if (!type.id.startsWith("mj-")) continue;
+    // mj-table is ours and serialises through GrapesJS's own escaping; this would add a second.
+    if (!type.id.startsWith("mj-") || type.id === "mj-table") continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
     editor.Components.addType(type.id, {
       model: {
