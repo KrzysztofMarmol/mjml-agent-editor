@@ -7,7 +7,8 @@
  *
  * Flat and shallow-merged on purpose. A nested dictionary reads better and merges worse —
  * overriding one key inside a group would silently drop its siblings. The only nested maps
- * are the ones keyed by an id (`toolLabels`, `blockLabels`, `elementNames`), and those are
+ * are the ones keyed by an id (`toolLabels`, `blockLabels`, `elementNames`,
+ * `inspectorLabels`), and those are
  * merged key by key for exactly that reason.
  *
  * Values that interpolate are functions rather than templates with placeholders, so the
@@ -52,7 +53,35 @@ export interface EditorLabels {
   readonly emailSettings: string;
   readonly loadingEditor: string;
   readonly commentOnElement: string;
-  readonly imageUrlField: string;
+
+  // Settings
+  readonly groupContent: string;
+  readonly groupLayout: string;
+  readonly groupSpacing: string;
+  readonly groupStyle: string;
+  readonly groupAdvanced: string;
+  readonly otherAttributes: string;
+  readonly removeAttribute: string;
+  readonly resetToDefault: string;
+  readonly selectParent: string;
+  readonly duplicate: string;
+  readonly deleteElement: string;
+  readonly multipleSelected: (count: number) => string;
+  readonly editEachSide: string;
+  readonly sidesVertical: string;
+  readonly sidesHorizontal: string;
+  readonly sideTop: string;
+  readonly sideRight: string;
+  readonly sideBottom: string;
+  readonly sideLeft: string;
+  readonly linkTypeProfile: string;
+  readonly linkTypeShare: string;
+  readonly allScreenSizes: string;
+  /**
+   * Field names, help (`<key>.help`) and option names for the Settings tab, keyed as the
+   * schema in `inspector/schema.ts` names them; merged key by key.
+   */
+  readonly inspectorLabels: Readonly<Record<string, string>>;
   /** @deprecated The Settings tab no longer splits attributes from style. */
   readonly attributes: string;
   /** @deprecated The Settings tab no longer splits attributes from style. */
@@ -178,7 +207,152 @@ export const DEFAULT_LABELS: EditorLabels = {
   emailSettings: "Email settings",
   loadingEditor: "Loading editor…",
   commentOnElement: "Comment on element / section",
-  imageUrlField: "Image (URL)",
+
+  groupContent: "Content",
+  groupLayout: "Layout",
+  groupSpacing: "Spacing",
+  groupStyle: "Style",
+  groupAdvanced: "Advanced",
+  otherAttributes: "Other attributes",
+  removeAttribute: "Remove",
+  resetToDefault: "Reset to default",
+  selectParent: "Select parent",
+  duplicate: "Duplicate",
+  deleteElement: "Delete",
+  multipleSelected: (count) => `${count} elements selected — select one to edit its settings.`,
+  editEachSide: "Edit each side",
+  sidesVertical: "Top and bottom",
+  sidesHorizontal: "Left and right",
+  sideTop: "Top",
+  sideRight: "Right",
+  sideBottom: "Bottom",
+  sideLeft: "Left",
+  linkTypeProfile: "Your profile",
+  linkTypeShare: "Share this page",
+  allScreenSizes: "Changes apply to every screen size.",
+  inspectorLabels: {
+    // Fields
+    contentWidth: "Width",
+    pageBackground: "Page background",
+    "pageBackground.help": "Fills the area around and behind the email.",
+    fullWidth: "Full-width background",
+    "fullWidth.help": "The background reaches the window edges; the content keeps the email width.",
+    padding: "Padding",
+    backgroundColor: "Background",
+    backgroundImage: "Background image",
+    backgroundSize: "Image size",
+    backgroundRepeat: "Repeat image",
+    backgroundPosition: "Position",
+    cornerRadius: "Corners",
+    gap: "Space between sections",
+    border: "Border",
+    alignColumns: "Align columns",
+    "alignColumns.help": "Where the columns sit when they don't fill the row.",
+    reverseColumns: "Reverse column order",
+    "reverseColumns.help":
+      "Swaps the columns on desktop; on phones they still stack in their original order.",
+    verticalAlign: "Vertical",
+    width: "Width",
+    innerBackground: "Inner background",
+    "innerBackground.help": "Fills only the area inside the padding, so it needs padding to show.",
+    innerCornerRadius: "Inner corners",
+    innerBorder: "Inner border",
+    align: "Alignment",
+    font: "Font",
+    fontSize: "Text size",
+    fontWeight: "Weight",
+    textColor: "Text color",
+    lineHeight: "Line height",
+    letterSpacing: "Letter spacing",
+    textTransform: "Capitalization",
+    blockBackground: "Block background",
+    "blockBackground.help": "Fills the whole block, including its padding.",
+    link: "Link",
+    buttonColor: "Button color",
+    buttonPadding: "Button padding",
+    "buttonPadding.help":
+      "Space between the text and the button's edge; this sets the button's size.",
+    spaceAround: "Space around",
+    "spaceAround.help": "Empty space outside the button, between it and what is next to it.",
+    opensIn: "Opens in",
+    tooltip: "Tooltip",
+    rel: "Link relationship",
+    image: "Image",
+    altText: "Alt text",
+    "altText.help": "Read by screen readers and shown when images are blocked.",
+    fluidOnMobile: "Full width on mobile",
+    "fluidOnMobile.help":
+      "On phones the image stretches across the screen, whatever its width here.",
+    lineColor: "Line color",
+    thickness: "Thickness",
+    lineStyle: "Line style",
+    height: "Height",
+    socialMode: "Direction",
+    iconSize: "Icon size",
+    iconSpacing: "Space around each icon",
+    network: "Network",
+    customIcon: "Custom icon",
+    iconColor: "Icon color",
+    iconPosition: "Icon side",
+    heroMode: "Sizing",
+    "heroMode.help":
+      "Fixed keeps the height you set; Fit image follows the background image's proportions.",
+    backgroundWidth: "Image width",
+    "backgroundWidth.help":
+      "The background image's real size in pixels, so the hero keeps its proportions.",
+    backgroundHeight: "Image height",
+    fallbackColor: "Fallback color",
+    "fallbackColor.help": "Shown while the image loads, or when images are blocked.",
+    contentPadding: "Content padding",
+    contentBackground: "Content background",
+    hamburger: "Collapse into a menu on mobile",
+    "hamburger.help": "On phones the links fold into a menu button.",
+    menuIconColor: "Menu icon color",
+    menuIconSize: "Menu icon size",
+    menuIconAlign: "Menu icon align",
+    baseUrl: "Link prefix",
+    "baseUrl.help": "Added in front of every link that does not start with http.",
+
+    // Options
+    alignLeft: "Left",
+    alignCenter: "Center",
+    alignRight: "Right",
+    alignJustify: "Justify",
+    alignTop: "Top",
+    alignMiddle: "Middle",
+    alignBottom: "Bottom",
+    weightRegular: "Regular",
+    weightMedium: "Medium",
+    weightSemibold: "Semibold",
+    weightBold: "Bold",
+    caseNone: "As typed",
+    caseUpper: "UPPERCASE",
+    caseLower: "lowercase",
+    caseCapitalize: "Capitalize Each Word",
+    targetNewTab: "New tab",
+    targetSameTab: "Same tab",
+    sizeCover: "Fill",
+    sizeContain: "Fit",
+    sizeAuto: "Original",
+    repeatTile: "Tile",
+    repeatOnce: "Once",
+    positionTopLeft: "Top left",
+    positionTopCenter: "Top",
+    positionTopRight: "Top right",
+    positionCenterLeft: "Left",
+    positionCenter: "Center",
+    positionCenterRight: "Right",
+    positionBottomLeft: "Bottom left",
+    positionBottomCenter: "Bottom",
+    positionBottomRight: "Bottom right",
+    lineSolid: "Solid",
+    lineDashed: "Dashed",
+    lineDotted: "Dotted",
+    modeHorizontal: "In a row",
+    modeVertical: "Stacked",
+    heroFixed: "Fixed",
+    heroFluid: "Fit image",
+  },
   attributes: "Attributes",
   style: "Style",
   rteFont: "Font",
@@ -261,5 +435,6 @@ export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
     toolLabels: { ...DEFAULT_LABELS.toolLabels, ...overrides.toolLabels },
     blockLabels: { ...DEFAULT_LABELS.blockLabels, ...overrides.blockLabels },
     elementNames: { ...DEFAULT_LABELS.elementNames, ...overrides.elementNames },
+    inspectorLabels: { ...DEFAULT_LABELS.inspectorLabels, ...overrides.inspectorLabels },
   };
 }

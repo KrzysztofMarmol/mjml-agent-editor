@@ -1,12 +1,8 @@
 "use client";
 
 /**
- * The control for image properties in the Style Manager, such as a section's
- * `background-url`.
- *
- * GrapesJS's own set the preview's `background-image` to the raw value. MJML stores a bare
- * URL there, not `url(...)`, so the preview was invalid CSS and stayed empty. This one shows
- * the image itself and opens the same picker, with the gallery, as an `mj-image` does.
+ * The control for image fields in Settings, such as a section's `background-url`: the image
+ * itself, opening the same picker, with the gallery, as an `mj-image` does.
  */
 
 import { ImageIcon, X } from "lucide-react";
@@ -22,7 +18,6 @@ export default function ImageField({
   value: string;
   labels: EditorLabels;
   onChoose: () => void;
-  /** The label's own clear button is missing on sub-properties, such as a background layer. */
   onClear: () => void;
 }) {
   const url = imageUrl(value);

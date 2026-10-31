@@ -1,12 +1,9 @@
 "use client";
 
 /**
- * The color control for every color property in the Style Manager.
- *
- * GrapesJS's own is a text box and a swatch that opens Spectrum, a jQuery picker that
- * cannot be styled into the editor. This keeps the text box — typing a hex is often the
- * fastest way — and opens a picker with the colors the email already uses, which is what
- * keeps a design consistent.
+ * The color control in Settings. It keeps a text box — typing a hex is often the fastest
+ * way — and opens a picker with the colors the email already uses, which is what keeps a
+ * design consistent.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -52,9 +49,8 @@ export default function ColorField({
   placeholder?: string;
   /** Read when the picker opens, so it reflects the email as it is now. */
   documentColors: () => string[];
-  /** Passed in rather than read from context: this renders in its own React root. */
   labels: EditorLabels;
-  /** `partial` while dragging, so GrapesJS records one undo step per change, not per pixel. */
+  /** `partial` while dragging, so a drag is one undo step, not one per pixel. */
   onChange: (value: string, partial: boolean) => void;
 }) {
   const [text, setText] = useState(value);

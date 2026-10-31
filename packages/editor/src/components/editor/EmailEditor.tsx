@@ -22,10 +22,8 @@ import { Input } from "../ui/input";
 import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
-import ColorField, { toHex } from "./ColorField.js";
-import ImageField, { imageUrl } from "./ImageField.js";
+import Inspector from "./inspector/Inspector.js";
 import { illegalAttributes } from "./mjml-attributes.js";
-import { createRoot, type Root } from "react-dom/client";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -163,37 +161,16 @@ const SOCIAL_BLOCK = `<mj-social icon-size="24px" mode="horizontal">
   <mj-social-element name="x-noshare" href="https://x.com/"></mj-social-element>
 </mj-social>`;
 
-const FULL_WIDTH_TRAIT = {
-  type: "checkbox",
-  label: "Full width",
-  name: "full-width",
-  valueTrue: "full-width",
-  valueFalse: "",
-};
-
 /**
- * Narrows what the plugin offers to what MJML accepts. GrapesJS's default `title` trait is
- * serialised and illegal on these tags; mj-wrapper declares no `stylable`, so it offered
- * every property GrapesJS knows, and mj-hero lists a `width` it does not have.
+ * Drops the plugin's `style-default`s, which differ from MJML's in places. It stripped any
+ * attribute equal to one on save (a navigation link's 25px padding came back as MJML's
+ * 15px) and seeded each element with them, so every element looked as if it set them.
  */
-function restrictFields(editor: Editor) {
-  const stylable = (type: string) =>
-    (editor.Components.getType(type)?.model.prototype.defaults.stylable ?? []) as string[];
-  const extend = (type: string, defaults: Record<string, unknown>) =>
-    editor.Components.addType(type, { model: { defaults } } as never);
-
-  for (const type of ["mj-body", "mj-column", "mj-text", "mj-divider", "mj-spacer"]) {
-    extend(type, { traits: [] });
+function dropPluginDefaults(editor: Editor) {
+  for (const type of editor.Components.getTypes()) {
+    if (!type.id.startsWith("mj-")) continue;
+    editor.Components.addType(type.id, { model: { defaults: { "style-default": {} } } } as never);
   }
-  extend("mj-section", { traits: [FULL_WIDTH_TRAIT] });
-  extend("mj-wrapper", {
-    traits: [FULL_WIDTH_TRAIT],
-    stylable: stylable("mj-section").filter((p) => p !== "text-align"),
-  });
-  extend("mj-hero", {
-    traits: [],
-    stylable: stylable("mj-hero").filter((p) => !["width", "css-class", "mode"].includes(p)),
-  });
 }
 
 function objectLabel(c: Component): string {
@@ -238,106 +215,6 @@ function wrapSelectionStyle(el: HTMLElement | undefined, style: Partial<CSSStyle
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/**
- * Swaps the Style Manager's color and image controls for ColorField and ImageField.
- *
- * Built on the base property view rather than extending GrapesJS's own views, which mount
- * their widgets in onRender whatever `create` returns. Each control is its own React root
- * because GrapesJS creates and destroys these views outside React.
- */
-function setupStyleFields(editor: Editor, labels: EditorLabels) {
-  const sm = editor.StyleManager;
-  const base = (sm.getType("base") as any).view;
-  type View = { __root?: Root; __render?: () => void };
-
-  // Distinct colors already in the email, most frequent first, read when the picker opens.
-  // Only values of color-bearing attributes and declarations: a bare `#[0-9a-f]+` also
-  // matches entities such as `&#039;` and anchors such as `href="#top"`.
-  const documentColors = (): string[] => {
-    const source = `${editor.getHtml()} ${editor.getCss() ?? ""}`;
-    const counts = new Map<string, number>();
-    const colorValue =
-      /(?:color|background|border)[\w-]*\s*[:=]\s*["']?[^"';>{}]*?(#[0-9a-f]{3,8}\b|rgba?\([^)]*\))/gi;
-    for (const match of source.matchAll(colorValue)) {
-      const hex = toHex(match[1]!, { opaque: true });
-      if (hex) counts.set(hex, (counts.get(hex) ?? 0) + 1);
-    }
-    return [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 14)
-      .map(([hex]) => hex);
-  };
-
-  // The value set on the selection, or "" when the property only shows its default:
-  // GrapesJS substitutes the default before update(), which would present it as set.
-  const ownValue = (property: any): string =>
-    property.hasValue?.({ noParent: true }) ? String(property.getValue?.() ?? "") : "";
-
-  // A view that renders `field(property, value)` into its own React root.
-  const reactView = (field: (property: any, value: string) => ReactNode) =>
-    base.extend({
-      create(this: View, { property }: { property: any }) {
-        const el = document.createElement("div");
-        // The base view writes the value of any input that fires `change`; the field
-        // commits its own, so letting the event through wrote every edit twice.
-        el.addEventListener("change", (event) => event.stopPropagation());
-        const root = createRoot(el);
-        this.__root = root;
-        this.__render = () => root.render(field(property, ownValue(property)));
-        this.__render();
-        return el;
-      },
-      update(this: View) {
-        this.__render?.();
-      },
-      destroy(this: View) {
-        // GrapesJS can still call update() on a destroyed view; drop the renderer first so
-        // that is a no-op rather than "Cannot update an unmounted root". The unmount itself
-        // is deferred because the view may be removed while React is mid-render.
-        const root = this.__root;
-        this.__root = undefined;
-        this.__render = undefined;
-        setTimeout(() => root?.unmount());
-      },
-    });
-
-  sm.addType("color", {
-    view: reactView((property, value) => (
-      <ColorField
-        value={value}
-        placeholder={String(property.getDefaultValue?.() ?? "")}
-        documentColors={documentColors}
-        labels={labels}
-        onChange={(next, partial) => property.upValue(next, { partial })}
-      />
-    )),
-  } as never);
-
-  // Opens the same picker an mj-image uses; the property wraps the URL in url() itself
-  // where it needs to (CSS background-image), and keeps it bare where it does not (MJML).
-  sm.addType("file", {
-    view: reactView((property, value) => (
-      <ImageField
-        value={value}
-        labels={labels}
-        onClear={() => property.upValue("")}
-        onChoose={() => {
-          const am = editor.AssetManager;
-          am.open({
-            types: ["image"],
-            current: imageUrl(value) ?? undefined,
-            select(asset: string | { getSrc: () => string }, complete?: boolean) {
-              const url = typeof asset === "string" ? asset : asset.getSrc();
-              property.upValue(url, { partial: !complete });
-              if (complete) am.close();
-            },
-          } as never);
-        }}
-      />
-    )),
-  } as never);
-}
-
 // Extends the default GrapesJS RTE (mjml-compatible) with font/size/colors.
 function setupRichText(editor: Editor, labels: EditorLabels) {
   const rte = editor.RichTextEditor as any;
@@ -419,9 +296,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
   useEffect(() => () => setLocked(false), [setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
-  const [hasSelection, setHasSelection] = useState(false);
-  // `src` of the selected mj-image, or null when the selection is not one.
-  const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
     null,
@@ -536,8 +410,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     });
 
     setupRichText(editor, labels);
-    setupStyleFields(editor, labels);
-    restrictFields(editor);
+    dropPluginDefaults(editor);
 
     editor.on("component:add", decorate);
     // Track selection origin: a mousedown inside the canvas iframe marks the
@@ -558,35 +431,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     editor.on("component:selected", (c: Component) => {
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
-      setHasSelection(true);
       buildCrumbs(c);
-      setSelectedImageSrc(c && tagOf(c) === "mj-image" ? String(c.get("src") ?? "") : null);
-      // mj-image has no src trait by default (src changes via the Asset
-      // Manager) — add a URL field so the image can be set from the panel.
-      if (c?.get("type") === "mj-image" && !c.getTrait("src")) {
-        c.addTrait(
-          {
-            type: "text",
-            name: "src",
-            label: labels.imageUrlField,
-            placeholder: "https://…",
-            changeProp: true,
-          } as never,
-          { at: 0 },
-        );
-      }
     });
     // With multi-select a deselection can leave something selected; follow what remains.
     editor.on("component:deselected", () => {
-      const rest = editor.getSelected();
-      setHasSelection(!!rest);
-      buildCrumbs(rest);
-      setSelectedImageSrc(
-        rest && tagOf(rest) === "mj-image" ? String(rest.get("src") ?? "") : null,
-      );
-    });
-    editor.on("component:update:src", (c: Component) => {
-      if (c === editor.getSelected()) setSelectedImageSrc(String(c.get("src") ?? ""));
+      buildCrumbs(editor.getSelected());
     });
 
     // The MJML the store holds, as far as this editor knows. A save writes only when the
@@ -825,8 +674,6 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         fromElement: false,
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
-        styleManager: { appendTo: "#gjs-styles" },
-        traitManager: { appendTo: "#gjs-traits" },
         // The eye hides a layer by writing `display="none"` into the MJML, which is illegal.
         layerManager: { appendTo: "#gjs-layers", hidable: false },
         assetManager: {
@@ -885,10 +732,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           view={sidebarView}
           onViewChange={setSidebarView}
           markLayersSource={() => (selectionSource.current = "layers")}
-          hasSelection={hasSelection}
           blockSearchRef={blockSearchRef}
-          selectedImageSrc={selectedImageSrc}
-          onChooseImage={() => editorRef.current?.runCommand("open-image-picker")}
         />
         <div className="flex min-w-0 flex-1 flex-col bg-surface-muted">
           <div className="relative min-h-0 flex-1">
@@ -931,50 +775,17 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
 type SidebarView = "blocks" | "settings" | "layers";
 
-// Collapsible section — content ALWAYS mounted (appendTo target), hidden via `hidden`.
-function CollapseSection({
-  title,
-  defaultOpen = true,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border-b border-panel-border">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-semibold tracking-wide text-panel-muted-fg uppercase hover:text-panel-fg"
-      >
-        <ChevronRight className={cn("size-3.5 transition-transform", open && "rotate-90")} />
-        {title}
-      </button>
-      <div className={cn(!open && "hidden")}>{children}</div>
-    </div>
-  );
-}
-
-// Left sidebar (dark): Blocks / Settings / Layers. All managers are always
+// Left sidebar (dark): Blocks / Settings / Layers. The block and layer managers are always
 // mounted (appendTo targets for GrapesJS) — visibility toggled via `hidden`.
 function LeftSidebar({
   view,
   onViewChange,
   markLayersSource,
-  selectedImageSrc,
-  onChooseImage,
-  hasSelection,
   blockSearchRef,
 }: {
   view: SidebarView;
   onViewChange: (v: SidebarView) => void;
   markLayersSource: () => void;
-  /** `src` of the selected image, or null when no image is selected. */
-  selectedImageSrc: string | null;
-  onChooseImage: () => void;
-  hasSelection: boolean;
   blockSearchRef: React.Ref<HTMLInputElement>;
 }) {
   const editor = useEditorMaybe();
@@ -1074,67 +885,26 @@ function LeftSidebar({
         <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
       </div>
 
-      {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
-        {!hasSelection && (
-          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-            <MousePointerClick className="size-6 text-panel-muted-fg" />
-            <p className="text-sm text-panel-muted-fg">{labels.settingsEmpty}</p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-panel-border bg-panel-elevated text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
-              onClick={selectBody}
-            >
-              <Mail />
-              {labels.emailSettings}
-            </Button>
-          </div>
-        )}
-        {selectedImageSrc !== null && (
-          <div className="border-b border-panel-border p-3">
-            <button
-              type="button"
-              onClick={onChooseImage}
-              title={labels.chooseImage}
-              className="group relative block w-full overflow-hidden rounded-lg border border-panel-border bg-panel-elevated"
-            >
-              {selectedImageSrc ? (
-                <img
-                  src={selectedImageSrc}
-                  alt=""
-                  className="h-32 w-full bg-black/25 object-contain"
-                />
-              ) : (
-                <span className="flex h-32 items-center justify-center text-panel-muted-fg">
-                  <ImageIcon className="size-8" />
-                </span>
-              )}
-              <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-medium text-white opacity-0 transition group-hover:opacity-100">
-                {labels.chooseImage}
-              </span>
-            </button>
-            <Button
-              type="button"
-              size="sm"
-              className="mt-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-              onClick={onChooseImage}
-            >
-              <ImageUp />
-              {labels.chooseImage}
-            </Button>
-          </div>
-        )}
-        {/* Kept mounted while hidden: GrapesJS renders into these. */}
-        <div className={cn(!hasSelection && "hidden")}>
-          <CollapseSection title={labels.attributes}>
-            <div id="gjs-traits" />
-          </CollapseSection>
-          <CollapseSection title={labels.style}>
-            <div id="gjs-styles" />
-          </CollapseSection>
-        </div>
+        <Inspector
+          onEmailSettings={selectBody}
+          empty={
+            <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+              <MousePointerClick className="size-6 text-panel-muted-fg" />
+              <p className="text-sm text-panel-muted-fg">{labels.settingsEmpty}</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-panel-border bg-panel-elevated text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+                onClick={selectBody}
+              >
+                <Mail />
+                {labels.emailSettings}
+              </Button>
+            </div>
+          }
+        />
       </div>
 
       {/* Layers — with an expand/collapse-all switch. A pointer-down here marks
