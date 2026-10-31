@@ -1,6 +1,6 @@
 {
   "name": "@mjml-agent-editor/editor",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "description": "React MJML editor with an agent chat panel and canvas comments.",
   "keywords": [
     "mjml",
