@@ -41,6 +41,9 @@ const ICONS: Record<string, string> = {
     '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   ),
   "mj-raw": svg('<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>'),
+  "mj-table": svg(
+    '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/>',
+  ),
 };
 
 function tagOf(c: Component): string {

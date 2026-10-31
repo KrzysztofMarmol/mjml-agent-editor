@@ -5,7 +5,7 @@ import grapesjsMJML from "grapesjs-mjml";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createWriter } from "./inspector/write.js";
-import { withClosedTags } from "./mjml-attributes.js";
+import { sourceForEditor, withClosedTags } from "./mjml-attributes.js";
 import { fixPluginTypes } from "./plugin-types.js";
 
 const require = createRequire(import.meta.url);
@@ -95,5 +95,30 @@ describe("withClosedTags", () => {
       '<mj-image src="https://a.com/x.png" alt="a"></mj-image><mj-spacer height="8px"></mj-spacer><mj-text>after</mj-text>',
     );
     expect(strictErrors()).toEqual([]);
+  });
+});
+
+describe("mj-table", () => {
+  const table =
+    '<mj-table cellpadding="4"><tr style="color:#333333"><th>Item</th><td>Mug &amp; lid</td></tr></mj-table>';
+
+  it("keeps a table's rows through a load and an edit beside it", async () => {
+    editor.setComponents(
+      sourceForEditor(
+        `<mjml><mj-body><mj-section><mj-column>${table}<mj-text>Hi</mj-text></mj-column></mj-section></mj-body></mjml>`,
+      ).mjml,
+    );
+    await createWriter(editor, first("mj-text"))("color", "#ff0000");
+    expect(editor.getHtml()).toContain(table);
+    expect(strictErrors()).toEqual([]);
+  });
+
+  it("keeps an empty or self-closed table", () => {
+    editor.setComponents(
+      sourceForEditor(
+        "<mjml><mj-body><mj-section><mj-column><mj-table/></mj-column></mj-section></mj-body></mjml>",
+      ).mjml,
+    );
+    expect(editor.getHtml()).toContain("<mj-table></mj-table>");
   });
 });

@@ -1,8 +1,7 @@
 /**
- * Tags the visual editor cannot keep or show. GrapesJS flattens an mj-table's rows into
- * text when it loads one, and the next save stores that; an mj-hero holds content outside
- * any section, where neither the section tools nor comments reach; the editor has no way to
- * render or edit an accordion or a carousel.
+ * Tags the visual editor cannot edit. It keeps an mj-table's rows as they are, with no way
+ * to change them; an mj-hero holds content outside any section, where neither the section
+ * tools nor comments reach; the editor has no way to render or edit an accordion or a carousel.
  */
 export const UNEDITABLE_TAGS = ["mj-table", "mj-hero", "mj-accordion", "mj-carousel"] as const;
 

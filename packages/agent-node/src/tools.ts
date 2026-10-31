@@ -106,7 +106,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
     const added = addedUneditableTags(before, mjml);
     if (added.length > 0) {
       const tags = added.map((tag) => `<${tag}>`).join(", ");
-      return `ERROR: ${tags} cannot be used — the visual editor cannot keep or show it. The document was NOT saved.`;
+      return `ERROR: ${tags} cannot be used — the visual editor cannot edit it. The document was NOT saved.`;
     }
     const result = await compiler.compile(mjml);
     if (!result.ok) {

@@ -85,7 +85,7 @@ def _count_tag(mjml: str, tag: str) -> int:
 
 
 def _added_uneditable_tags(before: str, after: str) -> list[str]:
-    """Tags the editor cannot keep that a write adds; ones already in the document stay."""
+    """Tags the editor cannot edit that a write adds; ones already in the document stay."""
     return [
         tag for tag in CONTRACT.uneditable_tags if _count_tag(after, tag) > _count_tag(before, tag)
     ]
@@ -97,7 +97,7 @@ async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
     if added:
         tags = ", ".join(f"<{tag}>" for tag in added)
         return (
-            f"ERROR: {tags} cannot be used — the visual editor cannot keep or show it. "
+            f"ERROR: {tags} cannot be used — the visual editor cannot edit it. "
             "The document was NOT saved."
         )
     ok, result = await _blocking(mjml_compile.compile_mjml, mjml)

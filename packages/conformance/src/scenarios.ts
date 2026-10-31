@@ -89,7 +89,7 @@ export const SCENARIOS: readonly Scenario[] = [
     },
   },
   {
-    name: "refuses a table the editor would flatten",
+    name: "refuses a table the editor cannot edit",
     seedMjml: STARTER("table001", "Order summary"),
     // As above: whatever the model tries, the stored document holds no mj-table.
     prompt:

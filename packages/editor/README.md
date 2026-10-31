@@ -138,7 +138,7 @@ keep would block it in every email it is dropped in. `blockProblems(mjml)` says 
 cannot be offered — it is not strict MJML, not exactly one section, carries a `sec-*`/`obj-*`
 id, a `javascript:` link or a `data:` image, holds markup the editor drops, or uses a tag a
 section here cannot hold (`mj-table`, `mj-hero`, accordion and carousel, which the editor
-cannot keep or show; `mj-wrapper` and `mj-raw`). The editor leaves such a block out and logs
+cannot edit; `mj-wrapper` and `mj-raw`). The editor leaves such a block out and logs
 why; call it in a test of your catalog to find out before your users do. It needs a DOM, so
 run that test under jsdom. Labels are plain text. `blocks` is read once, when the editor
 starts.

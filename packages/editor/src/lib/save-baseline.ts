@@ -2,7 +2,7 @@
  * Whether the canvas holds a change the store does not have.
  *
  * Opening an email is not one. GrapesJS writes a document back in its own form — tags closed,
- * an mj-table's rows flattened into text — and reports changes of its own after a load, as an
+ * attributes quoted again — and reports changes of its own after a load, as an
  * image settles. Compared with the store alone, that rewrote emails nobody had touched.
  */
 export function createSaveBaseline() {

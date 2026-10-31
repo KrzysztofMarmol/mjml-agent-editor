@@ -26,7 +26,7 @@ export type SectionBlock = {
 };
 
 // Tags a dropped section may hold: what the editor keeps on a load and edits in Settings. Not
-// mj-table (a load flattens its rows into text), mj-hero (its content sits outside any
+// mj-table (its rows are kept, never edited), mj-hero (its content sits outside any
 // section, where the agent and comments cannot address it), accordion and carousel (the
 // editor can neither render nor edit them), mj-wrapper (it holds sections, and a block is
 // one) or mj-raw (HTML nobody edits here).

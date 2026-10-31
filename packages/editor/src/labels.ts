@@ -218,6 +218,7 @@ export const DEFAULT_LABELS: EditorLabels = {
     "mj-social": "Social links",
     "mj-social-element": "Social link",
     "mj-raw": "Raw HTML",
+    "mj-table": "Table",
   },
   expandAll: "Expand all",
   selectAnElement: "Select an element…",

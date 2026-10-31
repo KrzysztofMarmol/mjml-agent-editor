@@ -338,7 +338,7 @@ describe("agent tools", () => {
       expect(output).toContain("exactly one");
       expect(documents.saveCount).toBe(0);
     });
-    it("refuses a table, which the editor would flatten into text", async () => {
+    it("refuses a table, which the editor cannot edit", async () => {
       const output = await run(tools, "set_section", {
         section_id: "aaa",
         mjml: `<mj-section><mj-column><mj-table><tr><td>Mug</td><td>£12</td></tr></mj-table></mj-column></mj-section>`,

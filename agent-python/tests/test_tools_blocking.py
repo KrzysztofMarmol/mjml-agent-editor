@@ -112,7 +112,7 @@ def test_a_refused_rewrite_counts_the_resolved_comments_it_would_delete(db: Fake
 TABLE = "<mj-section><mj-column><mj-table><tr><td>Mug</td></tr></mj-table></mj-column></mj-section>"
 
 
-def test_a_table_the_editor_would_flatten_is_not_saved(
+def test_a_table_the_editor_cannot_edit_is_not_saved(
     db: FakeDb, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))

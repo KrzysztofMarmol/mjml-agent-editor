@@ -31,8 +31,26 @@ const COLUMN_CHILDREN = new Set([
  * - GrapesJS's `__p`, which the plugin leaves on the attributes while a colour is dragged, is
  *   never written: a save falling due mid-drag stored it.
  * - A column takes only what MJML allows in one.
+ * - An mj-table keeps its rows.
  */
 export function fixPluginTypes(editor: Editor) {
+  // The plugin has no mj-table, so it was a plain element and lost its rows to the HTML
+  // parser. Its markup is kept as it was given, through `withTableRowsKept`, and never edited.
+  editor.Components.addType("mj-table", {
+    isComponent: (el: HTMLElement) =>
+      el.tagName?.toLowerCase() === "mj-table" && {
+        type: "mj-table",
+        content: el.querySelector(":scope > template")?.innerHTML ?? "",
+        components: [],
+      },
+    model: { defaults: { tagName: "mj-table", droppable: false, editable: false } },
+    view: {
+      // A table around the rows, or the canvas would drop them as the parser did.
+      updateContent(this: { el: HTMLElement; model: Component }) {
+        this.el.innerHTML = `<table style="width:100%">${this.model.get("content") ?? ""}</table>`;
+      },
+    },
+  } as never);
   for (const type of editor.Components.getTypes()) {
     if (!type.id.startsWith("mj-")) continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;

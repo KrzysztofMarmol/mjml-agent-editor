@@ -42,8 +42,7 @@ DOCUMENT RULES:
 - Write tools validate MJML — if you get a validation error, fix the
   source and try again.
 - Never use <mj-table>, <mj-hero>, <mj-accordion> or <mj-carousel>: the
-  visual editor cannot keep or show them, so a write that adds one is
-  refused. A table is one section per row, its cells mj-columns in an
+  visual editor cannot edit them, so a write that adds one is refused. A table is one section per row, its cells mj-columns in an
   mj-group; a hero is a section with a background-url.
 - When inspect_rendered_email is available, call it after substantial visual
   changes (layout, images, hierarchy, typography, CTA, spacing) and use its
