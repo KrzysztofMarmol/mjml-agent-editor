@@ -22,7 +22,9 @@ import { cn } from "../../../lib/utils";
 import ColorField, { toHex } from "../ColorField.js";
 import ImageField, { imageUrl } from "../ImageField.js";
 import { BoxInput, LengthInput, Row, Segmented, Select, TextInput, Toggle } from "./controls.js";
+import { layerName } from "../layers.js";
 import { SCHEMA } from "./schema.js";
+import StructureSection from "./StructureSection.js";
 import type { Field, Group, Option } from "./types.js";
 import { networkName, parseNetwork, SIDES } from "./values.js";
 import { createWriter, type WriteOptions } from "./write.js";
@@ -309,6 +311,7 @@ function ElementSettings({
           {labels.allScreenSizes}
         </p>
       )}
+      <StructureSection editor={editor} component={component} labels={labels} locked={locked} />
       {GROUPS.map((group) => {
         const inGroup = visible.filter((f) => f.group === group);
         if (inGroup.length === 0) return null;
@@ -399,10 +402,9 @@ function Header({
   const name = isBody
     ? labels.emailSettings
     : (labels.elementNames[tag] ?? tag.replace(/^mj-/, ""));
-  const excerpt = String((component.getEl?.() as HTMLElement | undefined)?.textContent ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 40);
+  // What it says, as Layers names it; a column's number is not something it says.
+  const words = tag === "mj-column" ? "" : layerName(component, labels);
+  const excerpt = words === name ? "" : words;
   const parent = component.parent();
   const action =
     "flex size-7 items-center justify-center rounded-md text-panel-muted-fg hover:bg-panel-hover hover:text-panel-fg";

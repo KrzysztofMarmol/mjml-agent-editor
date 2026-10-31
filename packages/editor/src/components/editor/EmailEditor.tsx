@@ -24,6 +24,7 @@ import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
+import { badgeLabel, setupLayerNames } from "./layers.js";
 import { illegalAttributes } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -391,6 +392,32 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     setupRichText(editor, labels);
     dropPluginDefaults(editor);
+    setupLayerNames(editor, labels);
+
+    // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,
+    // none of which anyone edits here. Sections and columns start open, as they are the
+    // structure the rows below them make sense in.
+    const STRUCTURE = new Set(["mj-wrapper", "mj-section", "mj-column"]);
+    const showBodyInLayers = () => {
+      const body = findByTag("mj-body");
+      if (!body) return;
+      editor.Layers.setRoot(body);
+      body.onAll((c) => {
+        if (STRUCTURE.has(tagOf(c))) editor.Layers.setOpen(c, true);
+      });
+    };
+    // On each selection GrapesJS closes the rows it opened to show the last one, sections and
+    // columns among them. Taken off its list, they stay open until the visitor closes them.
+    // The list is internal, so a GrapesJS without it only brings the closing back.
+    const keepStructureOpen = () => {
+      const layers = editor.Layers as unknown as {
+        model?: { get: (key: "opened") => Record<string, Component> | undefined };
+      };
+      const opened = layers.model?.get("opened") ?? {};
+      for (const [cid, c] of Object.entries(opened)) {
+        if (STRUCTURE.has(tagOf(c))) delete opened[cid];
+      }
+    };
 
     editor.on("component:add", (c: Component) => {
       // A load brings ids the store already uses; only copies made here are renamed.
@@ -411,8 +438,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       );
       // The host document only gets a copy of these, aimed at the iframe (see opensBlockSearch).
       editor.Canvas.getDocument()?.addEventListener("keydown", onBlockSearchKey);
+      // GrapesJS sets its configured root on load, which may come after the document did.
+      showBodyInLayers();
     });
+    // After GrapesJS's own listener, which was added when the editor was created.
     editor.on("component:selected", (c: Component) => {
+      keepStructureOpen();
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
       buildCrumbs(c);
@@ -531,6 +562,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           c.removeAttributes(illegal);
           repaired = true;
         });
+        showBodyInLayers();
       } finally {
         loadingRef.current = false;
       }
@@ -659,7 +691,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
         // The eye hides a layer by writing `display="none"` into the MJML, which is illegal.
-        layerManager: { appendTo: "#gjs-layers", hidable: false },
+        // The root row is mj-body, which the sidebar reaches as "Email settings" instead.
+        layerManager: { appendTo: "#gjs-layers", hidable: false, showWrapper: false },
         assetManager: {
           // Never inline files: mail clients block `data:` images (see ImageLibrary).
           embedAsBase64: false,
@@ -680,6 +713,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             close: () => setPicker(null),
           },
         },
+        canvas: { customBadgeLabel: badgeLabel(labels) },
         deviceManager: {
           devices: [
             { id: "desktop", name: "Desktop", width: "" },
@@ -905,7 +939,14 @@ function LeftSidebar({
             className="data-[state=checked]:bg-brand data-[state=unchecked]:bg-panel-border"
           />
         </label>
-        <div id="gjs-layers" className="min-h-0 flex-1 overflow-y-auto" />
+        <div
+          id="gjs-layers"
+          className="min-h-0 flex-1 overflow-y-auto"
+          // A double-click renames a row in GrapesJS, but rows are named by their content.
+          onDoubleClickCapture={(e) => {
+            if ((e.target as HTMLElement).closest("[data-name]")) e.stopPropagation();
+          }}
+        />
       </div>
     </div>
   );

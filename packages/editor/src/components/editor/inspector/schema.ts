@@ -69,7 +69,7 @@ const BACKGROUND_POSITION: readonly Option[] = [
   { value: "bottom right", label: "positionBottomRight" },
 ];
 
-const NETWORKS: readonly Option[] = [
+export const NETWORKS: readonly Option[] = [
   { value: "facebook", label: "Facebook" },
   { value: "instagram", label: "Instagram" },
   { value: "x", label: "X" },

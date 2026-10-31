@@ -77,6 +77,15 @@ export interface EditorLabels {
   readonly linkTypeProfile: string;
   readonly linkTypeShare: string;
   readonly allScreenSizes: string;
+  readonly columnWidths: string;
+  /** A section's columns, by their proportions ("1:2"). */
+  readonly columnRatio: (ratio: string) => string;
+  readonly socialNetworks: string;
+  readonly addNetwork: string;
+  readonly navbarLinks: string;
+  readonly addLink: string;
+  /** The text a new navigation link starts with. */
+  readonly newLinkText: string;
   /**
    * Field names, help (`<key>.help`) and option names for the Settings tab, keyed as the
    * schema in `inspector/schema.ts` names them; merged key by key.
@@ -230,6 +239,13 @@ export const DEFAULT_LABELS: EditorLabels = {
   linkTypeProfile: "Your profile",
   linkTypeShare: "Share this page",
   allScreenSizes: "Changes apply to every screen size.",
+  columnWidths: "Column widths",
+  columnRatio: (ratio) => `Columns ${ratio}`,
+  socialNetworks: "Networks",
+  addNetwork: "Add network",
+  navbarLinks: "Links",
+  addLink: "Add link",
+  newLinkText: "Link",
   inspectorLabels: {
     // Fields
     contentWidth: "Width",

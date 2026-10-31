@@ -189,92 +189,73 @@
   display: none;
 }
 
-/* ── Form fields (style/traits) ──────────────────────────────────────────── */
-.editor-dark .gjs-field,
-.editor-dark .gjs-sm-field,
-.editor-dark .gjs-clm-field {
-  background-color: var(--mjml-editor-panel-elevated);
-  border: 1px solid var(--mjml-editor-border);
-  border-radius: 6px;
-  color: var(--mjml-editor-fg);
-}
-.editor-dark .gjs-field input,
-.editor-dark .gjs-field select,
-.editor-dark .gjs-field textarea,
-.editor-dark .gjs-sm-field input,
-.editor-dark .gjs-clm-field input {
-  color: var(--mjml-editor-fg);
-}
-.editor-dark .gjs-field-arrow-u,
-.editor-dark .gjs-field-arrow-d {
-  border-bottom-color: var(--mjml-editor-fg-subtle);
-  border-top-color: var(--mjml-editor-fg-subtle);
-}
-
-/* Unified manager typography (traits + styles) */
-.editor-dark .gjs-sm-label,
-.editor-dark .gjs-trt-trait .gjs-label,
-.editor-dark .gjs-label {
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.4;
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--mjml-editor-fg-subtle);
-}
-.editor-dark .gjs-sm-properties,
-.editor-dark .gjs-traits-c {
-  padding: 6px 12px;
-}
-.editor-dark .gjs-trt-trait {
-  padding: 4px 0;
-}
-.editor-dark .gjs-sm-property {
-  margin-bottom: 6px;
-  padding: 0;
-}
-.editor-dark .gjs-field,
-.editor-dark .gjs-sm-field {
-  min-height: 28px;
+/* ── Layers: rows named by content, with an icon for each kind ─────────────── */
+.editor-dark .gjs-layer {
+  font-weight: 400;
   font-size: 12px;
 }
-.editor-dark .gjs-field input,
-.editor-dark .gjs-field select,
-.editor-dark .gjs-field textarea,
-.editor-dark .gjs-sm-field input,
-.editor-dark .gjs-sm-field select {
-  font-size: 12px;
+.editor-dark .gjs-layer-item {
+  padding: 4px 8px;
+  border-bottom: none;
+  background-color: transparent;
 }
-
-/* Sector headers */
-.editor-dark .gjs-sm-sector-title,
-.editor-dark .gjs-trt-header {
-  padding: 8px 10px;
-  background-color: var(--mjml-editor-panel-sunken);
-  color: var(--mjml-editor-neutral);
-  border-bottom: 1px solid var(--mjml-editor-border);
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.editor-dark .gjs-sm-sector,
-.editor-dark .gjs-trt-trait {
-  border-bottom: 1px solid var(--mjml-editor-panel-elevated);
-}
-
-/* Layers */
 .editor-dark .gjs-layer-title {
   color: var(--mjml-editor-neutral);
+}
+.editor-dark .gjs-layer-title-c,
+.editor-dark .gjs-layer-title-inn {
+  min-width: 0;
+}
+.editor-dark .gjs-layer__icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  padding-left: 0;
+  color: var(--mjml-editor-fg-subtle);
+}
+/* GrapesJS fills its icons; these are drawn with strokes. */
+.editor-dark .gjs-layer__icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+}
+.editor-dark .gjs-layer-name {
+  max-width: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editor-dark .gjs-layer-count {
+  font-size: 10px;
+  color: var(--mjml-editor-fg-faint);
+}
+/* How many it holds matters while they are out of sight. */
+.editor-dark .gjs-layer.open > .gjs-layer-item .gjs-layer-count {
+  visibility: hidden;
+}
+.editor-dark .gjs-layer-move {
+  opacity: 0;
+  color: var(--mjml-editor-fg-subtle);
+}
+.editor-dark .gjs-layer-item:hover .gjs-layer-move {
+  opacity: 1;
+}
+.editor-dark .gjs-layer.gjs-hovered > .gjs-layer-item {
+  background-color: var(--mjml-editor-panel-elevated);
 }
 .editor-dark .gjs-layer.gjs-selected > .gjs-layer-item {
   background-color: color-mix(in srgb, var(--mjml-editor-accent) 22%, transparent);
 }
+.editor-dark .gjs-layer.gjs-selected > .gjs-layer-item .gjs-layer__icon {
+  color: var(--mjml-editor-fg);
+}
 
-/* Selector bar (component classes) */
-.editor-dark .gjs-clm-tags {
-  background-color: var(--mjml-editor-panel-elevated);
-  color: var(--mjml-editor-neutral);
+/* The canvas badge's icon is one of the same stroked icons. */
+:root .gjs-badge__icon svg {
+  fill: none;
+  stroke: currentColor;
 }
 
 /* ── Drop placeholder (was green) → violet ───────────────────────────────── */
@@ -427,14 +408,4 @@
   width: 12px;
   height: 12px;
   border-width: 2px;
-}
-
-/* Image properties take the full row: a thumbnail at half the sidebar is too small to judge. */
-.editor-dark .gjs-sm-property.gjs-sm-file {
-  width: 100%;
-  flex-basis: 100%;
-}
-.editor-dark .gjs-sm-property.gjs-sm-file .gjs-fields > * {
-  flex: 1 1 auto;
-  width: 100%;
 }
