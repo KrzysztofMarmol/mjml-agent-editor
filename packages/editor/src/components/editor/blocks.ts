@@ -20,7 +20,8 @@ export type SectionBlock = {
   readonly label: string;
   /** Exactly one `<mj-section>`, without `sec-*`/`obj-*` ids: those are added on drop. */
   readonly mjml: string;
-  /** SVG markup for the tile, rendered as is. */
+  /** SVG markup for the tile, rendered as is. The palette paints it with `fill`, as it does
+   *  the built-in tiles, so draw with filled shapes. */
   readonly media?: string;
 };
 
