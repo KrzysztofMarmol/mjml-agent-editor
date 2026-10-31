@@ -87,4 +87,29 @@ describe("createWriter", () => {
     editor.UndoManager.undo();
     expect(textTag()).toBe('<mj-text css-class="obj-t" padding="11px 25px">');
   });
+
+  it("ends a drag when another attribute is written, with no undo step left that does nothing", async () => {
+    const write = createWriter(editor, text);
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+    await write("font-size", "15px", { partial: true });
+    await tick();
+    await write("color", "#111111");
+    await tick();
+    await write("font-size", "15px");
+    await tick();
+
+    expect(textTag()).toBe('<mj-text css-class="obj-t" font-size="15px" color="#111111">');
+    // The drag is recorded as the other write lands, in the same step GrapesJS makes of one call.
+    editor.UndoManager.undo();
+    expect(textTag()).toBe('<mj-text css-class="obj-t">');
+    expect(editor.UndoManager.hasUndo()).toBe(false);
+  });
+
+  it("writes nothing once blocked, asked as the write lands", async () => {
+    let locked = false;
+    const write = createWriter(editor, text, () => locked);
+    locked = true;
+    await write("color", "#111111");
+    expect(textTag()).toBe('<mj-text css-class="obj-t">');
+  });
 });

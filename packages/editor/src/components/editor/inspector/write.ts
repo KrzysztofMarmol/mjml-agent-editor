@@ -21,8 +21,15 @@ function same(a: Attributes, b: Attributes): boolean {
  * Every write replaces the whole attribute set at once: the plugin mirrors attributes into a
  * style object and back, and a removal followed by an addition, made silently, came back
  * from that mirror with the removed attribute still in it.
+ *
+ * `blocked` is asked as the write lands, after any wait: an agent turn can lock the editor
+ * while a text's typing is being synced.
  */
-export function createWriter(editor: Editor, component: Component) {
+export function createWriter(
+  editor: Editor,
+  component: Component,
+  blocked: () => boolean = () => false,
+) {
   const isImage = String(component.get("tagName") || component.get("type")) === "mj-image";
   // The attributes as MJML has them: without GrapesJS's `__p` marker and the plugin's style.
   const current = (): Attributes => {
@@ -30,14 +37,32 @@ export function createWriter(editor: Editor, component: Component) {
     return rest;
   };
 
-  // The attributes before a drag's first step, which its release is recorded as changing.
-  let dragStart: Attributes | null = null;
+  // The drag under way: its attribute and the attributes before its first step, which its
+  // release is recorded as changing.
+  let drag: { attr: string; start: Attributes } | null = null;
+
+  // Records the attributes now as one change from `start`: the steps were silent, so the start
+  // goes back silently first. None when they end where they began.
+  const record = (start: Attributes, end: Attributes) => {
+    component.setAttributes(start, { avoidStore: true });
+    if (!same(end, start)) component.setAttributes(end);
+    // A silent write leaves the `__p` marker on the attributes object, put there in place by
+    // the plugin's mirror; a real change clears it, and when there was none it goes the same way.
+    delete (component.get("attributes") as Attributes).__p;
+  };
 
   return async (attr: string, value: string, { partial, remove = [] }: WriteOptions = {}) => {
     // A write re-renders the element, which would drop text typed into it but not yet synced.
     if (editor.getEditing() === component) {
       const view = component.getView() as { syncContent?: () => Promise<void> } | undefined;
       await view?.syncContent?.();
+    }
+    if (blocked()) return;
+    // Another field written mid-drag ends the drag first, so each keeps its own undo step.
+    if (drag && drag.attr !== attr) {
+      const { start } = drag;
+      drag = null;
+      record(start, current());
     }
     if (attr === "src" && isImage) return void component.set({ src: value });
 
@@ -47,18 +72,12 @@ export function createWriter(editor: Editor, component: Component) {
     else next[attr] = value;
 
     if (partial) {
-      dragStart ??= current();
+      drag ??= { attr, start: current() };
       component.setAttributes(next, { avoidStore: true });
       return;
     }
-    const start = dragStart ?? current();
-    // The drag's steps were silent. Its start goes back silently too, so the release is one
-    // real change from it: one undo step and one save, or none when it ends where it began.
-    if (dragStart) component.setAttributes(dragStart, { avoidStore: true });
-    dragStart = null;
-    if (!same(next, start)) component.setAttributes(next);
-    // A silent write leaves the `__p` marker on the attributes object, put there in place by
-    // the plugin's mirror; a real change clears it, and when there was none it goes the same way.
-    delete (component.get("attributes") as Attributes).__p;
+    const start = drag?.start ?? current();
+    drag = null;
+    record(start, next);
   };
 }

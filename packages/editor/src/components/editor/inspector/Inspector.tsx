@@ -169,7 +169,7 @@ function ElementSettings({
   const optionName = (o: Option) => labels.inspectorLabels[o.label] ?? o.label;
 
   // One writer per element (this component is keyed by it), so a drag's start survives renders.
-  const [writer] = useState(() => createWriter(editor, component));
+  const [writer] = useState(() => createWriter(editor, component, () => lockedNow.current));
   const write = (attr: string, value: string, options?: WriteOptions) =>
     lockedNow.current ? Promise.resolve() : writer(attr, value, options);
   // A box writes its shorthand and drops the longhands, which would otherwise override it.

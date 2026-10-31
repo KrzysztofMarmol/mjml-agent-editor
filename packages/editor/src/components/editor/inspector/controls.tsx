@@ -335,17 +335,26 @@ export function LengthInput({
       // Not supported here; the window's listeners below end the hold.
     }
     const events = ["pointerup", "pointercancel", "lostpointercapture"] as const;
+    const pointerId = e.pointerId;
     const end = () => {
       window.clearTimeout(timer);
-      for (const type of events) button.removeEventListener(type, end);
-      window.removeEventListener("pointerup", end);
+      for (const type of events) button.removeEventListener(type, release);
+      window.removeEventListener("pointerup", release);
       window.removeEventListener("blur", end);
       endHold.current = null;
       commit.current(`${amount}${start.unit}`);
     };
+    // Only the pointer that pressed: another finger lifting elsewhere leaves the hold running.
+    const release = (ev: Event) => {
+      if (
+        (ev as PointerEvent).pointerId === undefined ||
+        (ev as PointerEvent).pointerId === pointerId
+      )
+        end();
+    };
     endHold.current = end;
-    for (const type of events) button.addEventListener(type, end);
-    window.addEventListener("pointerup", end);
+    for (const type of events) button.addEventListener(type, release);
+    window.addEventListener("pointerup", release);
     window.addEventListener("blur", end);
   };
   // A click with no pointer behind it (`detail` 0) is the keyboard or assistive technology
@@ -355,6 +364,7 @@ export function LengthInput({
   };
 
   const pickUnit = () => {
+    endHold.current?.();
     const next = units[(units.indexOf(unit) + 1) % units.length]!;
     const text = draft.trim();
     if (!BARE_NUMBER.test(text)) return setPicked(next);
@@ -385,7 +395,10 @@ export function LengthInput({
         {...fieldLabel}
         aria-labelledby={labelledBy ?? fieldLabel["aria-labelledby"]}
         aria-invalid={invalid}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => {
+          endHold.current?.();
+          setDraft(e.target.value);
+        }}
         onBlur={done}
         onKeyDown={onKey}
       />

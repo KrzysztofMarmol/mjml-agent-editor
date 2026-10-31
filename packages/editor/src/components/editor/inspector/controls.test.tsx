@@ -283,4 +283,39 @@ describe("LengthInput", () => {
     pointer(button("Increase"), "pointerdown");
     expect(calls).toEqual([]);
   });
+
+  it("ends a hold before the field is typed in", () => {
+    const typed = mount({ value: "20px" });
+    pointer(button("Increase"), "pointerdown");
+    type(typed.input, "5");
+    expect(typed.calls).toEqual([
+      ["21px", true],
+      ["21px", undefined],
+    ]);
+  });
+
+  it("ends a hold before the unit is changed", () => {
+    const unit = mount({ value: "20px", units: ["px", "%"] });
+    pointer(button("Increase"), "pointerdown");
+    act(() => (button("Unit: px") as HTMLButtonElement).click());
+    expect(unit.calls).toEqual([
+      ["21px", true],
+      ["21px", undefined],
+      ["21%", undefined],
+    ]);
+  });
+
+  it("is ended by the pointer that pressed, not another one lifting", () => {
+    const { calls } = mount({ value: "20px" });
+    const withPointer = (type: string, pointerId: number) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0 });
+      Object.defineProperty(event, "pointerId", { value: pointerId });
+      return event;
+    };
+    act(() => void button("Increase").dispatchEvent(withPointer("pointerdown", 1)));
+    act(() => void window.dispatchEvent(withPointer("pointerup", 2)));
+    expect(calls).toEqual([["21px", true]]);
+    act(() => void window.dispatchEvent(withPointer("pointerup", 1)));
+    expect(calls.at(-1)).toEqual(["21px", undefined]);
+  });
 });
