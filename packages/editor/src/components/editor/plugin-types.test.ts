@@ -43,6 +43,34 @@ function first(tag: string): Component {
 const strictErrors = () => mjml(editor.getHtml(), { validationLevel: "strict" }).errors;
 
 describe("fixPluginTypes", () => {
+  it("draws a column in a group with the width MJML gives it there, not a section's 100%", () => {
+    editor.setComponents(
+      '<mjml><mj-body><mj-section><mj-group><mj-column width="25%"><mj-text>a</mj-text></mj-column><mj-column><mj-text>b</mj-text></mj-column></mj-group><mj-column><mj-text>c</mj-text></mj-column></mj-section></mj-body></mjml>',
+    );
+    const view = editor.Components.getType("mj-column")!.view.prototype as unknown as {
+      getMjmlTemplate(this: { model: Component }): { start: string; end: string };
+      getTemplateFromEl(this: { model: Component }, el: HTMLElement): HTMLElement | null;
+    };
+    const grouped = first("mj-group").components().at(0);
+    const loose = first("mj-section").components().at(1);
+    const template = view.getMjmlTemplate.call({ model: grouped });
+    expect(template.start).toContain("<mj-group>");
+    expect(view.getMjmlTemplate.call({ model: loose }).start).not.toContain("<mj-group>");
+
+    // What the plugin does with the template: compile, then take the column's element.
+    const html = (mjml as unknown as (x: string) => { html: string })(
+      `${template.start}<mj-column width="25%"></mj-column>${template.end}`,
+    ).html;
+    const container = document.createElement("div");
+    container.innerHTML = html
+      .slice(html.indexOf("<body"))
+      .replace(/^<body[^>]*>/, "")
+      .replace(/<\/body>[\s\S]*$/, "")
+      .trim();
+    const column = view.getTemplateFromEl.call({ model: grouped }, container);
+    expect(column?.getAttribute("style")).toContain("width:25%");
+  });
+
   it("moves a column into and within a column group, and never into a column", () => {
     const draggable = String(
       editor.Components.getType("mj-column")!.model.prototype.defaults.draggable,

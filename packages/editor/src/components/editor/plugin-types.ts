@@ -33,6 +33,8 @@ const COLUMN_CHILDREN = new Set([
  * - GrapesJS's `__p`, which the plugin leaves on the attributes while a colour is dragged, is
  *   never written: a save falling due mid-drag stored it.
  * - A column takes only what MJML allows in one, and moves into and within a column group.
+ * - A column in a group is drawn as MJML writes it there, side by side on a phone too: the
+ *   plugin drew every column as a section's, which the Mobile view stacked.
  * - An mj-table keeps its rows.
  * - An image without a picture is saved without one.
  */
@@ -42,7 +44,9 @@ export function fixPluginTypes(editor: Editor) {
     // mj-table is ours and serialises through GrapesJS's own escaping; this would add a second.
     if (!type.id.startsWith("mj-") || type.id === "mj-table") continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
+    const view = type.view.prototype as ColumnView;
     editor.Components.addType(type.id, {
+      ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
       model: {
         defaults: {
           "style-default": {},
@@ -65,4 +69,41 @@ export function fixPluginTypes(editor: Editor) {
       },
     } as never);
   }
+}
+
+interface ColumnView {
+  model: Component;
+  getMjmlTemplate(): { start: string; end: string };
+  getTemplateFromEl(container: HTMLElement): HTMLElement | null;
+}
+
+const inGroup = (column: Component) => column.parent()?.get("type") === "mj-group";
+
+/**
+ * The plugin draws a column by compiling it in a section beside empty siblings and taking the
+ * column's element from the result. In a group, MJML gives that element its width inline, where
+ * a section's column gets 100% and only a desktop rule; so a grouped column is compiled in a
+ * group, and taken from one level further down.
+ */
+function groupedColumnView(base: ColumnView): Partial<ColumnView> {
+  return {
+    getMjmlTemplate(this: ColumnView) {
+      if (!inGroup(this.model)) return base.getMjmlTemplate.call(this);
+      const siblings = "<mj-column></mj-column>".repeat(
+        Math.max((this.model.collection?.length ?? 1) - 1, 0),
+      );
+      return {
+        start: "<mjml><mj-body><mj-section><mj-group>",
+        end: `${siblings}</mj-group></mj-section></mj-body></mjml>`,
+      };
+    },
+    getTemplateFromEl(this: ColumnView, container: HTMLElement) {
+      if (!inGroup(this.model)) return base.getTemplateFromEl.call(this, container);
+      return (
+        (container.firstChild as HTMLElement | null)?.querySelector(
+          "div > table > tbody > tr > td > div > div",
+        ) ?? null
+      );
+    },
+  };
 }
