@@ -64,8 +64,9 @@ the compiled email:
   (`UNEDITABLE_TAGS`, also `uneditable_tags` in `contract/tools.json`).
 - `unsafeMarkup(html)` over the **compiled** HTML, where MJML has joined each navbar's
   `base-url` to its links: a link whose scheme is not in `LINK_SCHEMES` (`http`, `https`,
-  `mailto`, `tel`, `sms`; no scheme is fine too), an `on…` handler, and `script`, `iframe`,
-  `object`, `embed` and the like. `addedItems(after, before)` keeps what the write added, and
+  `mailto`, `tel`, `sms`; no scheme is fine too), an `on…` handler, `script`, `iframe`,
+  `object`, `embed` and the like, and inline SVG or MathML. It reads comments and
+  `<style>`-like elements where a browser ends them, so a quote inside one hides nothing. `addedItems(after, before)` keeps what the write added, and
   `describeItems` names it in at most five items. The schemes are fixed; tell us if your
   emails need another. `contract/unsafe-markup-cases.json` holds the cases every backend
   must agree on.

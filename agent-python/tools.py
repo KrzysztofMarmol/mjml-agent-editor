@@ -78,11 +78,16 @@ _EMPTY_ARG_HINT = (
 _blocking = asyncio.to_thread
 
 
+# A comment, or a tag with its quoted values, so that <!-- inside a value starts no comment.
+_TOKEN = re.compile(
+    r"""<!--.*?(?:-->|\Z)|<([a-z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*""", re.I | re.S
+)
+
+
 def _count_tag(mjml: str, tag: str) -> int:
     # A tag inside a comment is not an element; counting it would let a write that removes
     # the comment add a real one unnoticed.
-    elements = re.sub(r"<!--.*?-->", "", mjml, flags=re.DOTALL)
-    return len(re.findall(rf"<{tag}(?=[\s/>])", elements, re.IGNORECASE))
+    return sum(1 for m in _TOKEN.finditer(mjml) if m[1] and m[1].lower() == tag)
 
 
 def _added_uneditable_tags(before: str, after: str) -> list[str]:
@@ -116,7 +121,7 @@ async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
             return (
                 f"ERROR: {links.describe_items(added)} cannot be in an email — only "
                 f"{', '.join(schemes)} links or ones without a scheme, and no scripts, event "
-                "handlers, frames or embeds. The document was NOT saved."
+                "handlers, frames, embeds, SVG or MathML. The document was NOT saved."
             )
     await _blocking(db.set_document_mjml, doc_id, mjml)
     return "OK, saved."

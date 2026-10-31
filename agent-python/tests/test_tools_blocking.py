@@ -146,6 +146,20 @@ def test_a_commented_out_table_does_not_let_a_real_one_in(
     assert result.startswith("ERROR: <mj-table> cannot be used")
 
 
+def test_a_table_between_values_that_look_like_a_comment_is_counted(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    hidden = (
+        '<mj-section css-class="<!--"><mj-column><mj-table><tr><td>1</td></tr></mj-table>'
+        '<mj-text css-class="-->">x</mj-text></mj-column></mj-section>'
+    )
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=hidden))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")
+
+
 def test_a_link_a_mail_client_could_run_is_not_saved(
     db: FakeDb, monkeypatch: pytest.MonkeyPatch
 ) -> None:

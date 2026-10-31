@@ -27,3 +27,12 @@ describe("addedUneditableTags", () => {
     expect(addedUneditableTags(doc("<!-- <mj-table> -->"), doc(TABLE))).toEqual(["mj-table"]);
   });
 });
+
+describe("addedUneditableTags with comment markers in values", () => {
+  it("counts a tag between two values that look like a comment", () => {
+    const hidden =
+      '<mj-section css-class="<!--"><mj-column><mj-table><tr><td>1</td></tr></mj-table>' +
+      '<mj-text css-class="-->">x</mj-text></mj-column></mj-section>';
+    expect(addedUneditableTags(doc(""), doc(hidden))).toEqual(["mj-table"]);
+  });
+});

@@ -5,11 +5,15 @@
  */
 export const UNEDITABLE_TAGS = ["mj-table", "mj-hero", "mj-accordion", "mj-carousel"] as const;
 
+// A comment, or a tag with its quoted values, so that `<!--` inside a value starts no comment.
+const TOKEN = /<!--[\s\S]*?(?:-->|$)|<([a-z][^\s/>]*)(?:[^>"']|"[^"]*"|'[^']*')*/gi;
+
 // A tag inside a comment is not an element, and counting it would let a write that removes
 // the comment add a real one unnoticed.
 function count(mjml: string, tag: string): number {
-  const elements = mjml.replace(/<!--[\s\S]*?-->/g, "");
-  return (elements.match(new RegExp(`<${tag}(?=[\\s/>])`, "gi")) ?? []).length;
+  let n = 0;
+  for (const [, name] of mjml.matchAll(TOKEN)) if (name?.toLowerCase() === tag) n++;
+  return n;
 }
 
 /**

@@ -123,7 +123,7 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       const previous = await compiler.compile(before);
       const added = addedItems(found, previous.ok ? unsafeMarkup(previous.html) : []);
       if (added.length > 0) {
-        return `ERROR: ${describeItems(added)} cannot be in an email — only ${LINK_SCHEMES.join(", ")} links or ones without a scheme, and no scripts, event handlers, frames or embeds. The document was NOT saved.`;
+        return `ERROR: ${describeItems(added)} cannot be in an email — only ${LINK_SCHEMES.join(", ")} links or ones without a scheme, and no scripts, event handlers, frames, embeds, SVG or MathML. The document was NOT saved.`;
       }
     }
     await documents.save(documentId, { mjml });

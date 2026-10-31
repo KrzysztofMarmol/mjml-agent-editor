@@ -31,8 +31,10 @@ export function isSafeNavbarLink(baseUrl: string, href: string): boolean {
 }
 
 const LINK_ATTRIBUTES = new Set(["href", "xlink:href", "action", "formaction"]);
-// Elements that exist to run or embed something; an email has no use for any of them.
-const RUNNING_TAGS = new Set([
+// Elements that exist to run or embed something; an email has no use for any of them. SVG and
+// MathML too: inside them a browser tokenises `<style>` and `<![CDATA[` otherwise than in HTML,
+// so what is read here would not be what it reads.
+const REFUSED_TAGS = new Set([
   "script",
   "iframe",
   "frame",
@@ -43,6 +45,21 @@ const RUNNING_TAGS = new Set([
   "base",
   "animate",
   "set",
+  "svg",
+  "math",
+  "plaintext",
+]);
+// Elements whose content a browser reads as text up to their end tag, with scripting on.
+const RAW_TEXT = new Set([
+  "script",
+  "style",
+  "xmp",
+  "iframe",
+  "noembed",
+  "noframes",
+  "noscript",
+  "textarea",
+  "title",
 ]);
 
 // ASCII only, here and in the Python twin, so both read the same input the same way. Each
@@ -50,41 +67,94 @@ const RUNNING_TAGS = new Set([
 const TAG_NAME = /[A-Za-z][^\t\n\f\r />]*/y;
 const ATTRIBUTE =
   /[\t\n\f\r /]*([^\t\n\f\r />][^\t\n\f\r />=]*)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"?|'([^']*)'?|([^\t\n\f\r >]*)))?/y;
+const END_TAG_DELIMITER = /[\t\n\f\r />]/;
 
 /**
  * What in compiled HTML could run: a link with any other scheme than `LINK_SCHEMES`, an `on…`
- * handler, an element such as `<script>` or `<iframe>`. Read as a browser tokenises tags, so a
- * quote cannot hide one, and inside comments too, where Outlook reads conditional markup.
- * Checked on the compiled email because MJML adds what the source does not say: a navbar's
- * `base-url` from `mj-attributes` or an `mj-class`, joined to each of its links.
+ * handler, an element such as `<script>` or `<iframe>`. Read as a browser's tokeniser reads
+ * HTML: tags with their quotes; comments, `<!…>`, `<?…>` and `<style>`-like elements ending
+ * where it ends them, so a quote inside one cannot hide what follows. Inside comments too, where
+ * Outlook reads conditional markup. Checked on the compiled email because MJML adds what the
+ * source does not say: a navbar's `base-url` from `mj-attributes` or an `mj-class`, joined to
+ * each of its links.
  */
 export function unsafeMarkup(html: string): string[] {
   const found: string[] = [];
+  scan(html, found, false);
+  return found;
+}
+
+function scan(html: string, found: string[], inComment: boolean): void {
+  const lower = asciiLower(html);
   let i = html.indexOf("<");
   while (i !== -1) {
-    TAG_NAME.lastIndex = i + 1;
-    const name = TAG_NAME.exec(html)?.[0];
+    const next = html[i + 1] ?? "";
     let end = i + 1;
-    if (name) {
-      if (RUNNING_TAGS.has(name.toLowerCase())) found.push(`<${name.toLowerCase()}>`);
-      end = TAG_NAME.lastIndex;
-      while (end < html.length && html[end] !== ">") {
-        ATTRIBUTE.lastIndex = end;
-        const m = ATTRIBUTE.exec(html);
-        if (!m || ATTRIBUTE.lastIndex === end) {
-          end++;
-          continue;
+    if (html.startsWith("<!--", i)) {
+      // Its content is read once, as markup, so a comment inside cannot repeat the scan.
+      if (inComment) end = i + 4;
+      else {
+        const [content, after] = commentEnd(html, i + 4);
+        scan(html.slice(i + 4, content), found, true);
+        end = after;
+      }
+    } else if (
+      next === "!" ||
+      next === "?" ||
+      (next === "/" && !/[A-Za-z]/.test(html[i + 2] ?? ""))
+    ) {
+      // A bogus comment, `<![CDATA[` outside SVG among them: up to the next `>`.
+      const close = html.indexOf(">", i);
+      end = close === -1 ? html.length : close + 1;
+    } else {
+      const closing = next === "/";
+      TAG_NAME.lastIndex = closing ? i + 2 : i + 1;
+      const tag = TAG_NAME.exec(html)?.[0];
+      const name = tag && asciiLower(tag);
+      if (name) {
+        if (!closing && REFUSED_TAGS.has(name)) found.push(`<${name}>`);
+        end = TAG_NAME.lastIndex;
+        while (end < html.length && html[end] !== ">") {
+          ATTRIBUTE.lastIndex = end;
+          const m = ATTRIBUTE.exec(html);
+          if (!m || ATTRIBUTE.lastIndex === end) {
+            end++;
+            continue;
+          }
+          end = ATTRIBUTE.lastIndex;
+          if (closing) continue;
+          const attribute = asciiLower(m[1]!);
+          const value = m[2] ?? m[3] ?? m[4] ?? "";
+          if (attribute.length > 2 && attribute.startsWith("on")) found.push(attribute);
+          else if (LINK_ATTRIBUTES.has(attribute) && !isSafeLink(value)) found.push(value);
         }
-        end = ATTRIBUTE.lastIndex;
-        const attribute = m[1]!.toLowerCase();
-        const value = m[2] ?? m[3] ?? m[4] ?? "";
-        if (/^on./.test(attribute)) found.push(attribute);
-        else if (LINK_ATTRIBUTES.has(attribute) && !isSafeLink(value)) found.push(value);
+        if (!closing && RAW_TEXT.has(name)) end = rawTextEnd(lower, name, end);
       }
     }
     i = html.indexOf("<", end);
   }
-  return found;
+}
+
+// Only ASCII, as the Python twin does: elsewhere a lower-case form can differ in length.
+const asciiLower = (text: string) => text.replace(/[A-Z]+/g, (s) => s.toLowerCase());
+
+/** Where a comment's content ends and what follows it starts, as a browser finds them. */
+function commentEnd(html: string, from: number): [number, number] {
+  if (html.startsWith(">", from)) return [from, from + 1];
+  if (html.startsWith("->", from)) return [from, from + 2];
+  const dashes = html.indexOf("-->", from);
+  const bang = html.indexOf("--!>", from);
+  if (bang !== -1 && (dashes === -1 || bang < dashes)) return [bang, bang + 4];
+  return dashes === -1 ? [html.length, html.length] : [dashes, dashes + 3];
+}
+
+/** The start of the end tag that closes a `<style>`-like element, or the end of the input. */
+function rawTextEnd(lower: string, name: string, from: number): number {
+  let at = lower.indexOf(`</${name}`, from);
+  while (at !== -1 && !END_TAG_DELIMITER.test(lower[at + 2 + name.length] ?? "")) {
+    at = lower.indexOf(`</${name}`, at + 1);
+  }
+  return at === -1 ? lower.length : at;
 }
 
 /** What `after` holds more of than `before`: a write is refused only for what it adds. */
