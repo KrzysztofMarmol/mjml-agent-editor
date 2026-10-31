@@ -26,6 +26,7 @@ import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
 import { registerBlocks, type SectionBlock } from "./blocks.js";
+import { BUILTIN_BLOCKS, builtinBlock, CANVAS_CSS } from "./builtin-blocks.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
@@ -129,31 +130,6 @@ function crumbName(c: Component, labels: EditorLabels): string {
   const t = tagOf(c);
   return labels.elementNames[t] ?? t.replace(/^mj-/, "");
 }
-
-// The palette. Social and navigation children are only valid inside their parent; hero and
-// wrapper are banned from editable templates by agent-core (a hero gets no `sec-*` id, so the
-// agent cannot address it); raw HTML is out of place for the people this editor serves.
-const BLOCKS = [
-  "mj-1-column",
-  "mj-2-columns",
-  "mj-3-columns",
-  "mj-text",
-  "mj-image",
-  "mj-button",
-  "mj-divider",
-  "mj-spacer",
-  "mj-social-group",
-  "mj-navbar",
-];
-const LAYOUT_BLOCKS = new Set(["mj-1-column", "mj-2-columns", "mj-3-columns"]);
-
-// The plugin's version links Google+ and shares the page: a bare network name makes the icon
-// open a "share this link" dialog, while `-noshare` links to the profile a footer means.
-const SOCIAL_BLOCK = `<mj-social icon-size="24px" mode="horizontal">
-  <mj-social-element name="facebook-noshare" href="https://facebook.com/"></mj-social-element>
-  <mj-social-element name="instagram-noshare" href="https://instagram.com/"></mj-social-element>
-  <mj-social-element name="x-noshare" href="https://x.com/"></mj-social-element>
-</mj-social>`;
 
 function objectLabel(c: Component): string {
   const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
@@ -708,6 +684,7 @@ export default function EmailEditor({
         // app.grapesjs.com and leave a session-storage entry, which a host would then have
         // to disclose and, for the entry, ask consent for.
         telemetry: false,
+        canvasCss: CANVAS_CSS,
         fromElement: false,
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
@@ -749,15 +726,8 @@ export default function EmailEditor({
         plugins: [
           (editor: Editor) =>
             grapesjsMJML(editor, {
-              blocks: BLOCKS,
-              block: (id: string) => ({
-                label: labels.blockLabels[id] ?? id,
-                // By id: a regex on the label broke as soon as a host translated it.
-                category: LAYOUT_BLOCKS.has(id)
-                  ? labels.blockCategoryLayout
-                  : labels.blockCategoryContent,
-                ...(id === "mj-social-group" && { content: SOCIAL_BLOCK }),
-              }),
+              blocks: BUILTIN_BLOCKS,
+              block: builtinBlock(labels),
             }),
         ],
       }}
