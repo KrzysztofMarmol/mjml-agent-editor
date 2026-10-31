@@ -2,6 +2,8 @@
 
 import type { Component, Editor } from "grapesjs";
 
+import { addTableType } from "./table-type.js";
+
 type AttrToHTML = (this: Component) => Record<string, unknown>;
 
 // What MJML accepts inside an mj-column. The plugin lets a column take anything, so a <p>
@@ -32,25 +34,10 @@ const COLUMN_CHILDREN = new Set([
  *   never written: a save falling due mid-drag stored it.
  * - A column takes only what MJML allows in one.
  * - An mj-table keeps its rows.
+ * - An image without a picture is saved without one.
  */
 export function fixPluginTypes(editor: Editor) {
-  // The plugin has no mj-table, so it was a plain element and lost its rows to the HTML
-  // parser. Its markup is kept as it was given, through `withTableRowsKept`, and never edited.
-  editor.Components.addType("mj-table", {
-    isComponent: (el: HTMLElement) =>
-      el.tagName?.toLowerCase() === "mj-table" && {
-        type: "mj-table",
-        content: el.querySelector(":scope > template")?.innerHTML ?? "",
-        components: [],
-      },
-    model: { defaults: { tagName: "mj-table", droppable: false, editable: false } },
-    view: {
-      // A table around the rows, or the canvas would drop them as the parser did.
-      updateContent(this: { el: HTMLElement; model: Component }) {
-        this.el.innerHTML = `<table style="width:100%">${this.model.get("content") ?? ""}</table>`;
-      },
-    },
-  } as never);
+  addTableType(editor);
   for (const type of editor.Components.getTypes()) {
     if (!type.id.startsWith("mj-")) continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
@@ -61,6 +48,8 @@ export function fixPluginTypes(editor: Editor) {
           ...(type.id === "mj-column" && {
             droppable: (source: Component) => COLUMN_CHILDREN.has(String(source.get("tagName"))),
           }),
+          // GrapesJS's own is an SVG's markup, which the canvas wrote into `src` and saved.
+          ...(type.id === "mj-image" && { src: "" }),
         },
         getAttrToHTML(this: Component) {
           const attributes = base.call(this);

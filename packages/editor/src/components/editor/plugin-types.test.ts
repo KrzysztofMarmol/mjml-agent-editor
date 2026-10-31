@@ -122,3 +122,12 @@ describe("mj-table", () => {
     expect(editor.getHtml()).toContain("<mj-table></mj-table>");
   });
 });
+
+describe("mj-image", () => {
+  it("writes an image without a picture as one, not with GrapesJS's sample", () => {
+    load('<mj-image alt="Hero"></mj-image>');
+    // The canvas writes the model's src into the element, so the model's is what is saved.
+    expect(first("mj-image").get("src")).toBe("");
+    expect(editor.getHtml()).toContain('<mj-image alt="Hero"></mj-image>');
+  });
+});
