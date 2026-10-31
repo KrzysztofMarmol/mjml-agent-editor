@@ -25,6 +25,7 @@ import { BoxInput, LengthInput, Row, Segmented, Select, TextInput, Toggle } from
 import { SCHEMA } from "./schema.js";
 import type { Field, Group, Option } from "./types.js";
 import { networkName, parseNetwork, SIDES } from "./values.js";
+import { createWriter, type WriteOptions } from "./write.js";
 
 const GROUPS: readonly Exclude<Group, "advanced">[] = ["content", "layout", "spacing", "style"];
 
@@ -131,29 +132,13 @@ function ElementSettings({
   const t = (key: string) => labels.inspectorLabels[key] ?? key;
   const optionName = (o: Option) => labels.inspectorLabels[o.label] ?? o.label;
 
-  const write = async (attr: string, value: string, options?: { partial?: boolean }) => {
-    if (locked) return;
-    // A write re-renders the element, which would drop text typed into it but not yet synced.
-    if (editor.getEditing() === component) {
-      const view = component.getView() as { syncContent?: () => Promise<void> } | undefined;
-      await view?.syncContent?.();
-    }
-    // A drag writes without an undo entry until it is released.
-    const opts = options?.partial ? { avoidStore: true } : {};
-    if (attr === "src" && tag === "mj-image") {
-      component.set({ src: value }, opts);
-    } else if (value === "") {
-      component.removeAttributes([attr], opts);
-    } else {
-      component.addAttributes({ [attr]: value }, opts);
-    }
-  };
+  // One writer per element (this component is keyed by it), so a drag's start survives renders.
+  const [writer] = useState(() => createWriter(editor, component));
+  const write = (attr: string, value: string, options?: WriteOptions) =>
+    locked ? Promise.resolve() : writer(attr, value, options);
   // A box writes its shorthand and drops the longhands, which would otherwise override it.
-  const writeBox = async (attr: string, shorthand: string) => {
-    if (locked) return;
-    component.removeAttributes(SIDES.map((s) => `${attr}-${s}`));
-    await write(attr, shorthand);
-  };
+  const writeBox = (attr: string, shorthand: string) =>
+    write(attr, shorthand, { remove: SIDES.map((s) => `${attr}-${s}`) });
 
   const chooseImage = (attr: string) => {
     if (attr === "src" && tag === "mj-image") return void editor.runCommand("open-image-picker");

@@ -23,6 +23,7 @@ import { Search } from "lucide-react";
 import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import Inspector from "./inspector/Inspector.js";
+import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { illegalAttributes } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -72,9 +73,6 @@ type Props = {
   onOpenCountChange: (n: number) => void;
 };
 
-const SEC_ID_RE = /\bsec-([A-Za-z0-9_-]+)\b/;
-const OBJ_ID_RE = /\bobj-([A-Za-z0-9_-]+)\b/;
-
 // Element types that can receive a comment (besides a section).
 const TYPE_LABEL: Record<string, string> = {
   "mj-text": "Text",
@@ -102,24 +100,6 @@ function isSection(c: Component): boolean {
 function isCommentable(c: Component): boolean {
   const t = tagOf(c);
   return t === "mj-section" || t in TYPE_LABEL;
-}
-
-function classMatch(c: Component, re: RegExp): string | null {
-  const cssClass = String(c.getAttributes()["css-class"] ?? "");
-  return cssClass.match(re)?.[1] ?? null;
-}
-
-function sectionIdOf(c: Component): string | null {
-  return classMatch(c, SEC_ID_RE);
-}
-
-function addIdClass(c: Component, prefix: "sec" | "obj"): string {
-  const existing = classMatch(c, prefix === "sec" ? SEC_ID_RE : OBJ_ID_RE);
-  if (existing) return existing;
-  const cssClass = String(c.getAttributes()["css-class"] ?? "");
-  const id = Math.random().toString(36).slice(2, 10);
-  c.addAttributes({ "css-class": `${cssClass} ${prefix}-${id}`.trim() });
-  return id;
 }
 
 function closestSection(c: Component | undefined): Component | null {
@@ -412,7 +392,11 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     setupRichText(editor, labels);
     dropPluginDefaults(editor);
 
-    editor.on("component:add", decorate);
+    editor.on("component:add", (c: Component) => {
+      // A load brings ids the store already uses; only copies made here are renamed.
+      if (!loadingRef.current) freshenCopiedIds(editor.getWrapper(), c);
+      decorate(c);
+    });
     // Track selection origin: a mousedown inside the canvas iframe marks the
     // next selection as coming from the canvas (→ open Settings). Selecting via
     // the Layers tree leaves the source as "layers" (set by the sidebar).
@@ -425,7 +409,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         },
         true,
       );
-      // Keys pressed in the canvas never reach the host document.
+      // The host document only gets a copy of these, aimed at the iframe (see opensBlockSearch).
       editor.Canvas.getDocument()?.addEventListener("keydown", onBlockSearchKey);
     });
     editor.on("component:selected", (c: Component) => {

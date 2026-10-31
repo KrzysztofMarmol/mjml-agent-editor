@@ -9,5 +9,7 @@ export function opensBlockSearch(
   // Typing a slash into a field, or into text being edited on the canvas, is just a slash.
   const target = e.target as { tagName?: string; isContentEditable?: boolean } | null;
   if (target?.isContentEditable) return false;
-  return !["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "");
+  // GrapesJS re-dispatches every key pressed in the canvas on its <iframe>, where the text
+  // being edited is out of sight; the canvas document's own listener judges those.
+  return !["INPUT", "TEXTAREA", "SELECT", "IFRAME"].includes(target?.tagName ?? "");
 }

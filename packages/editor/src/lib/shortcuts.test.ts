@@ -26,6 +26,10 @@ describe("opensBlockSearch", () => {
     ).toBe(false);
   });
 
+  it("leaves the copy GrapesJS re-dispatches on the canvas iframe to the canvas's own listener", () => {
+    expect(press({ target: { tagName: "IFRAME" } as unknown as EventTarget })).toBe(false);
+  });
+
   it("ignores modified presses, other keys and IME composition", () => {
     expect(press({ ctrlKey: true })).toBe(false);
     expect(press({ metaKey: true })).toBe(false);
