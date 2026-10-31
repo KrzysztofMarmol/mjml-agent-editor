@@ -71,6 +71,7 @@ export function Row({
 }) {
   const id = useId();
   const helpId = useId();
+  const [helpOpen, setHelpOpen] = useState(false);
   const control = (
     <FieldLabel.Provider value={{ label: id, help: help ? helpId : undefined }}>
       {children}
@@ -87,11 +88,13 @@ export function Row({
       </span>
       {/* On demand: shown under every field, the help doubled the panel's length. */}
       {help && (
-        <Tooltip>
+        // Opened by a tap as well: Radix opens a tooltip on hover and focus, not on touch.
+        <Tooltip open={helpOpen} onOpenChange={setHelpOpen}>
           <TooltipTrigger asChild>
             <button
               type="button"
               aria-label={help}
+              onClick={() => setHelpOpen((open) => !open)}
               className="-m-0.5 shrink-0 rounded p-0.5 text-panel-muted-fg/70 hover:text-panel-fg focus-visible:text-panel-fg"
             >
               <CircleHelp className="size-3" />
@@ -142,9 +145,10 @@ export function Row({
   );
 }
 
-function useDraft(value: string, commit: (next: string) => void) {
+/** `source`: what the shown value is read from, when that can change while it does not. */
+function useDraft(value: string, commit: (next: string) => void, source: string = value) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  useEffect(() => setDraft(value), [value, source]);
   const done = () => {
     if (draft.trim() !== value) commit(draft.trim());
   };
@@ -212,10 +216,14 @@ export function normaliseLength(
   return `${parsed.amount}${parsed.unit}`;
 }
 
-/** `amount` moved by `delta`, to two decimals, and not below zero unless allowed. */
+/**
+ * `amount` moved by `delta`, to two decimals, not below zero unless allowed. Unchanged where
+ * the result would not be a plain decimal (`1e+22`, `Infinity`), which MJML rejects.
+ */
 export function stepAmount(amount: string, delta: number, negative = false): string {
-  const next = Math.round((Number(amount) + delta) * 100) / 100;
-  return String(negative ? next : Math.max(0, next));
+  const moved = Math.round((Number(amount) + delta) * 100) / 100;
+  const next = String(negative ? moved : Math.max(0, moved));
+  return BARE_NUMBER.test(next) ? next : amount;
 }
 
 // A hold on a step button keeps stepping, after a pause long enough for a single click.
@@ -225,7 +233,8 @@ const REPEAT_EVERY_MS = 60;
 /**
  * A number with its unit beside it, steppable by the arrows, the arrow keys (Shift for 10) or
  * holding a step button. A hold is shown as it goes and recorded as one change when released.
- * A value the field cannot read, such as one the agent wrote in another unit, shows whole.
+ * A value the field cannot read, such as one the agent wrote in another unit, shows whole and
+ * is not stepped: stepping it from zero would throw it away.
  */
 export function LengthInput({
   value,
@@ -241,7 +250,7 @@ export function LengthInput({
   placeholder?: string;
   units: readonly Unit[];
   negative?: boolean;
-  /** Too narrow for the arrows to stay: they show on hover and focus. */
+  /** Too narrow for the arrows to stay: they show on hover and focus, the unit cannot change. */
   compact?: boolean;
   /** Ids naming the field, when the Row's caption alone does not. */
   labelledBy?: string;
@@ -255,49 +264,61 @@ export function LengthInput({
   const [picked, setPicked] = useState<Unit | null>(null);
   const unit = own?.unit ?? picked ?? fallback?.unit ?? units[0]!;
   const [invalid, setInvalid] = useState(false);
-  const { draft, setDraft, done, onKeyDown } = useDraft(own ? own.amount : value, (next) => {
-    const normal = normaliseLength(next, units, negative, unit);
-    setInvalid(normal === null);
-    if (normal !== null) onCommit(normal);
-  });
-
-  // Where a step starts: what is typed, else the default the field shows, else zero.
-  const from = () => {
-    const text = draft.trim();
-    if (BARE_NUMBER.test(text)) return { amount: text, unit };
-    return parseLength(text, units) ?? (text === "" ? fallback : null) ?? { amount: "0", unit };
-  };
-  const step = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return onKeyDown(e);
-    e.preventDefault();
-    const start = from();
-    const amount = stepAmount(
-      start.amount,
-      (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1),
-      negative,
-    );
-    setInvalid(false);
-    setDraft(amount);
-    onCommit(`${amount}${start.unit}`);
-  };
-
-  // Ends a hold still running when the field goes away (another element selected, a turn).
+  // The latest, for a hold that outlives the render it began in: what it may write can change
+  // under it, as when an agent turn locks the editor.
+  const commit = useRef(onCommit);
+  commit.current = onCommit;
+  // Ends a hold still running: before any other edit of this field, and when it goes away.
   const endHold = useRef<(() => void) | null>(null);
   useEffect(() => () => endHold.current?.(), []);
+
+  const { draft, setDraft, done, onKeyDown } = useDraft(
+    own ? own.amount : value,
+    (next) => {
+      endHold.current?.();
+      const normal = normaliseLength(next, units, negative, unit);
+      setInvalid(normal === null);
+      if (normal !== null) commit.current(normal);
+    },
+    value,
+  );
+
+  // Where a step starts: what is typed, else the default in the current unit, else zero.
+  // Null for text the field cannot read.
+  const from = (): { amount: string; unit: Unit } | null => {
+    const text = draft.trim();
+    if (BARE_NUMBER.test(text)) return { amount: text, unit };
+    if (text === "") return { amount: fallback?.amount ?? "0", unit };
+    return parseLength(text, units);
+  };
+  const stepOnce = (delta: number) => {
+    endHold.current?.();
+    const start = from();
+    if (!start) return setInvalid(true);
+    const amount = stepAmount(start.amount, delta, negative);
+    setInvalid(false);
+    setDraft(amount);
+    commit.current(`${amount}${start.unit}`);
+  };
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return onKeyDown(e);
+    e.preventDefault();
+    stepOnce((e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1));
+  };
+
   const press = (direction: 1 | -1) => (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (e.button !== 0) return;
+    // One hold at a time: a second finger, or the other arrow, waits for the first to end.
+    if (e.button !== 0 || endHold.current) return;
     // Focus stays where it was; the press is not a click on the field.
     e.preventDefault();
-    const button = e.currentTarget;
-    // Captured, so a release over the canvas iframe still ends the hold.
-    button.setPointerCapture?.(e.pointerId);
-    const delta = direction * (e.shiftKey ? 10 : 1);
     const start = from();
+    if (!start) return setInvalid(true);
+    const delta = direction * (e.shiftKey ? 10 : 1);
     let amount = stepAmount(start.amount, delta, negative);
     const show = () => {
       setInvalid(false);
       setDraft(amount);
-      onCommit(`${amount}${start.unit}`, true);
+      commit.current(`${amount}${start.unit}`, true);
     };
     show();
     let timer = window.setTimeout(function repeat() {
@@ -305,29 +326,47 @@ export function LengthInput({
       show();
       timer = window.setTimeout(repeat, REPEAT_EVERY_MS);
     }, REPEAT_AFTER_MS);
+    const button = e.currentTarget;
+    // Captured, so a release over the canvas iframe still reaches the button; the window, the
+    // blur and the cancel end it where capture is missing or the pointer is taken away.
+    try {
+      button.setPointerCapture(e.pointerId);
+    } catch {
+      // Not supported here; the window's listeners below end the hold.
+    }
+    const events = ["pointerup", "pointercancel", "lostpointercapture"] as const;
     const end = () => {
       window.clearTimeout(timer);
-      button.removeEventListener("pointerup", end);
-      button.removeEventListener("lostpointercapture", end);
+      for (const type of events) button.removeEventListener(type, end);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("blur", end);
       endHold.current = null;
-      onCommit(`${amount}${start.unit}`);
+      commit.current(`${amount}${start.unit}`);
     };
     endHold.current = end;
-    button.addEventListener("pointerup", end);
-    button.addEventListener("lostpointercapture", end);
+    for (const type of events) button.addEventListener(type, end);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("blur", end);
+  };
+  // A click with no pointer behind it (`detail` 0) is the keyboard or assistive technology
+  // pressing the button; a pointer's click follows the press, which already stepped.
+  const click = (direction: 1 | -1) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (e.detail === 0) stepOnce(direction);
   };
 
   const pickUnit = () => {
     const next = units[(units.indexOf(unit) + 1) % units.length]!;
-    setPicked(next);
     const text = draft.trim();
-    if (BARE_NUMBER.test(text)) onCommit(normaliseLength(text, units, negative, next) ?? "");
+    if (!BARE_NUMBER.test(text)) return setPicked(next);
+    const normal = normaliseLength(text, units, negative, next);
+    // A number the field refuses (a negative) is not written in another unit either.
+    if (normal === null) return setInvalid(true);
+    setPicked(next);
+    commit.current(normal);
   };
   const unitName = (u: Unit) => u || labels.noUnit;
   // Only a value the field reads as a number has a unit to show beside it.
   const readable = draft.trim() === "" || BARE_NUMBER.test(draft.trim());
-  // Narrow, the unit gives its place to the arrows while they show.
-  const suffix = compact && "group-hover/length:hidden group-focus-within/length:hidden";
 
   const arrow =
     "flex h-1/2 w-3.5 items-center justify-center text-panel-muted-fg hover:bg-panel-hover hover:text-panel-fg";
@@ -348,26 +387,27 @@ export function LengthInput({
         aria-invalid={invalid}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={done}
-        onKeyDown={step}
+        onKeyDown={onKey}
       />
       {readable &&
-        (units.length > 1 ? (
+        (units.length > 1 && !compact ? (
           <button
             type="button"
             onClick={pickUnit}
             title={labels.changeUnit(unitName(unit))}
             aria-label={labels.changeUnit(unitName(unit))}
-            className={cn(
-              "shrink-0 rounded px-0.5 font-mono text-[10px] text-panel-muted-fg underline decoration-dotted underline-offset-2 hover:text-panel-fg",
-              suffix,
-            )}
+            className="shrink-0 rounded px-0.5 font-mono text-[10px] text-panel-muted-fg underline decoration-dotted underline-offset-2 hover:text-panel-fg"
           >
             {unitName(unit)}
           </button>
         ) : (
+          // Narrow, the unit gives its place to the arrows while they show; a unit is typed.
           <span
             aria-hidden
-            className={cn("shrink-0 px-0.5 font-mono text-[10px] text-panel-muted-fg", suffix)}
+            className={cn(
+              "shrink-0 px-0.5 font-mono text-[10px] text-panel-muted-fg",
+              compact && "group-focus-within/length:hidden group-hover/length:hidden",
+            )}
           >
             {unitName(unit)}
           </span>
@@ -375,7 +415,7 @@ export function LengthInput({
       <span
         className={cn(
           "h-full shrink-0 flex-col border-l border-panel-border",
-          compact ? "hidden group-hover/length:flex group-focus-within/length:flex" : "flex",
+          compact ? "hidden group-focus-within/length:flex group-hover/length:flex" : "flex",
         )}
       >
         <button
@@ -383,6 +423,7 @@ export function LengthInput({
           tabIndex={-1}
           aria-label={labels.increase}
           onPointerDown={press(1)}
+          onClick={click(1)}
           className={arrow}
         >
           <ChevronUp className="size-2.5" />
@@ -392,6 +433,7 @@ export function LengthInput({
           tabIndex={-1}
           aria-label={labels.decrease}
           onPointerDown={press(-1)}
+          onClick={click(-1)}
           className={arrow}
         >
           <ChevronDown className="size-2.5" />

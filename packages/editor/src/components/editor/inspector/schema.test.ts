@@ -150,6 +150,8 @@ describe("what the controls make of typed values", () => {
     expect(stepAmount("0.1", 0.2)).toBe("0.3");
     expect(stepAmount("3", -10)).toBe("0");
     expect(stepAmount("3", -10, true)).toBe("-7");
+    // MJML has no exponents: a step that would print one is no step.
+    expect(stepAmount("10000000000000000000000", 1)).toBe("10000000000000000000000");
   });
 });
 

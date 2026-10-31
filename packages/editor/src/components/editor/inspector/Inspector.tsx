@@ -10,7 +10,7 @@
  * written, so `css-class`, which carries the agent's `sec-*` and `obj-*` ids, never is.
  */
 
-import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import type { Component, Editor } from "grapesjs";
 import { useEditorMaybe } from "@grapesjs/react";
 import { ArrowUp, ChevronRight, Copy, Monitor, Trash2, X } from "lucide-react";
@@ -79,6 +79,12 @@ export default function Inspector({
   const editor = useEditorMaybe();
   const labels = useLabels();
   const { locked } = useAgentTurn();
+  // Read when a write happens, not when its control rendered: a field held down as a turn
+  // starts writes from a render before the lock, and its release comes as it unmounts.
+  const lockedNow = useRef(locked);
+  useLayoutEffect(() => {
+    lockedNow.current = locked;
+  });
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const root = useRef<HTMLDivElement>(null);
   const refocus = useRef(false);
@@ -131,6 +137,7 @@ export default function Inspector({
           component={component!}
           labels={labels}
           locked={locked}
+          lockedNow={lockedNow}
           onEmailSettings={onEmailSettings}
         />
       )}
@@ -143,12 +150,14 @@ function ElementSettings({
   component,
   labels,
   locked,
+  lockedNow,
   onEmailSettings,
 }: {
   editor: Editor;
   component: Component;
   labels: EditorLabels;
   locked: boolean;
+  lockedNow: { readonly current: boolean };
   onEmailSettings: () => void;
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -162,7 +171,7 @@ function ElementSettings({
   // One writer per element (this component is keyed by it), so a drag's start survives renders.
   const [writer] = useState(() => createWriter(editor, component));
   const write = (attr: string, value: string, options?: WriteOptions) =>
-    locked ? Promise.resolve() : writer(attr, value, options);
+    lockedNow.current ? Promise.resolve() : writer(attr, value, options);
   // A box writes its shorthand and drops the longhands, which would otherwise override it.
   const writeBox = (attr: string, shorthand: string, partial?: boolean) =>
     write(attr, shorthand, { remove: SIDES.map((s) => `${attr}-${s}`), partial });

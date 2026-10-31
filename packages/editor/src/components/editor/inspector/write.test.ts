@@ -61,4 +61,30 @@ describe("createWriter", () => {
     editor.UndoManager.undo();
     expect(textTag()).toBe('<mj-text css-class="obj-t" padding-top="4px">');
   });
+
+  it("ends a drag on a box as one change that also drops the longhands", async () => {
+    text.addAttributes({ "padding-top": "4px" });
+    editor.UndoManager.clear();
+    const write = createWriter(editor, text);
+    const longhands = ["padding-top", "padding-right", "padding-bottom", "padding-left"];
+    await write("padding", "5px 25px 10px", { partial: true, remove: longhands });
+    await write("padding", "8px 25px 10px", { partial: true, remove: longhands });
+    await write("padding", "8px 25px 10px", { remove: longhands });
+
+    expect(textTag()).toBe('<mj-text css-class="obj-t" padding="8px 25px 10px">');
+    editor.UndoManager.undo();
+    expect(textTag()).toBe('<mj-text css-class="obj-t" padding-top="4px">');
+  });
+
+  it("ends a drag back at the default by removing the attribute", async () => {
+    text.addAttributes({ padding: "11px 25px" });
+    editor.UndoManager.clear();
+    const write = createWriter(editor, text);
+    await write("padding", "", { partial: true });
+    await write("padding", "");
+
+    expect(textTag()).toBe('<mj-text css-class="obj-t">');
+    editor.UndoManager.undo();
+    expect(textTag()).toBe('<mj-text css-class="obj-t" padding="11px 25px">');
+  });
 });
