@@ -10,6 +10,7 @@ import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } fr
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { createSaveBaseline } from "../../lib/save-baseline.js";
 import { createSaveQueue } from "../../lib/save-queue.js";
+import { createTurnFollower } from "../../lib/turn-follower.js";
 import { opensBlockSearch } from "../../lib/shortcuts.js";
 import { useAgentTurn } from "../../stores.js";
 import { cn } from "../../lib/utils";
@@ -277,7 +278,8 @@ export default function EmailEditor({
   const { running: turnRunning, locked: readOnly, setLocked } = useAgentTurn();
   const readOnlyRef = useRef(false);
   const applyReadOnly = useRef<(on: boolean) => Promise<void>>(async () => {});
-  useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
+  const [turn] = useState(createTurnFollower);
+  useEffect(() => turn.turn(turnRunning), [turn, turnRunning]);
   useEffect(() => () => setLocked(false), [setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
@@ -637,9 +639,10 @@ export default function EmailEditor({
       }
     };
 
+    turn.ready((on) => void applyReadOnly.current(on));
     try {
-      const doc = await documents.get(docId);
-      loadMjml(doc.mjml);
+      // Queued, so the reload that ends a turn already running lands after this load.
+      await queue.run(async () => loadMjml((await documents.get(docId)).mjml));
     } catch (e) {
       toast.error(labels.documentLoadFailed);
       console.error(e);
