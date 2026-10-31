@@ -11,8 +11,10 @@
  */
 
 import {
+  LINK_SCHEMES,
   MjmlDocumentError,
   addedUneditableTags,
+  addedUnsafeLinks,
   TOOLS,
   ensureSectionIds,
   getSection,
@@ -85,6 +87,10 @@ function schemaOf<Input>(name: ToolName) {
   return jsonSchema<Input>(TOOLS[name].inputSchema as never);
 }
 
+// Bounded: a `data:` link can be the size of a page, and the model only needs to know which.
+const quoteLink = (link: string) =>
+  JSON.stringify(link.length > 60 ? `${link.slice(0, 60)}…` : link);
+
 function describeError(error: unknown): string {
   if (error instanceof MjmlDocumentError) return `ERROR: ${error.message}`;
   if (error instanceof Error) return `ERROR: ${error.message}`;
@@ -100,13 +106,18 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
    * Compiles before persisting, so an invalid document is never written. The model
    * sees the compiler output and can correct itself; the spike relied on this and it
    * is the main reason the agent rarely leaves a document broken. A tag the editor cannot
-   * keep is refused before that, when the write adds one (`addedUneditableTags`).
+   * edit is refused before that, when the write adds one (`addedUneditableTags`), and so is
+   * a link a mail client or the preview could run (`addedUnsafeLinks`).
    */
   const saveValidated = async (before: string, mjml: string): Promise<string> => {
     const added = addedUneditableTags(before, mjml);
     if (added.length > 0) {
       const tags = added.map((tag) => `<${tag}>`).join(", ");
       return `ERROR: ${tags} cannot be used — the visual editor cannot edit it. The document was NOT saved.`;
+    }
+    const links = addedUnsafeLinks(before, mjml);
+    if (links.length > 0) {
+      return `ERROR: ${links.map(quoteLink).join(", ")} cannot be a link — only ${LINK_SCHEMES.join(", ")} links, or ones without a scheme. The document was NOT saved.`;
     }
     const result = await compiler.compile(mjml);
     if (!result.ok) {

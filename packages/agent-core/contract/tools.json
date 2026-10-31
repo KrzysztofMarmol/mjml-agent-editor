@@ -198,5 +198,12 @@
     "mj-hero",
     "mj-accordion",
     "mj-carousel"
+  ],
+  "link_schemes": [
+    "http",
+    "https",
+    "mailto",
+    "tel",
+    "sms"
   ]
 }

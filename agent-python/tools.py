@@ -25,6 +25,7 @@ import ai
 import openai
 
 import db
+import links
 import mjml_compile
 import mjml_doc
 from contract import load_contract
@@ -99,6 +100,16 @@ async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
         return (
             f"ERROR: {tags} cannot be used — the visual editor cannot edit it. "
             "The document was NOT saved."
+        )
+    unsafe = links.added_unsafe_links(before, mjml, CONTRACT.link_schemes)
+    if unsafe:
+        # Bounded: a data: link can be the size of a page, and the model only needs which.
+        named = ", ".join(
+            json.dumps(u if len(u) <= 60 else u[:60] + "…", ensure_ascii=False) for u in unsafe
+        )
+        return (
+            f"ERROR: {named} cannot be a link — only {', '.join(CONTRACT.link_schemes)} links, "
+            "or ones without a scheme. The document was NOT saved."
         )
     ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
     if not ok:

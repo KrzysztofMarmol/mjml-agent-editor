@@ -125,6 +125,13 @@ documents in production.
    cannot show the other two. Count each tag before and after the write and refuse it when there
    are more, so a document that already holds one stays writable. Strict validation cannot catch
    this: all four compile.
+9. **A write may not add a link a mail client or the preview could run.** `link_schemes` in the
+   contract — `http`, `https`, `mailto`, `tel`, `sms` — and links without a scheme (relative,
+   or a merge tag) are allowed; `javascript:`, `data:` and the rest are not. Read every
+   `href`, `xlink:href`, `action` and `formaction` inside a tag, an element's or one in a
+   text's HTML, as a browser would (entities decoded, control characters dropped), and a
+   navigation link as its bar's `base-url` joined to its `href`. As with rule 8, only links
+   the write adds are refused. The editor's fields use the same rule (`isSafeLink` in core).
 
 ## Settled: multi-line tool arguments
 

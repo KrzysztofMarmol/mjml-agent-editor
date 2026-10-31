@@ -49,6 +49,7 @@ class Contract:
     tools: dict[str, ToolSpec]
     mutating_tools: frozenset[str]
     uneditable_tags: tuple[str, ...]
+    link_schemes: tuple[str, ...]
 
     def description(self, name: str) -> str:
         try:
@@ -101,4 +102,5 @@ def load_contract(path: str | os.PathLike[str] | None = None) -> Contract:
         tools=tools,
         mutating_tools=frozenset(raw["mutating_tools"]),
         uneditable_tags=tuple(raw["uneditable_tags"]),
+        link_schemes=tuple(raw["link_schemes"]),
     )

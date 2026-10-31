@@ -347,6 +347,27 @@ describe("agent tools", () => {
       expect(documents.saveCount).toBe(0);
     });
 
+    it("refuses a link a mail client or the preview could run", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text><a href="javascript:alert(1)">Hi</a></mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be a link/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("leaves a document its existing unsafe link, so edits elsewhere still save", async () => {
+      const old = `<mj-section css-class="sec-ccc"><mj-column><mj-button href="javascript:x()">Old</mj-button></mj-column></mj-section>`;
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("</mj-body>", `${old}</mj-body>`),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+    });
+
     it("leaves a document its existing table, so edits elsewhere still save", async () => {
       const table = `<mj-section css-class="sec-ccc"><mj-column><mj-table><tr><td>1</td></tr></mj-table></mj-column></mj-section>`;
       await documents.save(DOCUMENT_ID, {

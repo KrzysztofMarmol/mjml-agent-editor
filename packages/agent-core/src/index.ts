@@ -77,6 +77,14 @@ export {
 export { UNEDITABLE_TAGS, addedUneditableTags } from "./uneditable.js";
 
 export {
+  LINK_SCHEMES,
+  addedUnsafeLinks,
+  isSafeLink,
+  isSafeNavbarLink,
+  unsafeLinks,
+} from "./links.js";
+
+export {
   MjmlDocumentError,
   ensureSectionIds,
   getSection,
