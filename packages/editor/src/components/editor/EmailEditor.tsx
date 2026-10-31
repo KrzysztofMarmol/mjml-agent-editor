@@ -264,11 +264,13 @@ export default function EmailEditor({
       setLocked(false);
     };
   }, [turn, setLocked]);
-  // Chrome leaves the canvas deaf to the mouse wheel once the lock lifts, until a click.
-  // Hiding the frame's overflow for one frame makes it rebuild the scroller.
+  // Chrome leaves the canvas deaf to the mouse wheel once the lock lifts, until a click; the
+  // editor is inert while it loads too. Hiding the frame's overflow for one frame makes it
+  // rebuild the scroller.
+  const inert = readOnly || loading;
   const wasLocked = useRef(false);
   useEffect(() => {
-    if (readOnly) {
+    if (inert) {
       wasLocked.current = true;
       return;
     }
@@ -283,7 +285,7 @@ export default function EmailEditor({
       cancelAnimationFrame(frame);
       root.style.overflow = overflow;
     };
-  }, [readOnly]);
+  }, [inert]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
@@ -764,7 +766,7 @@ export default function EmailEditor({
           email has loaded too: a block added from the keyboard before then was lost to the load. */}
       <div
         className="relative flex h-full min-h-0 flex-1"
-        inert={readOnly || loading}
+        inert={inert}
         onKeyDown={(e) => onBlockSearchKey(e.nativeEvent)}
       >
         {/* Over the sidebar too, which is as inert as the canvas until the email arrives. */}
