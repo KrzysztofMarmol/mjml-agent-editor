@@ -55,7 +55,7 @@ export default function ColorField({
   /** `partial` while dragging, so a drag is one undo step, not one per pixel. */
   onChange: (value: string, partial: boolean) => void;
 }) {
-  const label = useFieldLabel();
+  const field = useFieldLabel();
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState<string[]>([]);
@@ -97,7 +97,8 @@ export default function ColorField({
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
   // Translucent colors keep their alpha, and get the slider to change it.
   const translucent = hex.length === 9;
-  const empty = !value;
+  // Unset, the swatch shows the default the email falls back to, as the text box does.
+  const shown = value || placeholder || "";
 
   const commit = (next: string) => {
     dragged.current = null;
@@ -149,7 +150,7 @@ export default function ColorField({
           value={text}
           placeholder={placeholder}
           spellCheck={false}
-          aria-labelledby={label}
+          {...field}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => text !== value && commit(text.trim())}
           onKeyDown={(e) => {
@@ -166,7 +167,9 @@ export default function ColorField({
             className="relative size-5 shrink-0 overflow-hidden rounded border border-white/20 outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <Checkerboard />
-            {!empty && <span className="absolute inset-0" style={{ background: value }} />}
+            {mjmlColor(shown) && (
+              <span className="absolute inset-0" style={{ background: shown }} />
+            )}
           </button>
         </PopoverTrigger>
       </div>
@@ -199,7 +202,7 @@ export default function ColorField({
           <input
             value={text}
             spellCheck={false}
-            aria-labelledby={label}
+            {...field}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && commit(text.trim())}
             onBlur={() => text !== value && commit(text.trim())}

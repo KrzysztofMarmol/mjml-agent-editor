@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DEFAULT_LABELS } from "../../../labels.js";
+import { TooltipProvider } from "../../ui/tooltip.js";
 import { BoxInput, LengthInput, Row, Select, TextInput } from "./controls.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -72,5 +73,30 @@ describe("Row", () => {
       "Padding Top and bottom",
       "Padding Left and right",
     ]);
+  });
+
+  it("keeps the help out of the panel, behind a button, and describes the control with it", () => {
+    act(() =>
+      root.render(
+        <TooltipProvider>
+          <Row
+            label="Space around"
+            help="Empty space outside the button."
+            own={false}
+            labels={DEFAULT_LABELS}
+            onReset={() => {}}
+          >
+            <TextInput value="" onCommit={noop} />
+          </Row>
+        </TooltipProvider>,
+      ),
+    );
+    const input = container.querySelector("input")!;
+    const description = document.getElementById(input.getAttribute("aria-describedby")!)!;
+    expect(description.textContent).toBe("Empty space outside the button.");
+    expect(description.hidden).toBe(true);
+    expect(
+      container.querySelector('button[aria-label="Empty space outside the button."]'),
+    ).not.toBeNull();
   });
 });

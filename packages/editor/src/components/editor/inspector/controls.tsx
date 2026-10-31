@@ -15,21 +15,34 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Grid2x2, RotateCcw } from "lucide-react";
+import {
+  AlignCenter,
+  AlignJustify,
+  AlignLeft,
+  AlignRight,
+  CircleHelp,
+  Grid2x2,
+  RotateCcw,
+} from "lucide-react";
 
 import type { EditorLabels } from "../../../labels.js";
 import { cn } from "../../../lib/utils";
 import { Switch } from "../../ui/switch";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../../ui/tooltip";
 import type { Option, Unit } from "./types.js";
 import { boxShorthand, parseLength, readBox, SIDES, type Sides } from "./values.js";
 
 const FIELD =
   "h-7 w-full min-w-0 rounded-md border border-panel-border bg-panel-elevated px-2 text-xs text-panel-fg outline-none placeholder:text-panel-muted-fg/70 focus:border-brand";
 
-// The id of the caption of the Row a control sits in: the caption is not a <label>, as it
-// holds the reset button, so the control is named by reference.
-const FieldLabel = createContext<string | undefined>(undefined);
-export const useFieldLabel = () => useContext(FieldLabel);
+// The ids of the caption and the help of the Row a control sits in: the caption is not a
+// <label>, as it holds the reset button, so the control is named by reference.
+const FieldLabel = createContext<{ label?: string; help?: string }>({});
+/** `aria-labelledby` and `aria-describedby` for a control inside a Row. */
+export const useFieldLabel = () => {
+  const { label, help } = useContext(FieldLabel);
+  return { "aria-labelledby": label, "aria-describedby": help };
+};
 
 /** A label, the control, and — when the element sets its own value — a dot and a reset. */
 export function Row({
@@ -54,7 +67,12 @@ export function Row({
   children: ReactNode;
 }) {
   const id = useId();
-  const control = <FieldLabel.Provider value={id}>{children}</FieldLabel.Provider>;
+  const helpId = useId();
+  const control = (
+    <FieldLabel.Provider value={{ label: id, help: help ? helpId : undefined }}>
+      {children}
+    </FieldLabel.Provider>
+  );
   const caption = (
     <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-panel-muted-fg">
       <span
@@ -64,6 +82,23 @@ export function Row({
       <span id={id} className="truncate">
         {label}
       </span>
+      {/* On demand: shown under every field, the help doubled the panel's length. */}
+      {help && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={help}
+              className="-m-0.5 shrink-0 rounded p-0.5 text-panel-muted-fg/70 hover:text-panel-fg focus-visible:text-panel-fg"
+            >
+              <CircleHelp className="size-3" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-56 leading-snug">
+            {help}
+          </TooltipContent>
+        </Tooltip>
+      )}
       {own && (
         <button
           type="button"
@@ -95,7 +130,11 @@ export function Row({
           {control}
         </div>
       )}
-      {help && <p className="mt-1 pl-3 text-[11px] leading-snug text-panel-muted-fg/80">{help}</p>}
+      {help && (
+        <span id={helpId} hidden>
+          {help}
+        </span>
+      )}
     </div>
   );
 }
@@ -130,7 +169,7 @@ export function TextInput({
   onCommit: (next: string) => void;
 }) {
   const [invalid, setInvalid] = useState(false);
-  const label = useFieldLabel();
+  const field = useFieldLabel();
   const { draft, setDraft, done, onKeyDown } = useDraft(value, (next) => {
     const ok = !accept || accept(next);
     setInvalid(!ok);
@@ -139,7 +178,7 @@ export function TextInput({
   return (
     <input
       className={cn(FIELD, invalid && "border-red-400")}
-      aria-labelledby={label}
+      {...field}
       aria-invalid={invalid}
       value={draft}
       placeholder={placeholder}
@@ -207,7 +246,8 @@ export function LengthInput({
       value={draft}
       placeholder={placeholder}
       inputMode="decimal"
-      aria-labelledby={labelledBy ?? fieldLabel}
+      {...fieldLabel}
+      aria-labelledby={labelledBy ?? fieldLabel["aria-labelledby"]}
       aria-invalid={invalid}
       title={units.filter(Boolean).join(", ")}
       onChange={(e) => setDraft(e.target.value)}
@@ -267,7 +307,9 @@ export function BoxInput({
               value={sides[indices[0]!]!}
               placeholder={defaults[indices[0]!] || "0"}
               units={units}
-              labelledBy={[fieldLabel, `${sideId}-${indices[0]}`].filter(Boolean).join(" ")}
+              labelledBy={[fieldLabel["aria-labelledby"], `${sideId}-${indices[0]}`]
+                .filter(Boolean)
+                .join(" ")}
               onCommit={(v) => set(indices, v)}
             />
             <span
@@ -364,11 +406,11 @@ export function Select({
   // A value no option names (an agent's own font stack) stays visible and selected.
   const known = !value || options.some((o) => o.value === value);
   const fallbackOption = options.find((o) => o.value === fallback);
-  const label = useFieldLabel();
+  const field = useFieldLabel();
   return (
     <select
       className={cn(FIELD, "px-1.5")}
-      aria-labelledby={label}
+      {...field}
       value={value || ""}
       onChange={(e) => onCommit(e.target.value)}
     >
