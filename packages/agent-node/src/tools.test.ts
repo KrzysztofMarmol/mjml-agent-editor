@@ -227,6 +227,17 @@ describe("agent tools", () => {
       expect(documents.mjml).toBe(VALID_DOC);
     });
 
+    // The compiler accepts this, so without the check it would be stored.
+    it("refuses a root that is never closed", async () => {
+      const output = await run(tools, "set_document", {
+        mjml: REBUILT.replace("</mjml>", ""),
+        confirm_full_rewrite: true,
+      });
+      expect(output).toContain("not an MJML document");
+      expect(output).toContain("NOT saved");
+      expect(documents.saveCount).toBe(0);
+    });
+
     it("rejects an empty argument", async () => {
       expect(
         await run(tools, "set_document", { mjml: "   ", confirm_full_rewrite: true }),

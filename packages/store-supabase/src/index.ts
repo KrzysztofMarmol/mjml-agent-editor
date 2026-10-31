@@ -16,6 +16,7 @@ import type {
   ImageProvider,
   SectionComment,
 } from "@mjml-agent-editor/core";
+import { NotMjmlDocumentError, isMjmlDocument } from "@mjml-agent-editor/core";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 interface DocumentRow {
@@ -88,6 +89,8 @@ export function createDocumentStore(client: SupabaseClient): DocumentStore {
     },
 
     async save(documentId: string, patch: DocumentPatch): Promise<void> {
+      // Every writer comes through here, the editor's autosave included, which no compiler sees.
+      if (patch.mjml !== undefined && !isMjmlDocument(patch.mjml)) throw new NotMjmlDocumentError();
       const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (patch.mjml !== undefined) update["mjml"] = patch.mjml;
       if (patch.name !== undefined) update["name"] = patch.name;

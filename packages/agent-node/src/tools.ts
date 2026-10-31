@@ -13,6 +13,7 @@
 import {
   LINK_SCHEMES,
   MjmlDocumentError,
+  NotMjmlDocumentError,
   addedItems,
   addedUneditableTags,
   describeItems,
@@ -21,6 +22,7 @@ import {
   ensureSectionIds,
   getSection,
   insertSection,
+  isMjmlDocument,
   listSections,
   removeSection,
   replaceSection,
@@ -106,9 +108,13 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
    * is the main reason the agent rarely leaves a document broken. A tag the editor cannot
    * edit is refused before that, when the write adds one (`addedUneditableTags`). So is what
    * could run in the compiled email (`unsafeMarkup`), when the write adds it: the previous
-   * document is compiled for that only when something is found.
+   * document is compiled for that only when something is found. First of all, it has to be
+   * a document: the compiler accepts a root that is never closed.
    */
   const saveValidated = async (before: string, mjml: string): Promise<string> => {
+    if (!isMjmlDocument(mjml)) {
+      return `ERROR: ${new NotMjmlDocumentError().message}. The document was NOT saved.`;
+    }
     const added = addedUneditableTags(before, mjml);
     if (added.length > 0) {
       const tags = added.map((tag) => `<${tag}>`).join(", ");

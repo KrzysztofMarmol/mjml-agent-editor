@@ -99,6 +99,8 @@ def _added_uneditable_tags(before: str, after: str) -> list[str]:
 
 async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
     """Compiles the whole document and saves only if it is valid."""
+    if not mjml_doc.is_mjml_document(mjml):
+        return f"ERROR: {mjml_doc.NOT_MJML_DOCUMENT}. The document was NOT saved."
     added = _added_uneditable_tags(before, mjml)
     if added:
         tags = ", ".join(f"<{tag}>" for tag in added)

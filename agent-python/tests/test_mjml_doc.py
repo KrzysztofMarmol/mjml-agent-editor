@@ -233,3 +233,36 @@ class TestClassListHelpers:
             mjml_doc.set_id_in_class_list("obj-keep sec-old", mjml_doc.SECTION_PREFIX, "new")
             == "obj-keep sec-new"
         )
+
+
+BODY = "<mj-body><mj-section></mj-section></mj-body>"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        f'<?xml version="1.0"?>\n<!-- a -->\n<mjml>{BODY}</mjml>',
+        f"<mjml>{BODY}</mjml>\n<!-- end -->",
+        f"```xml\n<mjml>{BODY}</mjml>\n```",
+        '<mjml lang="en"><mj-head></mj-head><mj-body/></mjml>',
+        "<MJML><MJ-BODY></MJ-BODY></MJML >",
+        DOC,
+    ],
+)
+def test_is_mjml_document_accepts(source: str) -> None:
+    assert mjml_doc.is_mjml_document(source)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "hello",
+        "<html><body><p>hi</p></body></html>",
+        "<mjml><mj-head></mj-head></mjml>",
+        "<mj-body></mj-body><mjml></mjml>",
+        f"<mjml>{BODY}",
+        f"<mjmlx>{BODY}</mjmlx>",
+    ],
+)
+def test_is_mjml_document_refuses(source: str) -> None:
+    assert not mjml_doc.is_mjml_document(source)

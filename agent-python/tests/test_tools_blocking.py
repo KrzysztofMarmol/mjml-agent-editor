@@ -189,3 +189,13 @@ def test_an_unsafe_link_already_in_the_document_does_not_block_other_edits(
     result = asyncio.run(_tool("remove_section")(section_id="bbb"))
 
     assert result.startswith("OK")
+
+
+def test_a_root_never_closed_is_not_saved(db: FakeDb) -> None:
+    # The compiler accepts it, so without the check it would be stored.
+    unclosed = DOC.replace("</mjml>", "")
+
+    result = asyncio.run(_tool("set_document")(mjml=unclosed, confirm_full_rewrite=True))
+
+    assert result.startswith("ERROR: not an MJML document")
+    assert db.mjml == DOC

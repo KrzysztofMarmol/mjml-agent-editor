@@ -135,6 +135,13 @@ ships email copy is a package deciding it for you.
 way to reject oversized documents from both browser saves and agent tool calls. The package
 does not choose a limit; demos and internal tools should set their own.
 
+## Document shape
+
+`isMjmlDocument(mjml)` says whether text is an MJML document at all — an `<mjml>` root, closed,
+with an `<mj-body>` in it — and `NotMjmlDocumentError` is what a `DocumentStore` throws when it
+is not. Both agent backends refuse such a write; the editor's autosave reaches only the store,
+so an adapter that writes markup should check it there.
+
 ## Documentation
 
 - [`docs/agent-contract.md`](../../docs/agent-contract.md) — what a backend must implement

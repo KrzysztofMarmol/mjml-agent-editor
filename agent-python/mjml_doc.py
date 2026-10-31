@@ -45,6 +45,27 @@ def new_section_id() -> str:
     return secrets.token_hex(4)
 
 
+NOT_MJML_DOCUMENT = (
+    "not an MJML document: it needs an <mjml> root, closed with </mjml>, with an <mj-body> inside"
+)
+
+
+def is_mjml_document(source: str) -> bool:
+    """Mirrors ``isMjmlDocument`` in agent-core: the compiler accepts a root never closed.
+
+    Text around the root is ignored, as there: the editor keeps it through a reload, so
+    refusing it would leave a document the editor could never save again.
+    """
+    text = source.lower()
+    opening = re.search(r"<mjml[\s>]", text)
+    close = text.rfind("</mjml")
+    return (
+        opening is not None
+        and close > opening.start()
+        and re.search(r"<mj-body[\s>/]", text[opening.start() : close]) is not None
+    )
+
+
 @dataclass(frozen=True)
 class SectionSpan:
     """One ``mj-section`` element located in the source."""
