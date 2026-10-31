@@ -9,10 +9,11 @@ import { STARTER_MJML } from "@mjml-agent-editor/core";
 import { useDocumentStore, useLabels, type CommentTarget, type EditorLabels } from "../../index.js";
 import { refusal, saveToastId } from "../../lib/refusal.js";
 import { createSaveQueue } from "../../lib/save-queue.js";
+import { opensBlockSearch } from "../../lib/shortcuts.js";
 import { useAgentTurn } from "../../stores.js";
 import { cn } from "../../lib/utils";
 import { toast } from "sonner";
-import { ChevronRight, ImageIcon, ImageUp } from "lucide-react";
+import { ChevronRight, ImageIcon, ImageUp, Mail, MousePointerClick } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -23,6 +24,7 @@ import CanvasComments from "../comments/CanvasComments.js";
 import ImagePicker from "./ImagePicker.js";
 import ColorField, { toHex } from "./ColorField.js";
 import ImageField, { imageUrl } from "./ImageField.js";
+import { illegalAttributes } from "./mjml-attributes.js";
 import { createRoot, type Root } from "react-dom/client";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -131,26 +133,67 @@ function closestSection(c: Component | undefined): Component | null {
   return null;
 }
 
-// Friendly names for the canvas breadcrumb.
-const CRUMB_NAME: Record<string, string> = {
-  "mj-section": "Section",
-  "mj-column": "Column",
-  "mj-group": "Group",
-  "mj-text": "Text",
-  "mj-button": "Button",
-  "mj-image": "Image",
-  "mj-divider": "Divider",
-  "mj-spacer": "Spacer",
-  "mj-hero": "Hero",
-  "mj-navbar": "Navbar",
-  "mj-social": "Social",
-  "mj-social-element": "Social",
-  "mj-wrapper": "Wrapper",
+function crumbName(c: Component, labels: EditorLabels): string {
+  const t = tagOf(c);
+  return labels.elementNames[t] ?? t.replace(/^mj-/, "");
+}
+
+// The palette. Social and navigation children are only valid inside their parent; hero and
+// wrapper are banned from editable templates by agent-core (a hero gets no `sec-*` id, so the
+// agent cannot address it); raw HTML is out of place for the people this editor serves.
+const BLOCKS = [
+  "mj-1-column",
+  "mj-2-columns",
+  "mj-3-columns",
+  "mj-text",
+  "mj-image",
+  "mj-button",
+  "mj-divider",
+  "mj-spacer",
+  "mj-social-group",
+  "mj-navbar",
+];
+const LAYOUT_BLOCKS = new Set(["mj-1-column", "mj-2-columns", "mj-3-columns"]);
+
+// The plugin's version links Google+ and shares the page: a bare network name makes the icon
+// open a "share this link" dialog, while `-noshare` links to the profile a footer means.
+const SOCIAL_BLOCK = `<mj-social icon-size="24px" mode="horizontal">
+  <mj-social-element name="facebook-noshare" href="https://facebook.com/"></mj-social-element>
+  <mj-social-element name="instagram-noshare" href="https://instagram.com/"></mj-social-element>
+  <mj-social-element name="x-noshare" href="https://x.com/"></mj-social-element>
+</mj-social>`;
+
+const FULL_WIDTH_TRAIT = {
+  type: "checkbox",
+  label: "Full width",
+  name: "full-width",
+  valueTrue: "full-width",
+  valueFalse: "",
 };
 
-function crumbName(c: Component): string {
-  const t = tagOf(c);
-  return CRUMB_NAME[t] ?? t.replace(/^mj-/, "") ?? "Element";
+/**
+ * Narrows what the plugin offers to what MJML accepts. GrapesJS's default `title` trait is
+ * serialised and illegal on these tags; mj-wrapper declares no `stylable`, so it offered
+ * every property GrapesJS knows, and mj-hero lists a `width` it does not have.
+ */
+function restrictFields(editor: Editor) {
+  const stylable = (type: string) =>
+    (editor.Components.getType(type)?.model.prototype.defaults.stylable ?? []) as string[];
+  const extend = (type: string, defaults: Record<string, unknown>) =>
+    editor.Components.addType(type, { model: { defaults } } as never);
+
+  for (const type of ["mj-body", "mj-column", "mj-text", "mj-divider", "mj-spacer"]) {
+    extend(type, { traits: [] });
+  }
+  extend("mj-section", { traits: [FULL_WIDTH_TRAIT] });
+  extend("mj-wrapper", {
+    traits: [FULL_WIDTH_TRAIT],
+    stylable: stylable("mj-section").filter((p) => p !== "text-align"),
+  });
+  extend("mj-hero", {
+    traits: [],
+    stylable: stylable("mj-hero").filter((p) => !["width", "css-class", "mode"].includes(p)),
+  });
 }
 
 function objectLabel(c: Component): string {
@@ -349,6 +392,18 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   const stateListeners = useRef(new Set<(s: EditorState) => void>());
   const [loading, setLoading] = useState(true);
   const [sidebarView, setSidebarView] = useState<SidebarView>("blocks");
+  const blockSearchRef = useRef<HTMLInputElement>(null);
+  const onBlockSearchKey = (e: KeyboardEvent) => {
+    if (!opensBlockSearch(e)) return;
+    e.preventDefault();
+    setSidebarView("blocks");
+    // The panel is hidden until the view switches, and a hidden input cannot take focus.
+    requestAnimationFrame(() => blockSearchRef.current?.focus());
+  };
+  useEffect(() => {
+    document.addEventListener("keydown", onBlockSearchKey);
+    return () => document.removeEventListener("keydown", onBlockSearchKey);
+  }, []);
   // Comment being composed (sparkles button) — opens the canvas popover.
   const [composeTarget, setComposeTarget] = useState<CommentTarget | null>(null);
   // Where the current selection came from — canvas click opens Settings,
@@ -364,6 +419,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
   useEffect(() => void applyReadOnly.current(turnRunning), [turnRunning]);
   useEffect(() => () => setLocked(false), [setLocked]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
+  const [hasSelection, setHasSelection] = useState(false);
   // `src` of the selected mj-image, or null when the selection is not one.
   const [selectedImageSrc, setSelectedImageSrc] = useState<string | null>(null);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
@@ -444,11 +500,12 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         } as never);
         c.set("toolbar", toolbar as never);
       }
-      if (!toolbar.some((t) => t.command === "open-comments")) {
+      // Comments are addressed by section; outside one (inside a hero) the button did nothing.
+      if (closestSection(c) && !toolbar.some((t) => t.command === "open-comments")) {
         toolbar.push({
           command: "open-comments",
           label: SPARKLES_SVG,
-          attributes: { title: "Comment on element / section", "data-role": "sparkles" },
+          attributes: { title: labels.commentOnElement, "data-role": "sparkles" },
         } as never);
         c.set("toolbar", toolbar as never);
       }
@@ -480,22 +537,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
 
     setupRichText(editor, labels);
     setupStyleFields(editor, labels);
-
-    // Group the palette blocks into categories (the plugin ships them flat).
-    const blockCategory = (label: string): string => {
-      const l = label.toLowerCase();
-      if (/(column|section)/.test(l)) return "Layout";
-      if (/(text|image|button|divider|spacer|social)/.test(l)) return "Basic";
-      return "Advanced";
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bm = editor.BlockManager as any;
-    bm.getAll().forEach(
-      (b: { get: (k: string) => string; set: (k: string, v: unknown) => void }) => {
-        b.set("category", blockCategory(b.get("label") || ""));
-      },
-    );
-    bm.render();
+    restrictFields(editor);
 
     editor.on("component:add", decorate);
     // Track selection origin: a mousedown inside the canvas iframe marks the
@@ -510,10 +552,13 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         },
         true,
       );
+      // Keys pressed in the canvas never reach the host document.
+      editor.Canvas.getDocument()?.addEventListener("keydown", onBlockSearchKey);
     });
     editor.on("component:selected", (c: Component) => {
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
+      setHasSelection(true);
       buildCrumbs(c);
       setSelectedImageSrc(c && tagOf(c) === "mj-image" ? String(c.get("src") ?? "") : null);
       // mj-image has no src trait by default (src changes via the Asset
@@ -523,7 +568,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           {
             type: "text",
             name: "src",
-            label: "Image (URL)",
+            label: labels.imageUrlField,
             placeholder: "https://…",
             changeProp: true,
           } as never,
@@ -534,6 +579,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
     // With multi-select a deselection can leave something selected; follow what remains.
     editor.on("component:deselected", () => {
       const rest = editor.getSelected();
+      setHasSelection(!!rest);
       buildCrumbs(rest);
       setSelectedImageSrc(
         rest && tagOf(rest) === "mj-image" ? String(rest.get("src") ?? "") : null,
@@ -635,6 +681,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
       // Loading reports changes of its own. What it adds — ids, the starter body — is still
       // written by the next save, which compares against what the store returned.
       loadingRef.current = true;
+      let repaired = false;
       try {
         queue.cancel();
         stored = mjml;
@@ -643,9 +690,19 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);
         }
+        // Attributes the sidebar used to write and MJML rejects. Rendering ignores them, so
+        // removing them changes nothing visible, and leaving them fails every agent write.
+        editor.getWrapper()?.onAll((c) => {
+          const illegal = illegalAttributes(tagOf(c), c.getAttributes());
+          if (illegal.length === 0) return;
+          c.removeAttributes(illegal);
+          repaired = true;
+        });
       } finally {
         loadingRef.current = false;
       }
+      // Written now rather than with the next edit: the agent reads the stored copy.
+      if (repaired && !readOnlyRef.current) queue.schedule();
     };
 
     // Highlight for the section the agent is editing. The canvas is an iframe with its
@@ -770,7 +827,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
         blockManager: { appendTo: "#gjs-blocks" },
         styleManager: { appendTo: "#gjs-styles" },
         traitManager: { appendTo: "#gjs-traits" },
-        layerManager: { appendTo: "#gjs-layers" },
+        // The eye hides a layer by writing `display="none"` into the MJML, which is illegal.
+        layerManager: { appendTo: "#gjs-layers", hidable: false },
         assetManager: {
           // Never inline files: mail clients block `data:` images (see ImageLibrary).
           embedAsBase64: false,
@@ -797,7 +855,20 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             { id: "mobile", name: "Mobile", width: "375px", widthMedia: "480px" },
           ],
         },
-        plugins: [grapesjsMJML],
+        plugins: [
+          (editor: Editor) =>
+            grapesjsMJML(editor, {
+              blocks: BLOCKS,
+              block: (id: string) => ({
+                label: labels.blockLabels[id] ?? id,
+                // By id: a regex on the label broke as soon as a host translated it.
+                category: LAYOUT_BLOCKS.has(id)
+                  ? labels.blockCategoryLayout
+                  : labels.blockCategoryContent,
+                ...(id === "mj-social-group" && { content: SOCIAL_BLOCK }),
+              }),
+            }),
+        ],
       }}
       onEditor={onEditor}
     >
@@ -814,6 +885,8 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
           view={sidebarView}
           onViewChange={setSidebarView}
           markLayersSource={() => (selectionSource.current = "layers")}
+          hasSelection={hasSelection}
+          blockSearchRef={blockSearchRef}
           selectedImageSrc={selectedImageSrc}
           onChooseImage={() => editorRef.current?.runCommand("open-image-picker")}
         />
@@ -845,7 +918,7 @@ export default function EmailEditor({ docId, onReady, commentsRefresh, onOpenCou
             />
             {loading && (
               <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-                <Spinner /> Loading editor…
+                <Spinner /> {labels.loadingEditor}
               </div>
             )}
           </div>
@@ -892,6 +965,8 @@ function LeftSidebar({
   markLayersSource,
   selectedImageSrc,
   onChooseImage,
+  hasSelection,
+  blockSearchRef,
 }: {
   view: SidebarView;
   onViewChange: (v: SidebarView) => void;
@@ -899,19 +974,23 @@ function LeftSidebar({
   /** `src` of the selected image, or null when no image is selected. */
   selectedImageSrc: string | null;
   onChooseImage: () => void;
+  hasSelection: boolean;
+  blockSearchRef: React.Ref<HTMLInputElement>;
 }) {
   const editor = useEditorMaybe();
   const labels = useLabels();
   const [layersExpanded, setLayersExpanded] = useState(false);
   const [blockSearch, setBlockSearch] = useState("");
+  const [noBlockMatches, setNoBlockMatches] = useState(false);
 
-  const changeView = (v: SidebarView) => {
-    if (v === "settings" && editor && !editor.getSelected()) {
-      const wrapper = editor.getWrapper();
-      const body = wrapper?.find("mj-body")[0] ?? wrapper;
-      if (body) editor.select(body);
-    }
-    onViewChange(v);
+  // A tree walk: `find("mj-body")` returns nothing, and falling back to the GrapesJS root
+  // offered background fields that never reached the MJML.
+  const selectBody = () => {
+    let body: Component | undefined;
+    editor?.getWrapper()?.onAll((c) => {
+      if (!body && tagOf(c) === "mj-body") body = c;
+    });
+    if (body) editor?.select(body);
   };
 
   const toggleLayers = (expand: boolean) => {
@@ -938,6 +1017,11 @@ function LeftSidebar({
       );
       cat.style.display = anyVisible ? "" : "none";
     });
+    setNoBlockMatches(
+      [...root.querySelectorAll<HTMLElement>(".gjs-block")].every(
+        (b) => b.style.display === "none",
+      ),
+    );
   };
 
   return (
@@ -945,15 +1029,15 @@ function LeftSidebar({
       <div className="flex border-b border-panel-border">
         {(
           [
-            ["blocks", "Blocks"],
-            ["settings", "Settings"],
-            ["layers", "Layers"],
+            ["blocks", labels.tabBlocks],
+            ["settings", labels.tabSettings],
+            ["layers", labels.tabLayers],
           ] as const
         ).map(([value, label]) => (
           <button
             key={value}
             type="button"
-            onClick={() => changeView(value)}
+            onClick={() => onViewChange(value)}
             className={cn(
               "relative flex-1 px-3 py-2.5 text-sm transition-colors",
               "after:absolute after:inset-x-0 after:-bottom-px after:h-0.5 after:transition-colors",
@@ -972,20 +1056,42 @@ function LeftSidebar({
         <div className="relative border-b border-panel-border p-2">
           <Search className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-panel-muted-fg" />
           <Input
+            ref={blockSearchRef}
             value={blockSearch}
             onChange={(e) => filterBlocks(e.target.value)}
             placeholder={labels.searchBlocks}
             className="h-8 border-panel-border bg-panel-elevated pr-10 pl-7 text-sm text-panel-fg placeholder:text-panel-muted-fg"
           />
           <kbd className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 rounded border border-panel-border bg-panel px-1 py-0.5 font-mono text-[10px] text-panel-muted-fg">
-            ⌘K
+            /
           </kbd>
         </div>
+        {noBlockMatches && (
+          <p className="px-3 py-6 text-center text-xs text-panel-muted-fg">
+            {labels.noBlocksMatch}
+          </p>
+        )}
         <div id="gjs-blocks" className="min-h-0 flex-1 overflow-y-auto" />
       </div>
 
       {/* Settings: Attributes + Style (collapsible, stacked) */}
       <div className={cn("min-h-0 flex-1 overflow-y-auto", view !== "settings" && "hidden")}>
+        {!hasSelection && (
+          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
+            <MousePointerClick className="size-6 text-panel-muted-fg" />
+            <p className="text-sm text-panel-muted-fg">{labels.settingsEmpty}</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-panel-border bg-panel-elevated text-panel-fg hover:bg-panel-hover hover:text-panel-fg"
+              onClick={selectBody}
+            >
+              <Mail />
+              {labels.emailSettings}
+            </Button>
+          </div>
+        )}
         {selectedImageSrc !== null && (
           <div className="border-b border-panel-border p-3">
             <button
@@ -1020,12 +1126,15 @@ function LeftSidebar({
             </Button>
           </div>
         )}
-        <CollapseSection title={labels.attributes}>
-          <div id="gjs-traits" />
-        </CollapseSection>
-        <CollapseSection title={labels.style}>
-          <div id="gjs-styles" />
-        </CollapseSection>
+        {/* Kept mounted while hidden: GrapesJS renders into these. */}
+        <div className={cn(!hasSelection && "hidden")}>
+          <CollapseSection title={labels.attributes}>
+            <div id="gjs-traits" />
+          </CollapseSection>
+          <CollapseSection title={labels.style}>
+            <div id="gjs-styles" />
+          </CollapseSection>
+        </div>
       </div>
 
       {/* Layers — with an expand/collapse-all switch. A pointer-down here marks
@@ -1073,7 +1182,7 @@ function Breadcrumb({
                 i === crumbs.length - 1 && "font-medium text-brand",
               )}
             >
-              {crumbName(c)}
+              {crumbName(c, labels)}
             </button>
           </span>
         ))

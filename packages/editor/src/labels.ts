@@ -6,8 +6,9 @@
  * keep existing hosts working unchanged, and a host overrides only the keys it cares about.
  *
  * Flat and shallow-merged on purpose. A nested dictionary reads better and merges worse —
- * overriding one key inside a group would silently drop its siblings. `toolLabels` is the
- * single nested map, and it is merged key by key for exactly that reason.
+ * overriding one key inside a group would silently drop its siblings. The only nested maps
+ * are the ones keyed by an id (`toolLabels`, `blockLabels`, `elementNames`), and those are
+ * merged key by key for exactly that reason.
  *
  * Values that interpolate are functions rather than templates with placeholders, so the
  * translator controls word order instead of the format string.
@@ -34,10 +35,27 @@ export interface EditorLabels {
   readonly copied: (kind: string) => string;
 
   // Canvas
+  readonly tabBlocks: string;
+  readonly tabSettings: string;
+  readonly tabLayers: string;
   readonly searchBlocks: string;
+  readonly noBlocksMatch: string;
+  readonly blockCategoryLayout: string;
+  readonly blockCategoryContent: string;
+  /** Keyed by grapesjs-mjml block id (`mj-1-column`, `mj-social-group`, …); merged key by key. */
+  readonly blockLabels: Readonly<Record<string, string>>;
+  /** Keyed by MJML tag, for the breadcrumb; merged key by key. */
+  readonly elementNames: Readonly<Record<string, string>>;
   readonly expandAll: string;
   readonly selectAnElement: string;
+  readonly settingsEmpty: string;
+  readonly emailSettings: string;
+  readonly loadingEditor: string;
+  readonly commentOnElement: string;
+  readonly imageUrlField: string;
+  /** @deprecated The Settings tab no longer splits attributes from style. */
   readonly attributes: string;
+  /** @deprecated The Settings tab no longer splits attributes from style. */
   readonly style: string;
   readonly rteFont: string;
   readonly rteSize: string;
@@ -118,9 +136,49 @@ export const DEFAULT_LABELS: EditorLabels = {
   exportMjml: "Export MJML",
   copied: (kind) => `${kind} copied.`,
 
+  tabBlocks: "Blocks",
+  tabSettings: "Settings",
+  tabLayers: "Layers",
   searchBlocks: "Search blocks…",
+  noBlocksMatch: "No blocks match.",
+  blockCategoryLayout: "Layout",
+  blockCategoryContent: "Content",
+  blockLabels: {
+    "mj-1-column": "1 column",
+    "mj-2-columns": "2 columns",
+    "mj-3-columns": "3 columns",
+    "mj-text": "Text",
+    "mj-image": "Image",
+    "mj-button": "Button",
+    "mj-divider": "Divider",
+    "mj-spacer": "Spacer",
+    "mj-social-group": "Social links",
+    "mj-navbar": "Navigation",
+  },
+  elementNames: {
+    "mj-wrapper": "Section group",
+    "mj-section": "Section",
+    "mj-column": "Column",
+    "mj-group": "Column group",
+    "mj-text": "Text",
+    "mj-button": "Button",
+    "mj-image": "Image",
+    "mj-divider": "Divider",
+    "mj-spacer": "Spacer",
+    "mj-hero": "Hero",
+    "mj-navbar": "Navigation",
+    "mj-navbar-link": "Navigation link",
+    "mj-social": "Social links",
+    "mj-social-element": "Social link",
+    "mj-raw": "Raw HTML",
+  },
   expandAll: "Expand all",
   selectAnElement: "Select an element…",
+  settingsEmpty: "Select something in the email to edit it.",
+  emailSettings: "Email settings",
+  loadingEditor: "Loading editor…",
+  commentOnElement: "Comment on element / section",
+  imageUrlField: "Image (URL)",
   attributes: "Attributes",
   style: "Style",
   rteFont: "Font",
@@ -192,8 +250,8 @@ export const DEFAULT_LABELS: EditorLabels = {
 };
 
 /**
- * Overrides on top of the defaults. `toolLabels` merges rather than replaces, so a host
- * renaming one step does not lose the other eight.
+ * Overrides on top of the defaults. The maps merge rather than replace, so a host renaming
+ * one step does not lose the other eight.
  */
 export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
   if (!overrides) return DEFAULT_LABELS;
@@ -201,5 +259,7 @@ export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
     ...DEFAULT_LABELS,
     ...overrides,
     toolLabels: { ...DEFAULT_LABELS.toolLabels, ...overrides.toolLabels },
+    blockLabels: { ...DEFAULT_LABELS.blockLabels, ...overrides.blockLabels },
+    elementNames: { ...DEFAULT_LABELS.elementNames, ...overrides.elementNames },
   };
 }
