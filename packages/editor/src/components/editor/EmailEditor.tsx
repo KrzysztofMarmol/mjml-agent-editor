@@ -406,7 +406,7 @@ export default function EmailEditor({
     // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,
     // none of which anyone edits here. Sections and columns start open, as they are the
     // structure the rows below them make sense in.
-    const STRUCTURE = new Set(["mj-wrapper", "mj-section", "mj-column"]);
+    const STRUCTURE = new Set(["mj-wrapper", "mj-section", "mj-group", "mj-column"]);
     const showBodyInLayers = () => {
       const body = findByTag("mj-body");
       if (!body) return;
