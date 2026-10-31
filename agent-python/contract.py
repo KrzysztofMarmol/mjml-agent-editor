@@ -48,6 +48,7 @@ class Contract:
     system_prompt: str
     tools: dict[str, ToolSpec]
     mutating_tools: frozenset[str]
+    uneditable_tags: tuple[str, ...]
 
     def description(self, name: str) -> str:
         try:
@@ -99,4 +100,5 @@ def load_contract(path: str | os.PathLike[str] | None = None) -> Contract:
         system_prompt=raw["system_prompt"],
         tools=tools,
         mutating_tools=frozenset(raw["mutating_tools"]),
+        uneditable_tags=tuple(raw["uneditable_tags"]),
     )

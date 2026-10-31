@@ -74,6 +74,8 @@ export {
   type ToolName,
 } from "./tools.js";
 
+export { UNEDITABLE_TAGS, addedUneditableTags } from "./uneditable.js";
+
 export {
   MjmlDocumentError,
   ensureSectionIds,

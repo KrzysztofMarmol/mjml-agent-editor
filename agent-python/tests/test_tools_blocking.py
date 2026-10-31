@@ -107,3 +107,28 @@ def test_a_refused_rewrite_counts_the_resolved_comments_it_would_delete(db: Fake
 
     assert "2 comment(s) anchored to them (1 open, 1 resolved)" in result
     assert db.mjml == DOC
+
+
+TABLE = "<mj-section><mj-column><mj-table><tr><td>Mug</td></tr></mj-table></mj-column></mj-section>"
+
+
+def test_a_table_the_editor_would_flatten_is_not_saved(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+
+    result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=TABLE))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")
+    assert db.mjml == DOC
+
+
+def test_a_table_already_in_the_document_does_not_block_other_edits(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    db.mjml = DOC.replace("</mj-body>", TABLE + "</mj-body>")
+
+    result = asyncio.run(_tool("remove_section")(section_id="bbb"))
+
+    assert result.startswith("OK")

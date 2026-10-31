@@ -338,6 +338,26 @@ describe("agent tools", () => {
       expect(output).toContain("exactly one");
       expect(documents.saveCount).toBe(0);
     });
+    it("refuses a table, which the editor would flatten into text", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-table><tr><td>Mug</td><td>£12</td></tr></mj-table></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: <mj-table> cannot be used/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("leaves a document its existing table, so edits elsewhere still save", async () => {
+      const table = `<mj-section css-class="sec-ccc"><mj-column><mj-table><tr><td>1</td></tr></mj-table></mj-column></mj-section>`;
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("</mj-body>", `${table}</mj-body>`),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text>Changed</mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toBe("OK, saved.");
+    });
   });
 
   describe("insert_section", () => {

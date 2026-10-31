@@ -119,6 +119,12 @@ documents in production.
    deleted, not marked resolved: nobody answered them, so recording them as answered would
    corrupt the only list that says what actually was. A backend whose store cannot delete must
    say so in the tool result rather than leave the orphans unmentioned.
+8. **A write may not add a tag the editor cannot keep.** `uneditable_tags` in the contract —
+   `mj-table`, `mj-hero`, `mj-accordion`, `mj-carousel` — compile, but GrapesJS flattens a
+   table's rows into text when it loads one (and the next save stores that), a hero's content
+   sits outside any section, and the editor cannot show the other two. Count each tag before and
+   after the write and refuse it when there are more, so a document that already holds one stays
+   writable. Strict validation cannot catch this: the flattened table still compiles.
 
 ## Settled: multi-line tool arguments
 
