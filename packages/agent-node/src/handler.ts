@@ -112,7 +112,11 @@ export interface ChatHandlerOptions extends SystemPromptOptions {
    * the contract defines.
    */
   readonly tools?: (documentId: string, builtIn: AgentTools) => ToolSet;
-  /** Maps a thrown error to the text shown in the chat panel. */
+  /**
+   * Maps a thrown error to the text shown in the chat panel, and is where the error is
+   * reported: the default logs it whole, and one passed here logs what the host chooses. A
+   * model call's error carries the request it sent, conversation and document included.
+   */
   readonly formatError?: (error: unknown) => string;
   /**
    * Runs before anything is sent to the model. Returning a `Response` stops the request
@@ -167,6 +171,7 @@ function newestUserMessage(messages: UIMessage[]): UIMessage | undefined {
 }
 
 function defaultFormatError(error: unknown): string {
+  console.error("agent turn failed:", error);
   const message = error instanceof Error ? error.message : String(error);
   if (/rate.?limit|\b429\b/i.test(message)) {
     return "Rate limit reached (429) — wait a moment and try again.";
@@ -279,6 +284,9 @@ export function createChatHandler(options: ChatHandlerOptions) {
           ? { messages: [...messages, { role: "user", content: LAST_STEP_NOTE }] }
           : undefined,
       abortSignal: abort.signal,
+      // The SDK's default logs the whole error. `formatError` sees the same errors through the
+      // response below, and reports them as the host wants.
+      onError: () => {},
       onStepFinish: ({ usage, toolCalls }) => {
         stepUsage.push(usage);
         lastStepCalledTools = toolCalls.length > 0;
