@@ -344,6 +344,9 @@ export default function EditorHeader({
               <iframe
                 title={labels.previewFrameTitle}
                 srcDoc={preview}
+                // An email runs no scripts, and the document's links may come from anyone who
+                // can write it; links still open in a new tab.
+                sandbox="allow-popups allow-popups-to-escape-sandbox"
                 className={cn(
                   "mx-auto block h-full min-h-[80vh] rounded-md border bg-white shadow-sm",
                   state.device === "Mobile" ? "w-[375px]" : "w-full max-w-[720px]",

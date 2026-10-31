@@ -6,8 +6,10 @@
  * keep existing hosts working unchanged, and a host overrides only the keys it cares about.
  *
  * Flat and shallow-merged on purpose. A nested dictionary reads better and merges worse —
- * overriding one key inside a group would silently drop its siblings. `toolLabels` is the
- * single nested map, and it is merged key by key for exactly that reason.
+ * overriding one key inside a group would silently drop its siblings. The only nested maps
+ * are the ones keyed by an id (`toolLabels`, `blockLabels`, `elementNames`,
+ * `inspectorLabels`), and those are
+ * merged key by key for exactly that reason.
  *
  * Values that interpolate are functions rather than templates with placeholders, so the
  * translator controls word order instead of the format string.
@@ -34,10 +36,70 @@ export interface EditorLabels {
   readonly copied: (kind: string) => string;
 
   // Canvas
+  readonly tabBlocks: string;
+  readonly tabSettings: string;
+  readonly tabLayers: string;
   readonly searchBlocks: string;
+  readonly noBlocksMatch: string;
+  readonly blockCategoryLayout: string;
+  readonly blockCategoryContent: string;
+  /** Keyed by grapesjs-mjml block id (`mj-1-column`, `mj-social-group`, …); merged key by key. */
+  readonly blockLabels: Readonly<Record<string, string>>;
+  /** Keyed by MJML tag, for the breadcrumb; merged key by key. */
+  readonly elementNames: Readonly<Record<string, string>>;
   readonly expandAll: string;
   readonly selectAnElement: string;
+  readonly settingsEmpty: string;
+  readonly emailSettings: string;
+  readonly loadingEditor: string;
+  readonly commentOnElement: string;
+
+  // Settings
+  readonly groupContent: string;
+  readonly groupLayout: string;
+  readonly groupSpacing: string;
+  readonly groupStyle: string;
+  readonly groupAdvanced: string;
+  readonly otherAttributes: string;
+  readonly removeAttribute: string;
+  readonly resetToDefault: string;
+  readonly selectParent: string;
+  readonly duplicate: string;
+  readonly deleteElement: string;
+  readonly multipleSelected: (count: number) => string;
+  readonly editEachSide: string;
+  readonly increase: string;
+  readonly decrease: string;
+  /** The unit a length is in, on the button that changes it. */
+  readonly changeUnit: (unit: string) => string;
+  /** How a length without a unit (a line-height multiplier) shows its unit. */
+  readonly noUnit: string;
+  readonly sidesVertical: string;
+  readonly sidesHorizontal: string;
+  readonly sideTop: string;
+  readonly sideRight: string;
+  readonly sideBottom: string;
+  readonly sideLeft: string;
+  readonly linkTypeProfile: string;
+  readonly linkTypeShare: string;
+  readonly allScreenSizes: string;
+  readonly columnWidths: string;
+  /** A section's columns, by their proportions ("1:2"). */
+  readonly columnRatio: (ratio: string) => string;
+  readonly socialNetworks: string;
+  readonly addNetwork: string;
+  readonly navbarLinks: string;
+  readonly addLink: string;
+  /** The text a new navigation link starts with. */
+  readonly newLinkText: string;
+  /**
+   * Field names, help (`<key>.help`) and option names for the Settings tab, keyed as the
+   * schema in `inspector/schema.ts` names them; merged key by key.
+   */
+  readonly inspectorLabels: Readonly<Record<string, string>>;
+  /** @deprecated The Settings tab no longer splits attributes from style. */
   readonly attributes: string;
+  /** @deprecated The Settings tab no longer splits attributes from style. */
   readonly style: string;
   readonly rteFont: string;
   readonly rteSize: string;
@@ -118,9 +180,209 @@ export const DEFAULT_LABELS: EditorLabels = {
   exportMjml: "Export MJML",
   copied: (kind) => `${kind} copied.`,
 
+  tabBlocks: "Blocks",
+  tabSettings: "Settings",
+  tabLayers: "Layers",
   searchBlocks: "Search blocks…",
+  noBlocksMatch: "No blocks match.",
+  blockCategoryLayout: "Layout",
+  blockCategoryContent: "Content",
+  blockLabels: {
+    "mj-1-column": "1 column",
+    "mj-2-columns": "2 columns",
+    "mj-3-columns": "3 columns",
+    "mj-text": "Text",
+    "mj-image": "Image",
+    "mj-button": "Button",
+    "mj-divider": "Divider",
+    "mj-spacer": "Spacer",
+    "mj-social-group": "Social links",
+    "mj-navbar": "Navigation",
+  },
+  elementNames: {
+    "mj-wrapper": "Section group",
+    "mj-section": "Section",
+    "mj-column": "Column",
+    "mj-group": "Column group",
+    "mj-text": "Text",
+    "mj-button": "Button",
+    "mj-image": "Image",
+    "mj-divider": "Divider",
+    "mj-spacer": "Spacer",
+    "mj-hero": "Hero",
+    "mj-navbar": "Navigation",
+    "mj-navbar-link": "Navigation link",
+    "mj-social": "Social links",
+    "mj-social-element": "Social link",
+    "mj-raw": "Raw HTML",
+  },
   expandAll: "Expand all",
   selectAnElement: "Select an element…",
+  settingsEmpty: "Select something in the email to edit it.",
+  emailSettings: "Email settings",
+  loadingEditor: "Loading editor…",
+  commentOnElement: "Comment on element / section",
+
+  groupContent: "Content",
+  groupLayout: "Layout",
+  groupSpacing: "Spacing",
+  groupStyle: "Style",
+  groupAdvanced: "Advanced",
+  otherAttributes: "Other attributes",
+  removeAttribute: "Remove",
+  resetToDefault: "Reset to default",
+  selectParent: "Select parent",
+  duplicate: "Duplicate",
+  deleteElement: "Delete",
+  multipleSelected: (count) => `${count} elements selected — select one to edit its settings.`,
+  editEachSide: "Edit each side",
+  increase: "Increase",
+  decrease: "Decrease",
+  changeUnit: (unit) => `Unit: ${unit}. Click to change`,
+  noUnit: "×",
+  sidesVertical: "Top and bottom",
+  sidesHorizontal: "Left and right",
+  sideTop: "Top",
+  sideRight: "Right",
+  sideBottom: "Bottom",
+  sideLeft: "Left",
+  linkTypeProfile: "Your profile",
+  linkTypeShare: "Share this page",
+  allScreenSizes: "Changes apply to every screen size.",
+  columnWidths: "Column widths",
+  columnRatio: (ratio) => `Columns ${ratio}`,
+  socialNetworks: "Networks",
+  addNetwork: "Add network",
+  navbarLinks: "Links",
+  addLink: "Add link",
+  newLinkText: "Link",
+  inspectorLabels: {
+    // Fields
+    contentWidth: "Width",
+    pageBackground: "Page background",
+    "pageBackground.help": "Fills the area around and behind the email.",
+    fullWidth: "Full-width background",
+    "fullWidth.help": "The background reaches the window edges; the content keeps the email width.",
+    padding: "Padding",
+    backgroundColor: "Background",
+    backgroundImage: "Background image",
+    backgroundSize: "Image size",
+    backgroundRepeat: "Repeat image",
+    backgroundPosition: "Position",
+    cornerRadius: "Corners",
+    gap: "Space between sections",
+    border: "Border",
+    alignColumns: "Align columns",
+    "alignColumns.help": "Where the columns sit when they don't fill the row.",
+    reverseColumns: "Reverse column order",
+    "reverseColumns.help":
+      "Swaps the columns on desktop; on phones they still stack in their original order.",
+    verticalAlign: "Vertical",
+    width: "Width",
+    innerBackground: "Inner background",
+    "innerBackground.help": "Fills only the area inside the padding, so it needs padding to show.",
+    innerCornerRadius: "Inner corners",
+    innerBorder: "Inner border",
+    align: "Alignment",
+    font: "Font",
+    fontSize: "Text size",
+    fontWeight: "Weight",
+    textColor: "Text color",
+    lineHeight: "Line height",
+    letterSpacing: "Letter spacing",
+    textTransform: "Capitalization",
+    blockBackground: "Block background",
+    "blockBackground.help": "Fills the whole block, including its padding.",
+    link: "Link",
+    buttonColor: "Button color",
+    buttonPadding: "Button padding",
+    "buttonPadding.help":
+      "Space between the text and the button's edge; this sets the button's size.",
+    spaceAround: "Space around",
+    "spaceAround.help": "Empty space outside the button, between it and what is next to it.",
+    opensIn: "Opens in",
+    tooltip: "Tooltip",
+    rel: "Link relationship",
+    image: "Image",
+    altText: "Alt text",
+    "altText.help": "Read by screen readers and shown when images are blocked.",
+    fluidOnMobile: "Full width on mobile",
+    "fluidOnMobile.help":
+      "On phones the image stretches across the screen, whatever its width here.",
+    lineColor: "Line color",
+    thickness: "Thickness",
+    lineStyle: "Line style",
+    height: "Height",
+    socialMode: "Direction",
+    iconSize: "Icon size",
+    iconSpacing: "Space around each icon",
+    network: "Network",
+    // Brand names are the same in every language and are not keys; these two are words.
+    networkWebsite: "Website",
+    networkCustom: "Custom",
+    customIcon: "Custom icon",
+    iconColor: "Icon color",
+    iconPosition: "Icon side",
+    heroMode: "Sizing",
+    "heroMode.help":
+      "Fixed keeps the height you set; Fit image follows the background image's proportions.",
+    backgroundWidth: "Image width",
+    "backgroundWidth.help":
+      "The background image's real size in pixels, so the hero keeps its proportions.",
+    backgroundHeight: "Image height",
+    fallbackColor: "Fallback color",
+    "fallbackColor.help": "Shown while the image loads, or when images are blocked.",
+    contentPadding: "Content padding",
+    contentBackground: "Content background",
+    hamburger: "Collapse into a menu on mobile",
+    "hamburger.help": "On phones the links fold into a menu button.",
+    menuIconColor: "Menu icon color",
+    menuIconSize: "Menu icon size",
+    menuIconAlign: "Menu icon align",
+    baseUrl: "Link prefix",
+    "baseUrl.help":
+      "Added in front of every link in the bar, full addresses included, so links then give only the path.",
+
+    // Options
+    alignLeft: "Left",
+    alignCenter: "Center",
+    alignRight: "Right",
+    alignJustify: "Justify",
+    alignTop: "Top",
+    alignMiddle: "Middle",
+    alignBottom: "Bottom",
+    weightRegular: "Regular",
+    weightMedium: "Medium",
+    weightSemibold: "Semibold",
+    weightBold: "Bold",
+    caseNone: "As typed",
+    caseUpper: "UPPERCASE",
+    caseLower: "lowercase",
+    caseCapitalize: "Capitalize Each Word",
+    targetNewTab: "New tab",
+    targetSameTab: "Same tab",
+    sizeCover: "Fill",
+    sizeContain: "Fit",
+    sizeAuto: "Original",
+    repeatTile: "Tile",
+    repeatOnce: "Once",
+    positionTopLeft: "Top left",
+    positionTopCenter: "Top",
+    positionTopRight: "Top right",
+    positionCenterLeft: "Left",
+    positionCenter: "Center",
+    positionCenterRight: "Right",
+    positionBottomLeft: "Bottom left",
+    positionBottomCenter: "Bottom",
+    positionBottomRight: "Bottom right",
+    lineSolid: "Solid",
+    lineDashed: "Dashed",
+    lineDotted: "Dotted",
+    modeHorizontal: "In a row",
+    modeVertical: "Stacked",
+    heroFixed: "Fixed",
+    heroFluid: "Fit image",
+  },
   attributes: "Attributes",
   style: "Style",
   rteFont: "Font",
@@ -192,8 +454,8 @@ export const DEFAULT_LABELS: EditorLabels = {
 };
 
 /**
- * Overrides on top of the defaults. `toolLabels` merges rather than replaces, so a host
- * renaming one step does not lose the other eight.
+ * Overrides on top of the defaults. The maps merge rather than replace, so a host renaming
+ * one step does not lose the other eight.
  */
 export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
   if (!overrides) return DEFAULT_LABELS;
@@ -201,5 +463,8 @@ export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
     ...DEFAULT_LABELS,
     ...overrides,
     toolLabels: { ...DEFAULT_LABELS.toolLabels, ...overrides.toolLabels },
+    blockLabels: { ...DEFAULT_LABELS.blockLabels, ...overrides.blockLabels },
+    elementNames: { ...DEFAULT_LABELS.elementNames, ...overrides.elementNames },
+    inspectorLabels: { ...DEFAULT_LABELS.inspectorLabels, ...overrides.inspectorLabels },
   };
 }

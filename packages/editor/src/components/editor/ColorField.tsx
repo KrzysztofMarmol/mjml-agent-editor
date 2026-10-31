@@ -1,12 +1,9 @@
 "use client";
 
 /**
- * The color control for every color property in the Style Manager.
- *
- * GrapesJS's own is a text box and a swatch that opens Spectrum, a jQuery picker that
- * cannot be styled into the editor. This keeps the text box — typing a hex is often the
- * fastest way — and opens a picker with the colors the email already uses, which is what
- * keeps a design consistent.
+ * The color control in Settings. It keeps a text box — typing a hex is often the fastest
+ * way — and opens a picker with the colors the email already uses, which is what keeps a
+ * design consistent.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +12,8 @@ import { Pipette } from "lucide-react";
 
 import type { EditorLabels } from "../../labels.js";
 import { cn } from "../../lib/utils";
+import { useFieldLabel } from "./inspector/controls.js";
+import { NAMED_COLORS } from "./mjml-attributes.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "../ui/popover";
 
 /** Web-safe neutrals and a few saturated hues; emails rarely want more than this. */
@@ -52,11 +51,11 @@ export default function ColorField({
   placeholder?: string;
   /** Read when the picker opens, so it reflects the email as it is now. */
   documentColors: () => string[];
-  /** Passed in rather than read from context: this renders in its own React root. */
   labels: EditorLabels;
-  /** `partial` while dragging, so GrapesJS records one undo step per change, not per pixel. */
+  /** `partial` while dragging, so a drag is one undo step, not one per pixel. */
   onChange: (value: string, partial: boolean) => void;
 }) {
+  const field = useFieldLabel();
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [used, setUsed] = useState<string[]>([]);
@@ -98,15 +97,22 @@ export default function ColorField({
   const hex = toHex(value) ?? toHex(placeholder ?? "") ?? "#000000";
   // Translucent colors keep their alpha, and get the slider to change it.
   const translucent = hex.length === 9;
-  const empty = !value;
+  // Unset, the swatch shows the default the email falls back to, as the text box does.
+  const shown = value || placeholder || "";
 
   const commit = (next: string) => {
     dragged.current = null;
-    onChange(next, false);
+    const color = mjmlColor(next);
+    // MJML would reject it, and with it every later write of the agent's; the field goes back.
+    if (color === null) return setText(value);
+    setText(color);
+    onChange(color, false);
   };
 
   // react-colorful reports no drag end, and moves by arrow keys as well; those are whole changes.
-  const drag = (next: string) => {
+  const drag = (picked: string) => {
+    // The alpha picker reports `#rrggbbaa`, which MJML rejects.
+    const next = mjmlColor(picked) ?? picked;
     setText(next);
     if (!pressed.current) return commit(next);
     dragged.current = next;
@@ -144,6 +150,7 @@ export default function ColorField({
           value={text}
           placeholder={placeholder}
           spellCheck={false}
+          {...field}
           onChange={(e) => setText(e.target.value)}
           onBlur={() => text !== value && commit(text.trim())}
           onKeyDown={(e) => {
@@ -160,7 +167,9 @@ export default function ColorField({
             className="relative size-5 shrink-0 overflow-hidden rounded border border-white/20 outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <Checkerboard />
-            {!empty && <span className="absolute inset-0" style={{ background: value }} />}
+            {mjmlColor(shown) && (
+              <span className="absolute inset-0" style={{ background: shown }} />
+            )}
           </button>
         </PopoverTrigger>
       </div>
@@ -193,6 +202,7 @@ export default function ColorField({
           <input
             value={text}
             spellCheck={false}
+            {...field}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && commit(text.trim())}
             onBlur={() => text !== value && commit(text.trim())}
@@ -289,6 +299,22 @@ function Checkerboard() {
       }}
     />
   );
+}
+
+/**
+ * A colour as MJML accepts it — `#rrggbb`, `rgba()` when translucent, or a name — or null for
+ * anything MJML's Color type rejects. Empty stays empty: the attribute is removed.
+ */
+export function mjmlColor(value: string): string | null {
+  const v = value.trim();
+  if (v === "") return "";
+  if (NAMED_COLORS.has(v.toLowerCase())) return v.toLowerCase();
+  const hex = toHex(v);
+  if (!hex) return null;
+  if (hex.length === 7) return hex;
+  const [r, g, b, a] = [1, 3, 5, 7].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  // MJML's pattern wants a digit before the point and at most three after it.
+  return `rgba(${r},${g},${b},${Number((a! / 255).toFixed(2))})`;
 }
 
 /**
