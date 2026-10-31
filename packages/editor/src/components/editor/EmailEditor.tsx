@@ -687,6 +687,10 @@ export default function EmailEditor({
         // app.grapesjs.com and leave a session-storage entry, which a host would then have
         // to disclose and, for the entry, ask consent for.
         telemetry: false,
+        // Font Awesome from cdnjs by default, a third party a host would have to name in its
+        // privacy policy. Nothing we show uses it: GrapesJS draws its toolbar and layer icons
+        // as SVG, and its icon-font panels and style manager are not rendered here.
+        cssIcons: "",
         canvasCss: CANVAS_CSS,
         fromElement: false,
         panels: { defaults: [] },
