@@ -106,12 +106,12 @@ reject foreign ids. `apps/example` does not do this — see
 
 ## Other options
 
-| Option        | Default                         | What it is for                              |
-| ------------- | ------------------------------- | ------------------------------------------- |
-| `compiler`    | Node `mjml` in strict mode      | Swap in a different MJML compiler           |
-| `maxSteps`    | 24                              | Ceiling on model calls in one turn          |
-| `formatError` | Maps 429/401 to plain sentences | What the chat panel shows when a turn fails |
-| `tools`       | none                            | The host's own tools, beside the built-ins  |
+| Option        | Default                                                  | What it is for                                                                   |
+| ------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `compiler`    | Node `mjml` in strict mode                               | Swap in a different MJML compiler                                                |
+| `maxSteps`    | 24                                                       | Ceiling on model calls in one turn                                               |
+| `formatError` | Maps 429/401 to plain sentences and logs the error whole | What the chat panel shows when a turn fails, and what the server log keeps of it |
+| `tools`       | none                                                     | The host's own tools, beside the built-ins                                       |
 
 `tools` adds the host's own tools to every turn, beside the built-in ones. It is called once
 per turn with the document's id — the id a tool should act on, never one the model supplies —

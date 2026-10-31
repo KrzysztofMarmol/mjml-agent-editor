@@ -8,7 +8,7 @@ import type {
 } from "@mjml-agent-editor/core";
 import { jsonSchema, tool, type UIMessage } from "ai";
 import { MockLanguageModelV3, convertArrayToReadableStream } from "ai/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createChatHandler, type TurnUsage } from "./handler.js";
 
@@ -190,6 +190,33 @@ describe("createChatHandler", () => {
     await handler(post({ messages: [USER_MESSAGE], docId: "doc-1" })).then((r) => r.text());
 
     expect(store.saved).toEqual([]);
+  });
+
+  it("leaves reporting a failed turn to formatError", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = Object.assign(new Error("Too many requests"), {
+      requestBodyValues: { messages: [{ role: "user", content: "my secret launch email" }] },
+    });
+    const failing = () =>
+      modelReplaying([
+        { type: "stream-start", warnings: [] },
+        { type: "error", error },
+      ]).model;
+    const formatError = vi.fn(() => "The agent is unavailable.");
+
+    const own = createChatHandler({ model: failing(), documents, comments, images, formatError });
+    const shown = await (await own(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(shown).toContain("The agent is unavailable.");
+    expect(formatError).toHaveBeenCalledWith(error);
+    expect(log).not.toHaveBeenCalled();
+
+    const byDefault = createChatHandler({ model: failing(), documents, comments, images });
+    await (await byDefault(post({ messages: [USER_MESSAGE], docId: "doc-7" }))).text();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("agent turn failed:", error);
+    log.mockRestore();
   });
 });
 
