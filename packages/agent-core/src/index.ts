@@ -78,10 +78,11 @@ export { UNEDITABLE_TAGS, addedUneditableTags } from "./uneditable.js";
 
 export {
   LINK_SCHEMES,
-  addedUnsafeLinks,
+  addedItems,
+  describeItems,
   isSafeLink,
   isSafeNavbarLink,
-  unsafeLinks,
+  unsafeMarkup,
 } from "./links.js";
 
 export {

@@ -125,13 +125,16 @@ documents in production.
    cannot show the other two. Count each tag before and after the write and refuse it when there
    are more, so a document that already holds one stays writable. Strict validation cannot catch
    this: all four compile.
-9. **A write may not add a link a mail client or the preview could run.** `link_schemes` in the
-   contract — `http`, `https`, `mailto`, `tel`, `sms` — and links without a scheme (relative,
-   or a merge tag) are allowed; `javascript:`, `data:` and the rest are not. Read every
-   `href`, `xlink:href`, `action` and `formaction` inside a tag, an element's or one in a
-   text's HTML, as a browser would (entities decoded, control characters dropped), and a
-   navigation link as its bar's `base-url` joined to its `href`. As with rule 8, only links
-   the write adds are refused. The editor's fields use the same rule (`isSafeLink` in core).
+9. **A write may not add what could run in the compiled email.** Compile first, then read the
+   HTML as a browser tokenises tags, comments included (Outlook reads conditional markup):
+   every `href`, `xlink:href`, `action` and `formaction` must have a scheme from
+   `link_schemes` — `http`, `https`, `mailto`, `tel`, `sms` — or none (relative, or a merge
+   tag), read with entities decoded and control characters dropped; no `on…` handler; no
+   `script`, `iframe`, `frame`, `frameset`, `object`, `embed`, `applet`, `base`, `animate` or
+   `set` element. The compiled HTML, because MJML adds what the source does not say: a
+   navbar's `base-url` from `mj-attributes` or an `mj-class`. As with rule 8 only additions
+   are refused, so compile the previous document too, but only when something was found.
+   `contract/unsafe-markup-cases.json` lists cases every backend must agree on.
 
 ## Settled: multi-line tool arguments
 

@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
-import { addedUnsafeLinks, isSafeLink, unsafeLinks } from "./links.js";
+import { addedItems, describeItems, isSafeLink, unsafeMarkup } from "./links.js";
 
-const email = (column: string) =>
-  `<mjml><mj-body><mj-section css-class="sec-a"><mj-column>${column}</mj-column></mj-section></mj-body></mjml>`;
+// Shared with the Python backend's tests, so both refuse exactly the same writes.
+const CASES = JSON.parse(
+  readFileSync(new URL("../contract/unsafe-markup-cases.json", import.meta.url), "utf8"),
+) as { name: string; html: string; expected: string[] }[];
 
 describe("isSafeLink", () => {
   it("takes web, mail and phone links, relative ones and merge tags", () => {
@@ -32,39 +36,29 @@ describe("isSafeLink", () => {
   });
 });
 
-describe("unsafeLinks", () => {
-  it("finds them on elements and inside a text's HTML, in any quoting", () => {
-    const mjml = email(
-      `<mj-button href='javascript:a()'>Go</mj-button>` +
-        `<mj-text><a href="data:text/html,x">x</a><a/href=vbscript:y>y</a></mj-text>` +
-        `<mj-image src="https://a.com/i.png" href="https://a.com"></mj-image>`,
-    );
-    expect(unsafeLinks(mjml)).toEqual(["javascript:a()", "data:text/html,x", "vbscript:y"]);
+describe("unsafeMarkup", () => {
+  it.each(CASES)("$name", ({ html, expected }) => {
+    expect(unsafeMarkup(html)).toEqual(expected);
   });
 
-  it("joins a navigation bar's base URL to each of its links", () => {
-    const mjml = email(
-      `<mj-navbar base-url="javascript"><mj-navbar-link href=":alert(1)">A</mj-navbar-link></mj-navbar>`,
-    );
-    expect(unsafeLinks(mjml)).toEqual(["javascript:alert(1)"]);
-  });
-
-  it("ignores a link inside a comment and a text that only mentions one", () => {
-    const mjml = email(
-      `<!-- <a href="javascript:x"> --><mj-text>Never write href=javascript:x</mj-text>`,
-    );
-    expect(unsafeLinks(mjml)).toEqual([]);
+  it("reads a large document in linear time", () => {
+    const html = '<a href=x "'.repeat(25_000) + "<mj-navbar".repeat(25_000);
+    const start = performance.now();
+    unsafeMarkup(html);
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });
 
-describe("addedUnsafeLinks", () => {
-  it("refuses only links the write adds", () => {
-    const before = email(`<mj-button href="javascript:old()">Old</mj-button>`);
-    expect(addedUnsafeLinks(before, before.replace("Old", "Older"))).toEqual([]);
-    const after = before.replace(
-      "</mj-column>",
-      `<mj-button href="javascript:old()">Two</mj-button></mj-column>`,
-    );
-    expect(addedUnsafeLinks(before, after)).toEqual(["javascript:old()"]);
+describe("addedItems", () => {
+  it("counts what the write adds, not what was there", () => {
+    expect(addedItems(["a", "b", "a"], ["a"])).toEqual(["b", "a"]);
+    expect(addedItems(["a"], ["a", "a"])).toEqual([]);
+  });
+});
+
+describe("describeItems", () => {
+  it("names each item once, at most five, cut short", () => {
+    const items = ["x".repeat(100), ...Array.from({ length: 8 }, (_, i) => `l${i % 6}`)];
+    expect(describeItems(items)).toBe(`"${"x".repeat(60)}…", "l0", "l1", "l2", "l3" and 2 more`);
   });
 });

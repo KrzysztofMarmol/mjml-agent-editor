@@ -2,6 +2,9 @@
 export const LINK_SCHEMES = ["http", "https", "mailto", "tel", "sms"] as const;
 const SCHEMES = new Set<string>(LINK_SCHEMES);
 
+// What the browser makes of a numeric reference out of Unicode's range, where JS would throw.
+const codePoint = (n: number) => (n > 0x10ffff ? "�" : String.fromCodePoint(n));
+
 /**
  * Whether a link may be written: web, mail and phone links, and those without a scheme
  * (relative, or a merge tag the sender fills in). Not `javascript:`, which the preview, the
@@ -10,8 +13,8 @@ const SCHEMES = new Set<string>(LINK_SCHEMES);
  */
 export function isSafeLink(value: string): boolean {
   const decoded = value
-    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);?/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => codePoint(parseInt(hex, 16)))
+    .replace(/&#([0-9]+);?/g, (_, dec: string) => codePoint(Number(dec)))
     .replace(/&colon;/g, ":")
     .replace(/&(Tab|NewLine);/g, "")
     .replace(/[\u0000- ]/g, "");
@@ -27,44 +30,81 @@ export function isSafeNavbarLink(baseUrl: string, href: string): boolean {
   return isSafeLink(baseUrl) && isSafeLink(href) && isSafeLink(baseUrl + href);
 }
 
-const LINK =
-  /[\s/"'](?:xlink:)?(?:href|action|formaction)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
-const NAVBAR = /<mj-navbar\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/mj-navbar\s*>/gi;
-const BASE_URL = /[\s"']base-url\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i;
+const LINK_ATTRIBUTES = new Set(["href", "xlink:href", "action", "formaction"]);
+// Elements that exist to run or embed something; an email has no use for any of them.
+const RUNNING_TAGS = new Set([
+  "script",
+  "iframe",
+  "frame",
+  "frameset",
+  "object",
+  "embed",
+  "applet",
+  "base",
+  "animate",
+  "set",
+]);
 
-const TAG = /<[a-z][^\s/>]*(?:[^>"']|"[^"]*"|'[^']*')*>/gi;
+// ASCII only, here and in the Python twin, so both read the same input the same way. Each
+// alternative runs to the end of the input rather than failing, which keeps a scan linear.
+const TAG_NAME = /[A-Za-z][^\t\n\f\r />]*/y;
+const ATTRIBUTE =
+  /[\t\n\f\r /]*([^\t\n\f\r />][^\t\n\f\r />=]*)(?:[\t\n\f\r ]*=[\t\n\f\r ]*(?:"([^"]*)"?|'([^']*)'?|([^\t\n\f\r >]*)))?/y;
 
-// Inside tags only: a text that mentions `href=` is not a link.
-const linksIn = (markup: string) =>
-  (markup.match(TAG) ?? []).flatMap((tag) =>
-    [...tag.matchAll(LINK)].map((m) => m[1] ?? m[2] ?? m[3] ?? ""),
-  );
-
-/** Every link in the MJML, an element's or one inside a text's HTML, that is not safe. */
-export function unsafeLinks(mjml: string): string[] {
-  const source = mjml.replace(/<!--[\s\S]*?-->/g, "");
-  const found = linksIn(source).filter((link) => !isSafeLink(link));
-  for (const [, attributes = "", inner = ""] of source.matchAll(NAVBAR)) {
-    const m = BASE_URL.exec(attributes);
-    const base = m ? (m[1] ?? m[2] ?? m[3] ?? "") : "";
-    if (!isSafeLink(base)) found.push(base);
-    for (const href of linksIn(inner)) {
-      if (isSafeLink(href) && !isSafeLink(base + href)) found.push(base + href);
+/**
+ * What in compiled HTML could run: a link with any other scheme than `LINK_SCHEMES`, an `on…`
+ * handler, an element such as `<script>` or `<iframe>`. Read as a browser tokenises tags, so a
+ * quote cannot hide one, and inside comments too, where Outlook reads conditional markup.
+ * Checked on the compiled email because MJML adds what the source does not say: a navbar's
+ * `base-url` from `mj-attributes` or an `mj-class`, joined to each of its links.
+ */
+export function unsafeMarkup(html: string): string[] {
+  const found: string[] = [];
+  let i = html.indexOf("<");
+  while (i !== -1) {
+    TAG_NAME.lastIndex = i + 1;
+    const name = TAG_NAME.exec(html)?.[0];
+    let end = i + 1;
+    if (name) {
+      if (RUNNING_TAGS.has(name.toLowerCase())) found.push(`<${name.toLowerCase()}>`);
+      end = TAG_NAME.lastIndex;
+      while (end < html.length && html[end] !== ">") {
+        ATTRIBUTE.lastIndex = end;
+        const m = ATTRIBUTE.exec(html);
+        if (!m || ATTRIBUTE.lastIndex === end) {
+          end++;
+          continue;
+        }
+        end = ATTRIBUTE.lastIndex;
+        const attribute = m[1]!.toLowerCase();
+        const value = m[2] ?? m[3] ?? m[4] ?? "";
+        if (/^on./.test(attribute)) found.push(attribute);
+        else if (LINK_ATTRIBUTES.has(attribute) && !isSafeLink(value)) found.push(value);
+      }
     }
+    i = html.indexOf("<", end);
   }
   return found;
 }
 
-/**
- * The unsafe links a write would add. Only additions are refused: a document that already
- * holds one, from before this rule, stays writable.
- */
-export function addedUnsafeLinks(before: string, after: string): string[] {
-  const known = unsafeLinks(before);
-  return unsafeLinks(after).filter((link) => {
-    const i = known.indexOf(link);
-    if (i === -1) return true;
-    known.splice(i, 1);
-    return false;
+/** What `after` holds more of than `before`: a write is refused only for what it adds. */
+export function addedItems(after: readonly string[], before: readonly string[]): string[] {
+  const known = new Map<string, number>();
+  for (const item of before) known.set(item, (known.get(item) ?? 0) + 1);
+  return after.filter((item) => {
+    const left = known.get(item) ?? 0;
+    if (left > 0) known.set(item, left - 1);
+    return left === 0;
   });
+}
+
+/** The refusal's list: each item once, cut short, at most five, so it cannot flood the model. */
+export function describeItems(items: readonly string[]): string {
+  const unique = [...new Set(items)];
+  const shown = unique
+    .slice(0, 5)
+    .map((item) =>
+      JSON.stringify([...item].length > 60 ? `${[...item].slice(0, 60).join("")}…` : item),
+    );
+  return unique.length > 5 ? `${shown.join(", ")} and ${unique.length - 5} more` : shown.join(", ");
 }

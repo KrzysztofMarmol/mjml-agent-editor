@@ -55,6 +55,24 @@ The nine tool definitions (`get_document`, `set_section`, `insert_section`, `gen
 because the build rewrites it, the check that catches drift is `git diff` after a build
 rather than a unit test.
 
+## What a write may add
+
+Both backends refuse a write that adds something the editor cannot edit or that could run in
+the compiled email:
+
+- `addedUneditableTags(before, after)` — `mj-table`, `mj-hero`, `mj-accordion`, `mj-carousel`
+  (`UNEDITABLE_TAGS`, also `uneditable_tags` in `contract/tools.json`).
+- `unsafeMarkup(html)` over the **compiled** HTML, where MJML has joined each navbar's
+  `base-url` to its links: a link whose scheme is not in `LINK_SCHEMES` (`http`, `https`,
+  `mailto`, `tel`, `sms`; no scheme is fine too), an `on…` handler, and `script`, `iframe`,
+  `object`, `embed` and the like. `addedItems(after, before)` keeps what the write added, and
+  `describeItems` names it in at most five items. The schemes are fixed; tell us if your
+  emails need another. `contract/unsafe-markup-cases.json` holds the cases every backend
+  must agree on.
+
+`isSafeLink` and `isSafeNavbarLink` are the same rule for one value, as the editor's fields
+use it.
+
 ## The starter document
 
 `STARTER_MJML` is the MJML a brand-new email begins as. It lives here rather than in the

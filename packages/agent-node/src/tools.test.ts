@@ -352,8 +352,40 @@ describe("agent tools", () => {
         section_id: "aaa",
         mjml: `<mj-section><mj-column><mj-text><a href="javascript:alert(1)">Hi</a></mj-text></mj-column></mj-section>`,
       });
-      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be a link/);
+      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be in an email/);
       expect(documents.saveCount).toBe(0);
+    });
+
+    it("refuses a navbar link made unsafe by a base-url from the head", async () => {
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace(
+          "<mj-body>",
+          `<mj-head><mj-attributes><mj-class name="nav" base-url="javascript" /></mj-attributes></mj-head><mj-body>`,
+        ),
+      });
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-navbar mj-class="nav"><mj-navbar-link href=":alert(1)">Go</mj-navbar-link></mj-navbar></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "javascript:alert\(1\)" cannot be in an email/);
+      expect(documents.saveCount).toBe(1);
+    });
+
+    it("refuses an event handler inside a text", async () => {
+      const output = await run(tools, "set_section", {
+        section_id: "aaa",
+        mjml: `<mj-section><mj-column><mj-text><img src="x" onerror="alert(1)"></mj-text></mj-column></mj-section>`,
+      });
+      expect(output).toMatch(/^ERROR: "onerror" cannot be in an email/);
+      expect(documents.saveCount).toBe(0);
+    });
+
+    it("still saves an email whose existing unsafe link holds an entity out of range", async () => {
+      await documents.save(DOCUMENT_ID, {
+        mjml: VALID_DOC.replace("Welcome", `<a href="https://a.com/&#99999999;">Welcome</a>`),
+      });
+      const output = await run(tools, "remove_section", { section_id: "bbb" });
+      expect(output).toMatch(/^OK/);
     });
 
     it("leaves a document its existing unsafe link, so edits elsewhere still save", async () => {

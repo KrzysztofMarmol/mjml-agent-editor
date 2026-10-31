@@ -88,6 +88,17 @@ def load_contract(path: str | os.PathLike[str] | None = None) -> Contract:
         )
 
     raw = json.loads(resolved.read_text())
+    # A contract from an older core lacks the newer keys; say so rather than raise KeyError.
+    missing = [
+        key
+        for key in ("tools", "mutating_tools", "uneditable_tags", "link_schemes")
+        if key not in raw
+    ]
+    if missing:
+        raise ContractError(
+            f"tool contract at {resolved} has no {', '.join(missing)}. Rebuild it with "
+            "`pnpm --filter @mjml-agent-editor/core build`."
+        )
     tools = {
         entry["name"]: ToolSpec(
             name=entry["name"],

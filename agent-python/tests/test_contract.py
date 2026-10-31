@@ -180,3 +180,11 @@ class TestInspectRenderedEmail:
         result = asyncio.run(_inspect(_Reviewer())())
 
         assert result == "ERROR: JSON object requested, multiple (or no) rows returned"
+
+
+def test_a_contract_from_an_older_core_says_what_it_lacks(tmp_path) -> None:
+    old = tmp_path / "tools.json"
+    old.write_text('{"version": 1, "system_prompt": "", "tools": [], "mutating_tools": []}')
+
+    with pytest.raises(ContractError, match="uneditable_tags, link_schemes"):
+        load_contract(old)

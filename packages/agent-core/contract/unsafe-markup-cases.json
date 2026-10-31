@@ -1,0 +1,97 @@
+[
+  {
+    "name": "a script link",
+    "html": "<a href=\"javascript:alert(1)\">x</a>",
+    "expected": [
+      "javascript:alert(1)"
+    ]
+  },
+  {
+    "name": "a link hidden behind a quoted attribute",
+    "html": "<a title=' href=\"https://good' href=\"javascript:alert(1)\">Go</a>",
+    "expected": [
+      "javascript:alert(1)"
+    ]
+  },
+  {
+    "name": "an attribute that only mentions a link",
+    "html": "<a title='mentions href=javascript:x'>t</a>",
+    "expected": []
+  },
+  {
+    "name": "a slash for a space",
+    "html": "<a/href=vbscript:y>y</a>",
+    "expected": [
+      "vbscript:y"
+    ]
+  },
+  {
+    "name": "an unquoted value with a stray quote",
+    "html": "<a href=javascript:alert(1)//'>x</a>",
+    "expected": [
+      "javascript:alert(1)//'"
+    ]
+  },
+  {
+    "name": "an event handler",
+    "html": "<img src=\"x\" onerror=\"alert(1)\">",
+    "expected": [
+      "onerror"
+    ]
+  },
+  {
+    "name": "a frame, in any case",
+    "html": "<IFRAME src=\"javascript:x\"></IFRAME>",
+    "expected": [
+      "<iframe>"
+    ]
+  },
+  {
+    "name": "an animation that sets a link",
+    "html": "<svg><animate attributeName=\"href\" values=\"javascript:alert(1)\"/></svg>",
+    "expected": [
+      "<animate>"
+    ]
+  },
+  {
+    "name": "a link inside a comment, as Outlook reads conditional markup",
+    "html": "<!--[if mso]><a href=\"javascript:x\">x</a><![endif]-->",
+    "expected": [
+      "javascript:x"
+    ]
+  },
+  {
+    "name": "an entity-encoded scheme",
+    "html": "<a href=\"&#106;avascript:x\">x</a>",
+    "expected": [
+      "&#106;avascript:x"
+    ]
+  },
+  {
+    "name": "a tab inside the scheme",
+    "html": "<a href=\"java&#x09;script:x\">x</a>",
+    "expected": [
+      "java&#x09;script:x"
+    ]
+  },
+  {
+    "name": "a reference out of Unicode's range",
+    "html": "<a href=\"https://good/&#99999999;\">x</a><a href=\"&#x110000;\">y</a>",
+    "expected": []
+  },
+  {
+    "name": "a letter that only looks like ASCII",
+    "html": "<a href=\"Kavascript:x\">x</a><a href=\"ſcript:x\">y</a>",
+    "expected": []
+  },
+  {
+    "name": "safe links and plain text",
+    "html": "<p>a < b</p><a href=\"mailto:a@b.c\">m</a><a href=\"tel:+48\">t</a><a href=\"{{unsubscribe}}\">u</a><a href=\"#top\">t</a>",
+    "expected": []
+  },
+  {
+    "name": "a quote left open swallows the rest, as in a browser",
+    "html": "<a title=\"x><a href=\"javascript:x\">y</a>",
+    "expected": []
+  }
+]

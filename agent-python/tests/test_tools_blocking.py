@@ -149,25 +149,26 @@ def test_a_commented_out_table_does_not_let_a_real_one_in(
 def test_a_link_a_mail_client_could_run_is_not_saved(
     db: FakeDb, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    # The guard reads the compiled email; here the source stands in for it.
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, mjml))
     section = (
-        "<mj-section><mj-column><mj-text><a href='javascript:alert(1)'>Hi</a></mj-text>"
-        "</mj-column></mj-section>"
+        "<mj-section><mj-column><mj-text><a href='javascript:alert(1)'>Hi</a>"
+        "<img src='x' onerror='alert(2)'></mj-text></mj-column></mj-section>"
     )
 
     result = asyncio.run(_tool("set_section")(section_id="aaa", mjml=section))
 
-    assert result.startswith('ERROR: "javascript:alert(1)" cannot be a link')
+    assert result.startswith('ERROR: "javascript:alert(1)", "onerror" cannot be in an email')
     assert db.mjml == DOC
 
 
 def test_an_unsafe_link_already_in_the_document_does_not_block_other_edits(
     db: FakeDb, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, mjml))
     old = (
         "<mj-section><mj-column><mj-button href='javascript:x()'>Old</mj-button>"
-        "</mj-column></mj-section>"
+        "<mj-text><a href='https://a.com/&#99999999;'>Far</a></mj-text></mj-column></mj-section>"
     )
     db.mjml = DOC.replace("</mj-body>", old + "</mj-body>")
 

@@ -13,8 +13,10 @@
 import {
   LINK_SCHEMES,
   MjmlDocumentError,
+  addedItems,
   addedUneditableTags,
-  addedUnsafeLinks,
+  describeItems,
+  unsafeMarkup,
   TOOLS,
   ensureSectionIds,
   getSection,
@@ -87,10 +89,6 @@ function schemaOf<Input>(name: ToolName) {
   return jsonSchema<Input>(TOOLS[name].inputSchema as never);
 }
 
-// Bounded: a `data:` link can be the size of a page, and the model only needs to know which.
-const quoteLink = (link: string) =>
-  JSON.stringify(link.length > 60 ? `${link.slice(0, 60)}…` : link);
-
 function describeError(error: unknown): string {
   if (error instanceof MjmlDocumentError) return `ERROR: ${error.message}`;
   if (error instanceof Error) return `ERROR: ${error.message}`;
@@ -106,8 +104,9 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
    * Compiles before persisting, so an invalid document is never written. The model
    * sees the compiler output and can correct itself; the spike relied on this and it
    * is the main reason the agent rarely leaves a document broken. A tag the editor cannot
-   * edit is refused before that, when the write adds one (`addedUneditableTags`), and so is
-   * a link a mail client or the preview could run (`addedUnsafeLinks`).
+   * edit is refused before that, when the write adds one (`addedUneditableTags`). So is what
+   * could run in the compiled email (`unsafeMarkup`), when the write adds it: the previous
+   * document is compiled for that only when something is found.
    */
   const saveValidated = async (before: string, mjml: string): Promise<string> => {
     const added = addedUneditableTags(before, mjml);
@@ -115,13 +114,17 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       const tags = added.map((tag) => `<${tag}>`).join(", ");
       return `ERROR: ${tags} cannot be used — the visual editor cannot edit it. The document was NOT saved.`;
     }
-    const links = addedUnsafeLinks(before, mjml);
-    if (links.length > 0) {
-      return `ERROR: ${links.map(quoteLink).join(", ")} cannot be a link — only ${LINK_SCHEMES.join(", ")} links, or ones without a scheme. The document was NOT saved.`;
-    }
     const result = await compiler.compile(mjml);
     if (!result.ok) {
       return `ERROR: MJML validation failed — document was NOT saved:\n${result.errors}`;
+    }
+    const found = unsafeMarkup(result.html);
+    if (found.length > 0) {
+      const previous = await compiler.compile(before);
+      const added = addedItems(found, previous.ok ? unsafeMarkup(previous.html) : []);
+      if (added.length > 0) {
+        return `ERROR: ${describeItems(added)} cannot be in an email — only ${LINK_SCHEMES.join(", ")} links or ones without a scheme, and no scripts, event handlers, frames or embeds. The document was NOT saved.`;
+      }
     }
     await documents.save(documentId, { mjml });
     return "OK, saved.";

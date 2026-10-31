@@ -101,19 +101,23 @@ async def _validated_save(doc_id: str, before: str, mjml: str) -> str:
             f"ERROR: {tags} cannot be used — the visual editor cannot edit it. "
             "The document was NOT saved."
         )
-    unsafe = links.added_unsafe_links(before, mjml, CONTRACT.link_schemes)
-    if unsafe:
-        # Bounded: a data: link can be the size of a page, and the model only needs which.
-        named = ", ".join(
-            json.dumps(u if len(u) <= 60 else u[:60] + "…", ensure_ascii=False) for u in unsafe
-        )
-        return (
-            f"ERROR: {named} cannot be a link — only {', '.join(CONTRACT.link_schemes)} links, "
-            "or ones without a scheme. The document was NOT saved."
-        )
     ok, result = await _blocking(mjml_compile.compile_mjml, mjml)
     if not ok:
         return f"ERROR: MJML validation failed — document was NOT saved:\n{result}"
+    # On the compiled email, where MJML has joined a navbar's base-url to its links. The
+    # previous document is compiled only when something is found, to refuse only additions.
+    schemes = CONTRACT.link_schemes
+    found = await _blocking(links.unsafe_markup, result, schemes)
+    if found:
+        was_ok, previous = await _blocking(mjml_compile.compile_mjml, before)
+        known = await _blocking(links.unsafe_markup, previous, schemes) if was_ok else []
+        added = links.added_items(found, known)
+        if added:
+            return (
+                f"ERROR: {links.describe_items(added)} cannot be in an email — only "
+                f"{', '.join(schemes)} links or ones without a scheme, and no scripts, event "
+                "handlers, frames or embeds. The document was NOT saved."
+            )
     await _blocking(db.set_document_mjml, doc_id, mjml)
     return "OK, saved."
 
