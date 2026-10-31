@@ -78,7 +78,10 @@ _blocking = asyncio.to_thread
 
 
 def _count_tag(mjml: str, tag: str) -> int:
-    return len(re.findall(rf"<{tag}(?=[\s/>])", mjml, re.IGNORECASE))
+    # A tag inside a comment is not an element; counting it would let a write that removes
+    # the comment add a real one unnoticed.
+    elements = re.sub(r"<!--.*?-->", "", mjml, flags=re.DOTALL)
+    return len(re.findall(rf"<{tag}(?=[\s/>])", elements, re.IGNORECASE))
 
 
 def _added_uneditable_tags(before: str, after: str) -> list[str]:

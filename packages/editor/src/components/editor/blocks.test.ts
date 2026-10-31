@@ -50,6 +50,35 @@ describe("blockProblems", () => {
     ["an inline image", section('<mj-image src="data:image/png;base64,AAAA"></mj-image>'), /data:/],
     ["a GrapesJS property", section('<mj-text><p data-gjs-name="x">A</p></mj-text>'), /GrapesJS/],
     ["GrapesJS's drag marker", section('<mj-text><p __p="true">A</p></mj-text>'), /GrapesJS/],
+    [
+      "a script link split across a navigation bar",
+      section(
+        '<mj-navbar base-url="javascript"><mj-navbar-link href=":alert(1)">Go</mj-navbar-link></mj-navbar>',
+      ),
+      /scheme/,
+    ],
+    [
+      "an inline image in a text",
+      section('<mj-text><img src="data:image/png;base64,AA"></mj-text>'),
+      /data:/,
+    ],
+    [
+      "an inline image in a srcset",
+      section(
+        '<mj-image src="https://a.com/x.png" srcset="data:image/png;base64,AA 2x"></mj-image>',
+      ),
+      /data:/,
+    ],
+    [
+      "a link written without a space",
+      section('<mj-text><a/href="data:text/html,x">Go</a></mj-text>'),
+      /scheme/,
+    ],
+    [
+      "a stylesheet the editor drops",
+      section("<mj-text><style>.a{color:red}</style>Hi</mj-text>"),
+      /content/,
+    ],
   ])("refuses %s", (_, block, problem) => {
     expect(blockProblems(block).join("\n")).toMatch(problem);
   });
@@ -91,6 +120,11 @@ describe("registerBlocks", () => {
       expect.stringMatching(/"card".*taken/),
       expect.stringMatching(/"table".*mj-table/),
     ]);
+  });
+
+  it("shows a label as text", () => {
+    registerBlocks(editor, [{ id: "card", label: "<b>Card</b>", mjml: CARD }], "Sections", "");
+    expect(editor.Blocks.get("card")!.getLabel()).toBe("&lt;b&gt;Card&lt;/b&gt;");
   });
 
   it("drops as strict MJML with a fresh section id, undone in one step", () => {

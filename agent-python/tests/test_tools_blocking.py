@@ -132,3 +132,15 @@ def test_a_table_already_in_the_document_does_not_block_other_edits(
     result = asyncio.run(_tool("remove_section")(section_id="bbb"))
 
     assert result.startswith("OK")
+
+
+def test_a_commented_out_table_does_not_let_a_real_one_in(
+    db: FakeDb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(tools.mjml_compile, "compile_mjml", lambda mjml: (True, "<html/>"))
+    db.mjml = DOC.replace("</mj-body>", "<!-- <mj-table> --></mj-body>")
+
+    rebuilt = f"<mjml><mj-body>{TABLE}</mj-body></mjml>"
+    result = asyncio.run(_tool("set_document")(mjml=rebuilt, confirm_full_rewrite=True))
+
+    assert result.startswith("ERROR: <mj-table> cannot be used")

@@ -5,6 +5,7 @@ import {
   ALLOWED_ATTRIBUTES,
   illegalAttributes,
   NAMED_COLORS,
+  sourceForEditor,
   withClosedTags,
   withoutEditorProps,
 } from "./mjml-attributes.js";
@@ -79,5 +80,18 @@ describe("withClosedTags", () => {
     ).toBe(
       `<mj-image alt="a/> b" src="https://a.com/x.png"></mj-image><mj-divider></mj-divider><mj-text>One<br/>two</mj-text>`,
     );
+  });
+});
+
+describe("sourceForEditor", () => {
+  it("does not count closing a self-closed element as a repair to save", () => {
+    expect(sourceForEditor('<mj-image src="https://a.com/x.png" />')).toEqual({
+      mjml: '<mj-image src="https://a.com/x.png"></mj-image>',
+      repaired: false,
+    });
+  });
+
+  it("counts removed GrapesJS properties as one", () => {
+    expect(sourceForEditor('<mj-text data-gjs-name="x">A</mj-text>').repaired).toBe(true);
   });
 });

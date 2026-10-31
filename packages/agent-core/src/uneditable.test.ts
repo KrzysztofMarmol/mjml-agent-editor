@@ -22,4 +22,8 @@ describe("addedUneditableTags", () => {
   it("does not count a longer tag name", () => {
     expect(addedUneditableTags(doc(""), doc("<mj-table-of-contents>"))).toEqual([]);
   });
+
+  it("does not count a tag inside a comment", () => {
+    expect(addedUneditableTags(doc("<!-- <mj-table> -->"), doc(TABLE))).toEqual(["mj-table"]);
+  });
 });

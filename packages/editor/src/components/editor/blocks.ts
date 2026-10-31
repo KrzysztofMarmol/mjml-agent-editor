@@ -9,12 +9,14 @@
 import grapesjs, { type Editor } from "grapesjs";
 import grapesjsMJML from "grapesjs-mjml";
 
-import { isSafeLink } from "./inspector/values.js";
+import { ID_RE } from "./ids.js";
+import { isSafeLink, isSafeNavbarLink } from "./inspector/values.js";
 import { withClosedTags } from "./mjml-attributes.js";
 
 export type SectionBlock = {
   /** Unique, and not the id of a built-in block. */
   readonly id: string;
+  /** Plain text. */
   readonly label: string;
   /** Exactly one `<mj-section>`, without `sec-*`/`obj-*` ids: those are added on drop. */
   readonly mjml: string;
@@ -22,10 +24,11 @@ export type SectionBlock = {
   readonly media?: string;
 };
 
-// Tags the editor loads and saves unchanged, with a place in Layers and Settings. Not:
-// mj-table (loading flattens its rows into text), mj-hero (its content sits outside any
-// section, where the agent and comments cannot address it), mj-wrapper, mj-raw, and the
-// accordion and carousel, which the editor can neither render nor edit.
+// Tags a dropped section may hold: what the editor keeps on a load and edits in Settings. Not
+// mj-table (a load flattens its rows into text), mj-hero (its content sits outside any
+// section, where the agent and comments cannot address it), accordion and carousel (the
+// editor can neither render nor edit them), mj-wrapper (it holds sections, and a block is
+// one) or mj-raw (HTML nobody edits here).
 const EDITABLE_TAGS = new Set([
   "mj-section",
   "mj-group",
@@ -48,11 +51,16 @@ const CONTENT_TAGS = new Set(["mj-text", "mj-button", "mj-social-element", "mj-n
 // `__p` and `custom-name` from markup as they are.
 const EDITOR_INTERNALS = /data-gjs-|__p\b|custom-name/i;
 
-const ADDRESS = /(?:^|\s)(?:sec|obj)-/;
+// Markup in a text that GrapesJS drops on a drop, so what was offered is not what lands.
+const DROPPED_MARKUP = /<(?:script|style|link|meta|iframe|object|embed|form)\b/i;
 
-const IMAGE_ATTRIBUTES = ["src", "background-url", "icon"];
+// Mail clients block inline images, and the editor never inlines a file.
+const INLINE_IMAGE =
+  /\b(?:src|srcset|background-url|icon)\s*=\s*(?:"[^"]*data:|'[^']*data:|data:)/i;
 
-const HREF_IN_MARKUP = /\shref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+// `<a/href=…>` is an href to a browser too.
+const LINK_IN_MARKUP =
+  /[\s/"'](?:xlink:)?(?:href|action|formaction)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi;
 
 type MjmlNode = {
   tagName: string;
@@ -76,6 +84,7 @@ export function blockProblems(
   })),
 ): string[] {
   if (EDITOR_INTERNALS.test(mjml)) return ["it contains GrapesJS's own attributes"];
+  if (INLINE_IMAGE.test(mjml)) return ["it inlines an image as a data: URL"];
 
   let tree: MjmlNode;
   try {
@@ -96,33 +105,41 @@ export function blockProblems(
   if (top.length !== 1 || top[0]!.tagName !== "mj-section") {
     problems.push("it is not exactly one mj-section");
   }
-  const visit = (node: MjmlNode) => {
+  const visit = (node: MjmlNode, parent?: MjmlNode) => {
     const tag = node.tagName;
     const attributes = node.attributes ?? {};
     const content = node.content ?? "";
     if (!EDITABLE_TAGS.has(tag)) problems.push(`${tag} is not editable here`);
-    if (ADDRESS.test(attributes["css-class"] ?? "")) {
+    const cssClass = attributes["css-class"] ?? "";
+    if (ID_RE.sec.test(cssClass) || ID_RE.obj.test(cssClass)) {
       problems.push(`${tag} carries a sec-* or obj-* id`);
     }
     // Defined in mj-head, which a block cannot bring.
     if ("mj-class" in attributes) problems.push(`${tag} uses mj-class`);
     const links = [attributes.href ?? ""];
-    for (const match of content.matchAll(HREF_IN_MARKUP)) {
+    for (const match of content.matchAll(LINK_IN_MARKUP)) {
       links.push(match[1] ?? match[2] ?? match[3] ?? "");
     }
-    if (!links.every(isSafeLink)) problems.push(`${tag} has a link scheme mail must not carry`);
-    // Mail clients block inline images.
-    if (IMAGE_ATTRIBUTES.some((name) => /^\s*data:/i.test(attributes[name] ?? ""))) {
-      problems.push(`${tag} inlines a data: URL`);
+    const linked =
+      tag === "mj-navbar-link"
+        ? isSafeNavbarLink(parent?.attributes?.["base-url"] ?? "", attributes.href ?? "")
+        : true;
+    if (!linked || !links.every(isSafeLink)) {
+      problems.push(`${tag} has a link scheme mail must not carry`);
     }
-    if (CONTENT_TAGS.has(tag) ? /<mj-/i.test(content) : content.trim()) {
+    if (
+      CONTENT_TAGS.has(tag) ? /<mj-/i.test(content) || DROPPED_MARKUP.test(content) : content.trim()
+    ) {
       problems.push(`${tag} holds content the editor does not keep`);
     }
-    node.children?.forEach(visit);
+    node.children?.forEach((child) => visit(child, node));
   };
-  top.forEach(visit);
+  top.forEach((node) => visit(node));
   return problems;
 }
+
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** Adds the blocks that can be offered, and reports the rest to the developer. */
 export function registerBlocks(
@@ -140,7 +157,8 @@ export function registerBlocks(
       continue;
     }
     editor.Blocks.add(block.id, {
-      label: block.label,
+      // GrapesJS writes the label into the tile as markup.
+      label: escapeHtml(block.label),
       category,
       media: block.media ?? media,
       content: withClosedTags(block.mjml),

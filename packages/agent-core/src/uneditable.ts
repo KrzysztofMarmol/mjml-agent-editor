@@ -6,8 +6,11 @@
  */
 export const UNEDITABLE_TAGS = ["mj-table", "mj-hero", "mj-accordion", "mj-carousel"] as const;
 
+// A tag inside a comment is not an element, and counting it would let a write that removes
+// the comment add a real one unnoticed.
 function count(mjml: string, tag: string): number {
-  return (mjml.match(new RegExp(`<${tag}(?=[\\s/>])`, "gi")) ?? []).length;
+  const elements = mjml.replace(/<!--[\s\S]*?-->/g, "");
+  return (elements.match(new RegExp(`<${tag}(?=[\\s/>])`, "gi")) ?? []).length;
 }
 
 /**

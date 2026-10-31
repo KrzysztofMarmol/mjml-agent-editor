@@ -27,7 +27,7 @@ import { registerBlocks, type SectionBlock } from "./blocks.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
-import { illegalAttributes, withClosedTags, withoutEditorProps } from "./mjml-attributes.js";
+import { illegalAttributes, sourceForEditor } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -552,9 +552,9 @@ export default function EmailEditor({
       try {
         queue.cancel();
         stored = mjml;
-        const source = withClosedTags(withoutEditorProps(mjml || STARTER_MJML));
-        repaired = source !== (mjml || STARTER_MJML);
-        editor.setComponents(source);
+        const source = sourceForEditor(mjml || STARTER_MJML);
+        repaired = source.repaired;
+        editor.setComponents(source.mjml);
         editor.getWrapper()?.find("mj-section").forEach(decorate);
         for (const t of Object.keys(TYPE_LABEL)) {
           editor.getWrapper()?.find(t).forEach(decorate);

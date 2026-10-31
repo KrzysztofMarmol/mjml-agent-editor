@@ -135,6 +135,16 @@ export function withClosedTags(mjml: string): string {
   });
 }
 
+/**
+ * The MJML GrapesJS is given for a document, and whether it had to be repaired. Closing a
+ * self-closed element is not a repair: it is the same MJML, and saving it on open would also
+ * store whatever else a load loses, such as an mj-table's rows.
+ */
+export function sourceForEditor(mjml: string): { mjml: string; repaired: boolean } {
+  const cleaned = withoutEditorProps(mjml);
+  return { mjml: withClosedTags(cleaned), repaired: cleaned !== mjml };
+}
+
 /** The attributes MJML would reject on `tag`; none for a tag the table does not cover. */
 export function illegalAttributes(tag: string, attributes: Record<string, unknown>): string[] {
   const allowed = ALLOWED_ATTRIBUTES[tag];
