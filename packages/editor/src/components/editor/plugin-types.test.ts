@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createWriter } from "./inspector/write.js";
 import { sourceForEditor, withClosedTags } from "./mjml-attributes.js";
-import { fixPluginTypes, socialLayout } from "./plugin-types.js";
+import { fixPluginTypes, socialLabel, socialLayout } from "./plugin-types.js";
 
 const require = createRequire(import.meta.url);
 const mjml = require("mjml") as (
@@ -290,17 +290,50 @@ describe("mj-table in the canvas", () => {
 });
 
 describe("social icons in the canvas", () => {
-  it("lie in a row, or stacked in one column aligned as the group is", () => {
+  it("lie in a row, or stacked in shared columns aligned as the group is", () => {
     expect(socialLayout(undefined, undefined).icon.display).toBe("inline-table");
     expect(socialLayout("horizontal", "left").column.display).toBe("");
     const stacked = socialLayout("vertical", undefined);
-    expect(stacked.icon.display).toBe("table");
-    expect(stacked.column).toEqual({
-      display: "grid",
-      justifyContent: "center",
-      justifyItems: "start",
-    });
+    expect(stacked.icon).toMatchObject({ display: "grid", gridTemplateColumns: "subgrid" });
+    expect(stacked.column).toMatchObject({ display: "grid", justifyContent: "center" });
     expect(socialLayout("vertical", "left").column.justifyContent).toBe("start");
     expect(socialLayout("vertical", "right").column.justifyContent).toBe("end");
+  });
+
+  // What the plugin draws an icon from: the icon compiled alone, then its first table.
+  const drawn = (social: string) => {
+    const html = (mjml as unknown as (x: string) => { html: string })(
+      `<mjml><mj-body><mj-section><mj-column>${social}</mj-column></mj-section></mj-body></mjml>`,
+    ).html;
+    const container = document.createElement("div");
+    container.innerHTML = html.slice(html.indexOf("<body"));
+    return container.querySelector<HTMLElement>("tr > td > table")!;
+  };
+
+  it("are compiled with their label", () => {
+    load(
+      '<mj-social><mj-social-element name="facebook">Face <b>book</b></mj-social-element></mj-social>',
+    );
+    const view = editor.Components.getType("mj-social-element")!.view.prototype as unknown as {
+      getInnerMjmlTemplate(this: { model: Component }): { start: string; end: string };
+    };
+    const { start, end } = view.getInnerMjmlTemplate.call({ model: first("mj-social-element") });
+    expect(`${start}${end}`).toMatch(/>Face <b>book<\/b><\/mj-social-element>$/);
+  });
+
+  it("put the label's components in its cell, in a row or stacked, linked or not", () => {
+    for (const mode of ["horizontal", "vertical"]) {
+      const linked = drawn(
+        `<mj-social mode="${mode}"><mj-social-element name="facebook" href="https://x.test">Facebook</mj-social-element></mj-social>`,
+      );
+      expect(socialLabel(linked)?.textContent?.trim()).toBe("Facebook");
+      const plain = drawn(
+        `<mj-social mode="${mode}"><mj-social-element name="facebook" icon-position="right">Facebook</mj-social-element></mj-social>`,
+      );
+      expect(socialLabel(plain)?.textContent?.trim()).toBe("Facebook");
+    }
+    expect(
+      socialLabel(drawn('<mj-social><mj-social-element name="facebook" /></mj-social>')),
+    ).toBeNull();
   });
 });
