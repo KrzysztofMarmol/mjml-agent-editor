@@ -137,22 +137,36 @@ function redrawnGroupView(base: PluginView): Partial<PluginView> {
 }
 
 /**
- * How a social icon sits in the canvas. In a row MJML lays the icons inline, as the plugin
- * draws them; stacked it gives each a row of its own, aligned as the group is.
+ * How social icons sit in the canvas. In a row MJML lays them inline, as the plugin draws
+ * them. Stacked it puts them in one table, a row each: they share a column, aligned as the
+ * group is, with their left edges in line.
  */
-export function socialIconLayout(mode: unknown, align: unknown) {
-  if (mode !== "vertical") return { display: "inline-table", margin: "" };
-  const margin = align === "left" ? "0 auto 0 0" : align === "right" ? "0 0 0 auto" : "0 auto";
-  return { display: "table", margin };
+export function socialLayout(mode: unknown, align: unknown) {
+  if (mode !== "vertical") {
+    return {
+      icon: { display: "inline-table" },
+      column: { display: "", justifyContent: "", justifyItems: "" },
+    };
+  }
+  const side = align === "left" ? "start" : align === "right" ? "end" : "center";
+  return {
+    icon: { display: "table" },
+    column: { display: "grid", justifyContent: side, justifyItems: "start" },
+  };
 }
 
-/** The plugin redraws every icon when its group changes, so the mode is read on each draw. */
+/**
+ * The plugin redraws every icon whenever its group changes, so an icon lays out the group's
+ * cell as well as itself.
+ */
 function stackedSocialView(base: PluginView): Partial<PluginView> {
   return {
     render(this: PluginView) {
       const drawn = base.render.call(this);
       const group = this.model.parent()?.getAttributes() ?? {};
-      Object.assign(this.el.style, socialIconLayout(group.mode, group.align));
+      const { icon, column } = socialLayout(group.mode, group.align);
+      Object.assign(this.el.style, icon);
+      if (this.el.parentElement) Object.assign(this.el.parentElement.style, column);
       return drawn;
     },
   };
