@@ -45,6 +45,10 @@ const CONTEXTS: Record<
   "mj-wrapper": { inner: `<mj-section><mj-column>${TEXT}</mj-column></mj-section>`, outer: body },
   "mj-section": { inner: `<mj-column>${TEXT}</mj-column>`, outer: body },
   "mj-column": { inner: TEXT, outer: (e) => body(`<mj-section>${e}</mj-section>`) },
+  "mj-group": {
+    inner: `<mj-column>${TEXT}</mj-column>`,
+    outer: (e) => body(`<mj-section>${e}</mj-section>`),
+  },
   "mj-text": { inner: "x", outer: column },
   "mj-button": { base: { href: LINK }, inner: "x", outer: column },
   "mj-image": { base: { src: IMAGE }, inner: "", outer: column },

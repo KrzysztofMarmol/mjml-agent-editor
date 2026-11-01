@@ -19,9 +19,17 @@ export const COLUMN_RATIOS: Readonly<Record<number, readonly (readonly number[])
   ],
 };
 
-/** A section's columns, when columns are all it holds; a column group is left alone. */
-export function columnsOf(section: Component): Component[] | null {
-  const children = section.components().models;
+/**
+ * The columns a section or a column group lays out, when columns are all it holds. A section
+ * whose only child is a group lays out that group's; one that mixes a group with columns is
+ * left alone, as no single ratio describes it.
+ */
+export function columnsOf(container: Component): Component[] | null {
+  let children = container.components().models;
+  const only = children.length === 1 ? children[0]! : null;
+  if (tagOf(container) === "mj-section" && only && tagOf(only) === "mj-group") {
+    children = only.components().models;
+  }
   return children.length > 0 && children.every((c) => tagOf(c) === "mj-column") ? children : null;
 }
 

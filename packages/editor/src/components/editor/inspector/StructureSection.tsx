@@ -38,6 +38,7 @@ export default function StructureSection({
 }) {
   switch (tagOf(component)) {
     case "mj-section":
+    case "mj-group":
       return <ColumnWidths component={component} labels={labels} locked={locked} />;
     case "mj-social":
       return (

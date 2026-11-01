@@ -81,14 +81,33 @@ describe("column ratios", () => {
     expect(currentRatio(cols)).toEqual([1, 2]);
   });
 
-  it("leaves widths it did not write unmatched, and a section with a column group alone", () => {
+  it("leaves widths it did not write unmatched", () => {
     const editor = load(twoColumns.replace("<mj-column>", '<mj-column width="200px">'));
     expect(currentRatio(columnsOf(find(editor, "mj-section"))!)).toBeNull();
-    const grouped = load(
-      "<mjml><mj-body><mj-section><mj-group><mj-column><mj-text>a</mj-text></mj-column></mj-group></mj-section></mj-body></mjml>",
-    );
-    expect(columnsOf(find(grouped, "mj-section"))).toBeNull();
     expect(ratioWidths([1, 1, 1])).toBeNull();
+  });
+
+  const group = (inner: string, around = "") =>
+    `<mjml><mj-body><mj-section>${around}<mj-group>${inner}</mj-group></mj-section></mj-body></mjml>`;
+  const cell = (text: string) => `<mj-column><mj-text>${text}</mj-text></mj-column>`;
+
+  it("lays out the columns of a group, and of a section whose only child is one", () => {
+    const editor = load(group(cell("a") + cell("b") + cell("c")));
+    const cols = columnsOf(find(editor, "mj-section"))!;
+    expect(cols).toHaveLength(3);
+    expect(columnsOf(find(editor, "mj-group"))).toEqual(cols);
+
+    editor.UndoManager.clear();
+    setRatio(cols, [1, 2, 1]);
+    expect(cols.map((c) => c.getAttributes().width)).toEqual(["25%", "50%", "25%"]);
+    expect(strictErrors(editor)).toEqual([]);
+    editor.UndoManager.undo();
+    expect(currentRatio(cols)).toEqual([1, 1, 1]);
+  });
+
+  it("leaves alone a section that holds a group beside a column", () => {
+    const editor = load(group(cell("a") + cell("b"), cell("c")));
+    expect(columnsOf(find(editor, "mj-section"))).toBeNull();
   });
 });
 

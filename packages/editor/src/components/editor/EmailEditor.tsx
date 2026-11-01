@@ -264,11 +264,13 @@ export default function EmailEditor({
       setLocked(false);
     };
   }, [turn, setLocked]);
-  // Chrome leaves the canvas deaf to the mouse wheel once the lock lifts, until a click.
-  // Hiding the frame's overflow for one frame makes it rebuild the scroller.
+  // Chrome leaves the canvas deaf to the mouse wheel once the lock lifts, until a click; the
+  // editor is inert while it loads too. Hiding the frame's overflow for one frame makes it
+  // rebuild the scroller.
+  const inert = readOnly || loading;
   const wasLocked = useRef(false);
   useEffect(() => {
-    if (readOnly) {
+    if (inert) {
       wasLocked.current = true;
       return;
     }
@@ -283,7 +285,7 @@ export default function EmailEditor({
       cancelAnimationFrame(frame);
       root.style.overflow = overflow;
     };
-  }, [readOnly]);
+  }, [inert]);
   const [crumbs, setCrumbs] = useState<Component[]>([]);
   // The open picker: GrapesJS hands over how to apply a choice to the image being edited.
   const [picker, setPicker] = useState<{ current?: string; select: (url: string) => void } | null>(
@@ -406,7 +408,7 @@ export default function EmailEditor({
     // The email starts at mj-body: above it are the GrapesJS root and <mjml>, and mj-head,
     // none of which anyone edits here. Sections and columns start open, as they are the
     // structure the rows below them make sense in.
-    const STRUCTURE = new Set(["mj-wrapper", "mj-section", "mj-column"]);
+    const STRUCTURE = new Set(["mj-wrapper", "mj-section", "mj-group", "mj-column"]);
     const showBodyInLayers = () => {
       const body = findByTag("mj-body");
       if (!body) return;
@@ -760,12 +762,19 @@ export default function EmailEditor({
       }}
       onEditor={onEditor}
     >
-      {/* Inert as well as covered, so the keyboard cannot reach the controls either. */}
+      {/* Inert as well as covered, so the keyboard cannot reach the controls either. Until the
+          email has loaded too: a block added from the keyboard before then was lost to the load. */}
       <div
         className="relative flex h-full min-h-0 flex-1"
-        inert={readOnly}
+        inert={inert}
         onKeyDown={(e) => onBlockSearchKey(e.nativeEvent)}
       >
+        {/* Over the sidebar too, which is as inert as the canvas until the email arrives. */}
+        {loading && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
+            <Spinner /> {labels.loadingEditor}
+          </div>
+        )}
         {readOnly && (
           <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
             <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">
@@ -805,11 +814,6 @@ export default function EmailEditor({
                 editorRef.current?.AssetManager.close();
               }}
             />
-            {loading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-                <Spinner /> {labels.loadingEditor}
-              </div>
-            )}
           </div>
           <Breadcrumb crumbs={crumbs} onSelect={(c) => editorRef.current?.select(c)} />
         </div>

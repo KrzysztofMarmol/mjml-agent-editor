@@ -174,6 +174,13 @@ export const SCHEMA: Readonly<Record<string, readonly Field[]>> = {
     { attr: "direction", label: "reverseColumns", group: "advanced", control: { type: "toggle", on: "rtl" } },
     { attr: "border", label: "border", group: "advanced", control: { type: "text", placeholder: "1px solid #cccccc" } },
   ],
+  // MJML allows a group these and `width` only: padding or a border fails strict. Its width is
+  // not offered, as the canvas does not draw it: the plugin's group drops MJML's rule for it.
+  "mj-group": [
+    { attr: "vertical-align", label: "verticalAlign", group: "layout", control: { type: "segmented", options: VERTICAL_ALIGN } },
+    { attr: "background-color", label: "backgroundColor", group: "style", control: { type: "color" } },
+    { attr: "direction", label: "reverseColumns", group: "advanced", control: { type: "toggle", on: "rtl" } },
+  ],
   "mj-column": [
     { attr: "vertical-align", label: "verticalAlign", group: "layout", control: { type: "segmented", options: VERTICAL_ALIGN }, default: "top" },
     { attr: "padding", label: "padding", group: "spacing", control: { type: "box", units: PX_PCT } },

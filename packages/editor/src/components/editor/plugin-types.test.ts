@@ -43,6 +43,100 @@ function first(tag: string): Component {
 const strictErrors = () => mjml(editor.getHtml(), { validationLevel: "strict" }).errors;
 
 describe("fixPluginTypes", () => {
+  it("draws a column in a group with the width MJML gives it there, not a section's 100%", () => {
+    editor.setComponents(
+      '<mjml><mj-body><mj-section><mj-group><mj-column width="25%"><mj-text>a</mj-text></mj-column><mj-column><mj-text>b</mj-text></mj-column></mj-group><mj-column><mj-text>c</mj-text></mj-column></mj-section></mj-body></mjml>',
+    );
+    const view = editor.Components.getType("mj-column")!.view.prototype as unknown as {
+      getMjmlTemplate(this: { model: Component }): { start: string; end: string };
+      getTemplateFromEl(this: { model: Component }, el: HTMLElement): HTMLElement | null;
+    };
+    const grouped = first("mj-group").components().at(0);
+    const loose = first("mj-section").components().at(1);
+    const template = view.getMjmlTemplate.call({ model: grouped });
+    expect(template.start).toContain("<mj-group>");
+    expect(view.getMjmlTemplate.call({ model: loose }).start).not.toContain("<mj-group>");
+
+    // What the plugin does with the template: compile, then take the column's element.
+    const html = (mjml as unknown as (x: string) => { html: string })(
+      `${template.start}<mj-column width="25%"></mj-column>${template.end}`,
+    ).html;
+    const container = document.createElement("div");
+    container.innerHTML = html
+      .slice(html.indexOf("<body"))
+      .replace(/^<body[^>]*>/, "")
+      .replace(/<\/body>[\s\S]*$/, "")
+      .trim();
+    const column = view.getTemplateFromEl.call({ model: grouped }, container);
+    expect(column?.getAttribute("style")).toContain("width:25%");
+  });
+
+  it("redraws a group's columns at their new width when a column moves in", () => {
+    editor.setComponents(
+      "<mjml><mj-body><mj-section><mj-group><mj-column><mj-text>a</mj-text></mj-column><mj-column><mj-text>b</mj-text></mj-column></mj-group><mj-column><mj-text>c</mj-text></mj-column></mj-section></mj-body></mjml>",
+    );
+    // Headless has no canvas, so the body's views are rendered by hand, as the canvas would.
+    const ComponentsView = (
+      editor.Components as unknown as {
+        ComponentsView: new (o: object) => { render(): { el: HTMLElement } };
+      }
+    ).ComponentsView;
+    document.body.appendChild(
+      new ComponentsView({
+        collection: first("mj-body").components(),
+        config: { ...editor.Components.config, em: editor.getModel() },
+        componentTypes: editor.Components.getTypes(),
+      }).render().el,
+    );
+    const group = first("mj-group");
+    const loose = first("mj-section").components().at(1);
+    loose.collection.remove(loose, { temporary: true } as never);
+    group.components().add(loose, { action: "move-component" } as never);
+
+    const widths = group
+      .components()
+      .map(
+        (c: Component) =>
+          (c.getEl() as HTMLElement).getAttribute("style")?.match(/width:([^;]+)/)?.[1],
+      );
+    expect(widths).toEqual(["33%", "33%", "33%"]);
+  });
+
+  it("draws a px column in a group as its share of the group, not of 600px", () => {
+    editor.setComponents(
+      '<mjml><mj-body><mj-section><mj-group width="400px"><mj-column width="100px"><mj-text>a</mj-text></mj-column><mj-column width="300px"><mj-text>b</mj-text></mj-column></mj-group></mj-section></mj-body></mjml>',
+    );
+    const view = editor.Components.getType("mj-column")!.view.prototype as unknown as {
+      getMjmlTemplate(this: { model: Component }): { start: string; end: string };
+    };
+    expect(view.getMjmlTemplate.call({ model: first("mj-column") }).start).toContain(
+      '<mj-group width="400px">',
+    );
+  });
+
+  it("moves a column into and within a column group, and never into a column", () => {
+    const draggable = String(
+      editor.Components.getType("mj-column")!.model.prototype.defaults.draggable,
+    );
+    const target = (type: string) => {
+      const el = document.createElement("div");
+      el.setAttribute("data-gjs-type", type);
+      return el;
+    };
+    expect(target("mj-group").matches(draggable)).toBe(true);
+    expect(target("mj-section").matches(draggable)).toBe(true);
+    expect(target("mj-column").matches(draggable)).toBe(false);
+
+    editor.setComponents(
+      "<mjml><mj-body><mj-section><mj-group><mj-column><mj-text>a</mj-text></mj-column></mj-group><mj-column><mj-text>b</mj-text></mj-column></mj-section></mj-body></mjml>",
+    );
+    const loose = first("mj-section").components().at(1);
+    first("mj-group").append(loose.clone());
+    loose.remove();
+    expect(first("mj-group").components()).toHaveLength(2);
+    expect(strictErrors()).toEqual([]);
+  });
+
   it("writes a quote inside an attribute value so the document still parses", async () => {
     load('<mj-button href="https://a.com">Go</mj-button>');
     await createWriter(editor, first("mj-button"))("title", 'Shop "summer"');
