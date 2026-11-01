@@ -9,7 +9,8 @@ export function clickShowsSettings(
   selected: Pick<Element, "contains"> | undefined,
   target: EventTarget | null,
 ): boolean {
-  return !!selected && target instanceof Node && selected.contains(target);
+  // Not `instanceof Node`: the canvas's nodes belong to the iframe's window, not this one.
+  return !!selected && !!target && selected.contains(target as Node);
 }
 
 /**

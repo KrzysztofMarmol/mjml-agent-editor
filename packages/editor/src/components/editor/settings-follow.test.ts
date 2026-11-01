@@ -13,6 +13,14 @@ describe("clickShowsSettings", () => {
     expect(clickShowsSettings(selected, selected)).toBe(true);
   });
 
+  it("works on the canvas's own nodes, which belong to the iframe's window", () => {
+    const frame = document.body.appendChild(document.createElement("iframe"));
+    const doc = frame.contentDocument!;
+    const component = doc.body.appendChild(doc.createElement("div"));
+    expect(clickShowsSettings(component, component.appendChild(doc.createElement("b")))).toBe(true);
+    frame.remove();
+  });
+
   it("stays put for a click outside the selection, or with nothing selected", () => {
     expect(clickShowsSettings(selected, elsewhere)).toBe(false);
     expect(clickShowsSettings(undefined, inside)).toBe(false);
