@@ -37,6 +37,7 @@ const COLUMN_CHILDREN = new Set([
  *   plugin drew every column as a section's, which the Mobile view stacked.
  * - An mj-table keeps its rows.
  * - An image without a picture is saved without one.
+ * - Stacked social icons are drawn stacked: the plugin drew them in a row whatever the mode.
  */
 export function fixPluginTypes(editor: Editor) {
   addTableType(editor);
@@ -44,10 +45,11 @@ export function fixPluginTypes(editor: Editor) {
     // mj-table is ours and serialises through GrapesJS's own escaping; this would add a second.
     if (!type.id.startsWith("mj-") || type.id === "mj-table") continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
-    const view = type.view.prototype as ColumnView;
+    const view = type.view.prototype as PluginView;
     editor.Components.addType(type.id, {
-      ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
+      ...(type.id === "mj-column" && { view: groupedPluginView(view) }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
+      ...(type.id === "mj-social-element" && { view: stackedSocialView(view) }),
       model: {
         defaults: {
           "style-default": {},
@@ -72,8 +74,9 @@ export function fixPluginTypes(editor: Editor) {
   }
 }
 
-interface ColumnView {
+interface PluginView {
   model: Component;
+  el: HTMLElement;
   init(): void;
   render(): unknown;
   listenTo(target: unknown, events: string, callback: () => unknown): void;
@@ -89,9 +92,9 @@ const inGroup = (column: Component) => column.parent()?.get("type") === "mj-grou
  * a section's column gets 100% and only a desktop rule; so a grouped column is compiled in a
  * group, and taken from one level further down.
  */
-function groupedColumnView(base: ColumnView): Partial<ColumnView> {
+function groupedPluginView(base: PluginView): Partial<PluginView> {
   return {
-    getMjmlTemplate(this: ColumnView) {
+    getMjmlTemplate(this: PluginView) {
       if (!inGroup(this.model)) return base.getMjmlTemplate.call(this);
       const siblings = "<mj-column></mj-column>".repeat(
         Math.max((this.model.collection?.length ?? 1) - 1, 0),
@@ -109,7 +112,7 @@ function groupedColumnView(base: ColumnView): Partial<ColumnView> {
         end: `${siblings}</mj-group></mj-section></mj-body></mjml>`,
       };
     },
-    getTemplateFromEl(this: ColumnView, container: HTMLElement) {
+    getTemplateFromEl(this: PluginView, container: HTMLElement) {
       if (!inGroup(this.model)) return base.getTemplateFromEl.call(this, container);
       return (
         (container.firstChild as HTMLElement | null)?.querySelector(
@@ -124,11 +127,33 @@ function groupedColumnView(base: ColumnView): Partial<ColumnView> {
  * A group redraws its columns when one arrives or leaves, as the plugin's section does for its
  * own: each column's drawn width depends on how many share the group.
  */
-function redrawnGroupView(base: ColumnView): Partial<ColumnView> {
+function redrawnGroupView(base: PluginView): Partial<PluginView> {
   return {
-    init(this: ColumnView) {
+    init(this: PluginView) {
       base.init.call(this);
       this.listenTo(this.model.components(), "add remove", this.render);
+    },
+  };
+}
+
+/**
+ * How a social icon sits in the canvas. In a row MJML lays the icons inline, as the plugin
+ * draws them; stacked it gives each a row of its own, aligned as the group is.
+ */
+export function socialIconLayout(mode: unknown, align: unknown) {
+  if (mode !== "vertical") return { display: "inline-table", margin: "" };
+  const margin = align === "left" ? "0 auto 0 0" : align === "right" ? "0 0 0 auto" : "0 auto";
+  return { display: "table", margin };
+}
+
+/** The plugin redraws every icon when its group changes, so the mode is read on each draw. */
+function stackedSocialView(base: PluginView): Partial<PluginView> {
+  return {
+    render(this: PluginView) {
+      const drawn = base.render.call(this);
+      const group = this.model.parent()?.getAttributes() ?? {};
+      Object.assign(this.el.style, socialIconLayout(group.mode, group.align));
+      return drawn;
     },
   };
 }

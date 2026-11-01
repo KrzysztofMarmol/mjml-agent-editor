@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createWriter } from "./inspector/write.js";
 import { sourceForEditor, withClosedTags } from "./mjml-attributes.js";
-import { fixPluginTypes } from "./plugin-types.js";
+import { fixPluginTypes, socialIconLayout } from "./plugin-types.js";
 
 const require = createRequire(import.meta.url);
 const mjml = require("mjml") as (
@@ -286,5 +286,15 @@ describe("mj-table in the canvas", () => {
     table.addAttributes({ cellpadding: "2" });
     expect(view.el.style.display).toBe("table");
     expect(view.el.textContent).toBe("A");
+  });
+});
+
+describe("social icons in the canvas", () => {
+  it("lie in a row, or stacked and aligned as the group is", () => {
+    expect(socialIconLayout(undefined, undefined)).toEqual({ display: "inline-table", margin: "" });
+    expect(socialIconLayout("horizontal", "left").display).toBe("inline-table");
+    expect(socialIconLayout("vertical", undefined)).toEqual({ display: "table", margin: "0 auto" });
+    expect(socialIconLayout("vertical", "left").margin).toBe("0 auto 0 0");
+    expect(socialIconLayout("vertical", "right").margin).toBe("0 0 0 auto");
   });
 });
