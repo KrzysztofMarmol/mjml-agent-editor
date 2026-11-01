@@ -28,6 +28,7 @@ import Inspector from "./inspector/Inspector.js";
 import { registerBlocks, type SectionBlock } from "./blocks.js";
 import { BUILTIN_BLOCKS, builtinBlock, CANVAS_CSS } from "./builtin-blocks.js";
 import { addsBlock, insertBlock } from "./insert-block.js";
+import { clickShowsSettings, dropShowsSettings } from "./settings-follow.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
 import { fixPluginTypes } from "./plugin-types.js";
@@ -245,9 +246,6 @@ export default function EmailEditor({
   };
   // Comment being composed (sparkles button) — opens the canvas popover.
   const [composeTarget, setComposeTarget] = useState<CommentTarget | null>(null);
-  // Where the current selection came from — canvas click opens Settings,
-  // selecting from the Layers tree does not (keeps you on Layers).
-  const selectionSource = useRef<"canvas" | "layers" | "other">("other");
   // Breadcrumb of the selected component's ancestry (Section › Column › …).
   const editorRef = useRef<Editor | null>(null);
   // Read only from a turn's start until the document it left is loaded, not just until it
@@ -435,17 +433,14 @@ export default function EmailEditor({
       if (!loadingRef.current) freshenCopiedIds(editor.getWrapper(), c);
       decorate(c);
     });
-    // Track selection origin: a mousedown inside the canvas iframe marks the
-    // next selection as coming from the canvas (→ open Settings). Selecting via
-    // the Layers tree leaves the source as "layers" (set by the sidebar).
     editor.on("load", () => {
-      const body = editor.Canvas.getBody();
-      body?.addEventListener(
-        "mousedown",
-        () => {
-          selectionSource.current = "canvas";
-        },
-        true,
+      // After GrapesJS's own click handler, which selects; see clickShowsSettings.
+      editor.Canvas.getBody()?.addEventListener("click", (e) =>
+        setTimeout(() => {
+          if (clickShowsSettings(editor.getSelected()?.getEl(), e.target)) {
+            setSidebarView("settings");
+          }
+        }),
       );
       // The host document only gets a copy of these, aimed at the iframe (see opensBlockSearch).
       editor.Canvas.getDocument()?.addEventListener("keydown", onBlockSearchKey);
@@ -455,9 +450,10 @@ export default function EmailEditor({
     // After GrapesJS's own listener, which was added when the editor was created.
     editor.on("component:selected", (c: Component) => {
       keepStructureOpen();
-      if (selectionSource.current === "canvas") setSidebarView("settings");
-      selectionSource.current = "other";
       buildCrumbs(c);
+    });
+    editor.on("block:drag:stop", (added?: Component | Component[]) => {
+      if (dropShowsSettings(added, editor.getSelected())) setSidebarView("settings");
     });
     // With multi-select a deselection can leave something selected; follow what remains.
     editor.on("component:deselected", () => {
@@ -785,7 +781,6 @@ export default function EmailEditor({
         <LeftSidebar
           view={sidebarView}
           onViewChange={setSidebarView}
-          markLayersSource={() => (selectionSource.current = "layers")}
           blockSearchRef={blockSearchRef}
         />
         <div className="flex min-w-0 flex-1 flex-col bg-surface-muted">
@@ -829,12 +824,10 @@ type SidebarView = "blocks" | "settings" | "layers";
 function LeftSidebar({
   view,
   onViewChange,
-  markLayersSource,
   blockSearchRef,
 }: {
   view: SidebarView;
   onViewChange: (v: SidebarView) => void;
-  markLayersSource: () => void;
   blockSearchRef: React.Ref<HTMLInputElement>;
 }) {
   const editor = useEditorMaybe();
@@ -966,12 +959,8 @@ function LeftSidebar({
         />
       </div>
 
-      {/* Layers — with an expand/collapse-all switch. A pointer-down here marks
-          the next selection as coming from the tree (→ do NOT open Settings). */}
-      <div
-        className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}
-        onMouseDownCapture={markLayersSource}
-      >
+      {/* Layers — with an expand/collapse-all switch. */}
+      <div className={cn("flex min-h-0 flex-1 flex-col", view !== "layers" && "hidden")}>
         <label className="flex items-center justify-between gap-2 border-b border-panel-border px-3 py-2 text-xs text-panel-muted-fg">
           <span>{labels.expandAll}</span>
           <Switch

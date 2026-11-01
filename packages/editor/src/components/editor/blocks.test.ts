@@ -127,6 +127,11 @@ describe("registerBlocks", () => {
     expect(editor.Blocks.get("card")!.get("attributes")).toMatchObject({ "data-block": "card" });
   });
 
+  it("is selected once dropped, like the built-in blocks", () => {
+    registerBlocks(editor, [{ id: "card", label: "Card", mjml: CARD }], "Sections", "");
+    expect(editor.Blocks.get("card")!.get("select")).toBe(true);
+  });
+
   it("shows a label as text", () => {
     registerBlocks(editor, [{ id: "card", label: "<b>Card</b>", mjml: CARD }], "Sections", "");
     expect(editor.Blocks.get("card")!.getLabel()).toBe("&lt;b&gt;Card&lt;/b&gt;");
