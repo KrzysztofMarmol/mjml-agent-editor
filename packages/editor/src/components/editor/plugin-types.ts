@@ -49,7 +49,7 @@ export function fixPluginTypes(editor: Editor) {
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
     const view = type.view.prototype as PluginView;
     editor.Components.addType(type.id, {
-      ...(type.id === "mj-column" && { view: groupedPluginView(view) }),
+      ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
       ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
       ...(type.id === "mj-social-element" && { view: socialIconView(view) }),
@@ -97,7 +97,7 @@ const inGroup = (column: Component) => column.parent()?.get("type") === "mj-grou
  * a section's column gets 100% and only a desktop rule; so a grouped column is compiled in a
  * group, and taken from one level further down.
  */
-function groupedPluginView(base: PluginView): Partial<PluginView> {
+function groupedColumnView(base: PluginView): Partial<PluginView> {
   return {
     getMjmlTemplate(this: PluginView) {
       if (!inGroup(this.model)) return base.getMjmlTemplate.call(this);
@@ -182,14 +182,20 @@ function stackedSocialGroupView(base: PluginView): Partial<PluginView> {
   };
 }
 
-/** In a drawn icon, what holds its label: MJML's link or span beside the icon's own. */
+/** In a drawn icon, what holds its label: the link or span in the cell beside the icon's. */
 export function socialLabel(icon: HTMLElement): HTMLElement | null {
-  const cells = icon.querySelectorAll<HTMLElement>("td > a, td > span");
-  return Array.from(cells).find((cell) => !cell.querySelector("img")) ?? null;
+  const row = icon.querySelector("tr");
+  const cell = Array.from(row?.cells ?? []).find((td) => !td.querySelector("table"));
+  return (cell?.firstElementChild as HTMLElement | null | undefined) ?? null;
 }
 
 function socialIconView(base: PluginView): Partial<PluginView> {
   return {
+    // The label decides whether MJML draws a label cell, so a change to it redraws the icon.
+    init(this: PluginView) {
+      base.init.call(this);
+      this.listenTo(this.model.components(), "add remove", this.render);
+    },
     // A change to the group's attributes redraws its icons, so each lays out the cell as well.
     render(this: PluginView) {
       const drawn = base.render.call(this);

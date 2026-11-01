@@ -335,5 +335,10 @@ describe("social icons in the canvas", () => {
     expect(
       socialLabel(drawn('<mj-social><mj-social-element name="facebook" /></mj-social>')),
     ).toBeNull();
+    // A label with a picture of its own is still told apart from the icon.
+    const pictured = drawn(
+      '<mj-social><mj-social-element name="facebook" href="https://x.test">Go <img src="https://x.test/a.png" /></mj-social-element></mj-social>',
+    );
+    expect(socialLabel(pictured)?.textContent?.trim()).toBe("Go");
   });
 });
