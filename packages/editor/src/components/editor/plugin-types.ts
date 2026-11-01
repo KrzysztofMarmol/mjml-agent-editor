@@ -49,7 +49,8 @@ export function fixPluginTypes(editor: Editor) {
     editor.Components.addType(type.id, {
       ...(type.id === "mj-column" && { view: groupedPluginView(view) }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
-      ...(type.id === "mj-social-element" && { view: stackedSocialView(view) }),
+      ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
+      ...(type.id === "mj-social-element" && { view: stackedSocialIconView(view) }),
       model: {
         defaults: {
           "style-default": {},
@@ -82,6 +83,7 @@ interface PluginView {
   listenTo(target: unknown, events: string, callback: () => unknown): void;
   getMjmlTemplate(): { start: string; end: string };
   getTemplateFromEl(container: HTMLElement): HTMLElement | null;
+  getChildrenContainer(): HTMLElement;
 }
 
 const inGroup = (column: Component) => column.parent()?.get("type") === "mj-group";
@@ -155,16 +157,28 @@ export function socialLayout(mode: unknown, align: unknown) {
   };
 }
 
-/**
- * The plugin redraws every icon whenever its group changes, so an icon lays out the group's
- * cell as well as itself.
- */
-function stackedSocialView(base: PluginView): Partial<PluginView> {
+const groupLayout = (group: Component | undefined) => {
+  const attributes = group?.getAttributes() ?? {};
+  return socialLayout(attributes.mode, attributes.align);
+};
+
+/** The group's cell, laid out once its icons are in it: on load, and as icons come and go. */
+function stackedSocialGroupView(base: PluginView): Partial<PluginView> {
   return {
     render(this: PluginView) {
       const drawn = base.render.call(this);
-      const group = this.model.parent()?.getAttributes() ?? {};
-      const { icon, column } = socialLayout(group.mode, group.align);
+      Object.assign(this.getChildrenContainer().style, groupLayout(this.model).column);
+      return drawn;
+    },
+  };
+}
+
+/** A change to the group's attributes redraws its icons, so each lays out the cell as well. */
+function stackedSocialIconView(base: PluginView): Partial<PluginView> {
+  return {
+    render(this: PluginView) {
+      const drawn = base.render.call(this);
+      const { icon, column } = groupLayout(this.model.parent());
       Object.assign(this.el.style, icon);
       if (this.el.parentElement) Object.assign(this.el.parentElement.style, column);
       return drawn;
