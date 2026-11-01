@@ -447,6 +447,16 @@ export default function EmailEditor({
         },
         true,
       );
+      // A click on what is already selected selects nothing, so the listener below never
+      // clears the mark: a later selection, such as a dropped block's, took it for a click.
+      // Settled here instead, after GrapesJS has handled the click.
+      body?.addEventListener("click", () =>
+        setTimeout(() => {
+          if (selectionSource.current !== "canvas") return;
+          selectionSource.current = "other";
+          if (editor.getSelected()) setSidebarView("settings");
+        }),
+      );
       // The host document only gets a copy of these, aimed at the iframe (see opensBlockSearch).
       editor.Canvas.getDocument()?.addEventListener("keydown", onBlockSearchKey);
       // GrapesJS sets its configured root on load, which may come after the document did.
@@ -458,6 +468,10 @@ export default function EmailEditor({
       if (selectionSource.current === "canvas") setSidebarView("settings");
       selectionSource.current = "other";
       buildCrumbs(c);
+    });
+    // A dropped block is selected with no click on the canvas; it opens Settings all the same.
+    editor.on("block:drag:stop", (added?: Component) => {
+      if (added) setSidebarView("settings");
     });
     // With multi-select a deselection can leave something selected; follow what remains.
     editor.on("component:deselected", () => {
