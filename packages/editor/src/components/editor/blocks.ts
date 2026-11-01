@@ -165,6 +165,8 @@ export function registerBlocks(
       media: block.media ?? media,
       content: withClosedTags(block.mjml),
       attributes: tileAttributes(block.id),
+      // Selected once dropped, as grapesjs-mjml's own blocks are, so its Settings open.
+      select: true,
     });
   }
 }
