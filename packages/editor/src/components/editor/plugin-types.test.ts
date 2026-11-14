@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { createWriter } from "./inspector/write.js";
 import { sourceForEditor, withClosedTags } from "./mjml-attributes.js";
-import { fixPluginTypes, socialLabel, socialLayout } from "./plugin-types.js";
+import { fixPluginTypes, HEAD_CSS, socialLabel, socialLayout } from "./plugin-types.js";
 
 const require = createRequire(import.meta.url);
 const mjml = require("mjml") as (
@@ -340,5 +340,34 @@ describe("social icons in the canvas", () => {
       '<mj-social><mj-social-element name="facebook" href="https://x.test">Go <img src="https://x.test/a.png" /></mj-social-element></mj-social>',
     );
     expect(socialLabel(pictured)?.textContent?.trim()).toBe("Go");
+  });
+});
+
+describe("mj-head in the canvas", () => {
+  const HEAD =
+    '<mj-head><mj-attributes><mj-button border-radius="6px"></mj-button></mj-attributes><mj-preview>Fresh this week</mj-preview></mj-head>';
+
+  it("is hidden, so a default it holds is not drawn above the email as an element", () => {
+    editor.setComponents(
+      `<mjml>${HEAD}<mj-body><mj-section><mj-column><mj-text>a</mj-text></mj-column></mj-section></mj-body></mjml>`,
+    );
+    // What the canvas draws: every component carries its type, the default inside as a button.
+    const head = first("mj-head");
+    const inside: string[] = [];
+    head.onAll((c) => inside.push(String(c.get("type"))));
+    expect(inside).toContain("mj-button");
+
+    const style = document.createElement("style");
+    style.textContent = HEAD_CSS;
+    document.head.append(style);
+    const el = document.createElement("mj-head");
+    el.dataset.gjsType = String(head.get("type"));
+    document.body.append(el);
+    expect(getComputedStyle(el).display).toBe("none");
+  });
+
+  it("is still saved as it was loaded", () => {
+    editor.setComponents(`<mjml>${HEAD}<mj-body></mj-body></mjml>`);
+    expect(editor.getHtml()).toContain(HEAD);
   });
 });

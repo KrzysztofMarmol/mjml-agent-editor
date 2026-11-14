@@ -23,6 +23,13 @@ const COLUMN_CHILDREN = new Set([
 ]);
 
 /**
+ * Hides mj-head in the canvas. The plugin draws it like any element, so what it holds showed
+ * above the email: an `<mj-button>` default in mj-attributes as an empty button, the preview
+ * text as a line of text. Hidden, its mj-style and mj-font still apply.
+ */
+export const HEAD_CSS = '[data-gjs-type="mj-head"] { display: none !important; }';
+
+/**
  * Applied to every mj-* type before a document loads.
  *
  * - No `style-default`s: the plugin's differ from MJML's in places. It stripped any attribute

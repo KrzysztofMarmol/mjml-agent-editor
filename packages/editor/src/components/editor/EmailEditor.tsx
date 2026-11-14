@@ -31,7 +31,7 @@ import { addsBlock, insertBlock } from "./insert-block.js";
 import { clickShowsSettings, dropShowsSettings } from "./settings-follow.js";
 import { addIdClass, freshenCopiedIds, sectionIdOf } from "./ids.js";
 import { badgeLabel, setupLayerNames } from "./layers.js";
-import { fixPluginTypes } from "./plugin-types.js";
+import { fixPluginTypes, HEAD_CSS } from "./plugin-types.js";
 import { illegalAttributes, sourceForEditor } from "./mjml-attributes.js";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -709,7 +709,7 @@ export default function EmailEditor({
         // privacy policy. Nothing we show uses it: GrapesJS draws its toolbar and layer icons
         // as SVG, and its icon-font panels and style manager are not rendered here.
         cssIcons: "",
-        canvasCss: CANVAS_CSS,
+        canvasCss: CANVAS_CSS + HEAD_CSS,
         fromElement: false,
         panels: { defaults: [] },
         blockManager: { appendTo: "#gjs-blocks" },
