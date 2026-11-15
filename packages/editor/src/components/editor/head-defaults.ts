@@ -1,73 +1,101 @@
 /**
- * The document's mj-attributes, for the canvas. The plugin compiles each element alone, in a
- * document of its own without a head, so mj-all, a tag's defaults and mj-class never reached
- * the canvas. mj-style and mj-font need nothing: the head draws them as styles.
+ * What the document's mj-attributes give an element, for the canvas. The plugin compiles each
+ * element alone, without the head, so mj-all, a tag's defaults and mj-class never reached the
+ * canvas. They are resolved here and compiled as the element's own attributes: a head in the
+ * compile would also reach the scaffold the plugin wraps an element in, and the plugin finds
+ * the element in the result by its place in that scaffold. mj-style and mj-font need nothing:
+ * the head draws them as styles.
  */
 
 import type { Component } from "grapesjs";
 
-function headOf(model: Component): Component | undefined {
+type Attributes = Record<string, unknown>;
+
+// What mj-social hands each icon, over mj-all; MJML's `getSocialElementAttributes`.
+const SOCIAL_PASSED = [
+  "border-radius",
+  "color",
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "icon-size",
+  "icon-height",
+  "icon-padding",
+  "text-padding",
+  "line-height",
+  "text-decoration",
+];
+
+const classNames = (c: Component | undefined) =>
+  String(c?.getAttributes()["mj-class"] ?? "").split(" ");
+
+/** The head's declarations, merged as MJML merges them across several mj-attributes. */
+function declarations(model: Component) {
   let root: Component | undefined = model;
   while (root && root.get("type") !== "mjml") root = root.parent();
-  return root?.components().find((c: Component) => c.get("type") === "mj-head");
-}
-
-const attributeBlocks = (head: Component): Component[] =>
-  head.components().filter((c: Component) => c.get("tagName") === "mj-attributes");
-
-// The mj-attributes each mj-head holds, as MJML, until something in that head changes.
-const cache = new WeakMap<Component, string>();
-
-/** The head's mj-attributes as MJML, for an element's own compile. */
-export function headDefaultsOf(model: Component): string {
-  const head = headOf(model);
-  if (!head) return "";
-  let defaults = cache.get(head);
-  if (defaults === undefined) {
-    defaults = attributeBlocks(head)
-      .map((c) => c.toHTML())
-      .join("");
-    cache.set(head, defaults);
+  const head = root?.components().find((c: Component) => c.get("type") === "mj-head");
+  const tags: Record<string, Attributes> = {};
+  const classes: Record<string, Attributes> = {};
+  const classChildren: Record<string, Record<string, Attributes>> = {};
+  const own = (c: Component): Attributes => {
+    const { style: _style, id: _id, ...attributes } = c.get("attributes") as Attributes;
+    return attributes;
+  };
+  for (const block of head?.components().models ?? []) {
+    if (block.get("tagName") !== "mj-attributes") continue;
+    for (const c of block.components().models) {
+      const tag = String(c.get("tagName"));
+      if (tag !== "mj-class") {
+        tags[tag] = { ...tags[tag], ...own(c) };
+        continue;
+      }
+      const { name, ...attributes } = own(c);
+      classes[String(name)] = { ...classes[String(name)], ...attributes };
+      classChildren[String(name)] = {
+        ...classChildren[String(name)],
+        ...Object.fromEntries(c.components().map((d: Component) => [d.get("tagName"), own(d)])),
+      };
+    }
   }
-  return defaults;
-}
-
-/** A body element's template with a head of `defaults`; mj-style's and mj-font's have one. */
-export function withHeadDefaults(template: { start: string; end: string }, defaults: string) {
-  if (!defaults || !template.start.startsWith("<mjml>") || template.start.includes("<mj-head")) {
-    return template;
-  }
-  return { ...template, start: `<mjml><mj-head>${defaults}</mj-head>${template.start.slice(6)}` };
+  return { tags, classes, classChildren };
 }
 
 /**
- * What the head gives an element that is not compiled (mj-table), in MJML's order: mj-all,
- * then its tag's defaults, then its mj-classes. Its own attributes go over these.
+ * In MJML's order: mj-all, then the tag's defaults, then its mj-classes (their css-classes
+ * joined), then what the nearest ancestor's mj-classes give its tag. Its own attributes go
+ * over these.
  */
-export function headAttributesOf(model: Component): Record<string, unknown> {
-  const head = headOf(model);
-  const sets = head ? attributeBlocks(head).flatMap((c) => c.components().models) : [];
-  const named = (tag: string) => sets.filter((c) => c.get("tagName") === tag);
-  const classes = String(model.getAttributes()["mj-class"] ?? "").split(/\s+/);
-  const resolved: Record<string, unknown> = {};
-  for (const set of [
-    ...named("mj-all"),
-    ...named(String(model.get("tagName"))),
-    ...classes.flatMap((name) => named("mj-class").filter((c) => c.getAttributes().name === name)),
-  ]) {
-    Object.assign(resolved, set.getAttributes());
+export function headAttributesOf(model: Component): Attributes {
+  const { tags, classes, classChildren } = declarations(model);
+  const tag = String(model.get("tagName"));
+  const all = { ...tags["mj-all"] };
+  // MJML hands these down from the group, over mj-all; the plugin compiles the icon in it.
+  if (tag === "mj-social-element") {
+    for (const name of SOCIAL_PASSED) delete all[name];
+    if (resolvedAttributesOf(model.parent())["inner-padding"]) delete all.padding;
   }
-  delete resolved.name;
-  return resolved;
+  const fromClasses: Attributes = {};
+  for (const name of classNames(model)) {
+    const joined = [fromClasses["css-class"], classes[name]?.["css-class"]].filter(Boolean);
+    Object.assign(
+      fromClasses,
+      classes[name],
+      joined.length > 1 && { "css-class": joined.join(" ") },
+    );
+  }
+  let ancestor = model.parent();
+  while (ancestor && ancestor.getAttributes()["mj-class"] === undefined) {
+    ancestor = ancestor.parent();
+  }
+  const fromAncestor = Object.assign(
+    {},
+    ...classNames(ancestor).map((name) => classChildren[name]?.[tag]),
+  ) as Attributes;
+  return { ...all, ...tags[tag], ...fromClasses, ...fromAncestor };
 }
 
-/** On mj-head: a change anywhere in it redraws the body, every element from the new defaults. */
-export function redrawOnHeadChange(this: Component) {
-  this.on("component:update component:update-inside", () => {
-    cache.delete(this);
-    const body = this.parent()
-      ?.components()
-      .find((c: Component) => c.get("type") === "mj-body");
-    (body?.view as { render(): unknown } | undefined)?.render();
-  });
+/** An element's attributes as MJML resolves them: the head's, then its own. */
+export function resolvedAttributesOf(model: Component | undefined): Attributes {
+  return model ? { ...headAttributesOf(model), ...model.getAttributes() } : {};
 }

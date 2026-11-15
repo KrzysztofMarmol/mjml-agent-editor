@@ -7,7 +7,7 @@
 import { isSafeLink } from "@mjml-agent-editor/core";
 import type { Component, Editor } from "grapesjs";
 
-import { headAttributesOf } from "./head-defaults.js";
+import { resolvedAttributesOf } from "./head-defaults.js";
 
 // What the agent's guard refuses too, and a nested template, whose content no query reaches.
 const DROPPED =
@@ -97,7 +97,7 @@ export function addTableType(editor: Editor) {
         el.replaceChildren(
           tablePreview(
             el.ownerDocument,
-            { ...headAttributesOf(model), ...model.getAttributes() },
+            resolvedAttributesOf(model),
             String(model.get("content") ?? ""),
           ),
         );
