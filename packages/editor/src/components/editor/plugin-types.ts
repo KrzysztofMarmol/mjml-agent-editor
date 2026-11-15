@@ -2,7 +2,7 @@
 
 import type { Component, Editor } from "grapesjs";
 
-import { headAttributesOf, resolvedAttributesOf } from "./head-defaults.js";
+import { headAttributesOf, resolvedAttributesOf, setAttributes } from "./head-defaults.js";
 import { addTableType } from "./table-type.js";
 
 type AttributesOf = (this: Component) => Record<string, unknown>;
@@ -68,6 +68,7 @@ export function fixPluginTypes(editor: Editor) {
         view: { ...groupedColumnView(view), renderStyle: columnStyle },
       }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
+      ...((type.id === "mj-section" || type.id === "mj-wrapper") && { view: fullWidthView }),
       ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
       ...(type.id === "mj-social-element" && { view: socialIconView(view) }),
       model: {
@@ -76,7 +77,7 @@ export function fixPluginTypes(editor: Editor) {
         ...(mjmlAttributes && {
           getMjmlAttributes(this: Component) {
             const { "mj-class": _class, ...own } = mjmlAttributes.call(this);
-            return { ...headAttributesOf(this), ...own };
+            return { ...headAttributesOf(this), ...setAttributes(own) };
           },
         }),
         defaults: {
@@ -111,6 +112,7 @@ interface PluginView {
   getMjmlTemplate(): { start: string; end: string };
   getTemplateFromEl(container: HTMLElement): HTMLElement | null;
   getChildrenContainer(): HTMLElement;
+  getChildrenSelector(): string;
   getInnerMjmlTemplate(): { start: string; end: string };
   renderStyle(): void;
   checkVisibility(): void;
@@ -136,6 +138,15 @@ function columnStyle(this: PluginView) {
   this.checkVisibility();
 }
 
+/** Where a section's or wrapper's children go: the plugin's, from a full-width the head gives too. */
+const fullWidthView: Partial<PluginView> = {
+  getChildrenSelector(this: PluginView) {
+    return resolvedAttributesOf(this.model)["full-width"]
+      ? "table > tbody > tr > td > div table > tbody > tr > td"
+      : "table > tbody > tr > td";
+  },
+};
+
 const inGroup = (column: Component) => column.parent()?.get("type") === "mj-group";
 
 /**
@@ -154,7 +165,7 @@ function groupedColumnView(base: PluginView): Partial<PluginView> {
       // A px width is a share of the group, so the template carries the widths around it. The
       // section's padding is left out; it narrows a px column's share a little on Mobile only.
       const width = (c: Component | undefined) => {
-        const value = c?.getAttributes().width;
+        const value = resolvedAttributesOf(c).width;
         return typeof value === "string" && value ? ` width="${value.replace(/"/g, "")}"` : "";
       };
       let body: Component | undefined = this.model;

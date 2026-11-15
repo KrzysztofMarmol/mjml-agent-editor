@@ -31,10 +31,8 @@ const classNames = (c: Component | undefined) =>
   String(c?.getAttributes()["mj-class"] ?? "").split(" ");
 
 /** The head's declarations, merged as MJML merges them across several mj-attributes. */
-function declarations(model: Component) {
-  let root: Component | undefined = model;
-  while (root && root.get("type") !== "mjml") root = root.parent();
-  const head = root?.components().find((c: Component) => c.get("type") === "mj-head");
+function declarations(root: Component) {
+  const head = root.components().find((c: Component) => c.get("type") === "mj-head");
   const tags: Record<string, Attributes> = {};
   const classes: Record<string, Attributes> = {};
   const classChildren: Record<string, Record<string, Attributes>> = {};
@@ -64,10 +62,17 @@ function declarations(model: Component) {
 /**
  * In MJML's order: mj-all, then the tag's defaults, then its mj-classes (their css-classes
  * joined), then what the nearest ancestor's mj-classes give its tag. Its own attributes go
- * over these.
+ * over these. MJML gives them to the body only, not to the head or the root.
  */
 export function headAttributesOf(model: Component): Attributes {
-  const { tags, classes, classChildren } = declarations(model);
+  let root: Component | undefined = model;
+  let inBody = false;
+  while (root && root.get("type") !== "mjml") {
+    inBody ||= root.get("type") === "mj-body";
+    root = root.parent();
+  }
+  if (!root || !inBody) return {};
+  const { tags, classes, classChildren } = declarations(root);
   const tag = String(model.get("tagName"));
   const all = { ...tags["mj-all"] };
   // MJML hands these down from the group, over mj-all; the plugin compiles the icon in it.
@@ -95,7 +100,11 @@ export function headAttributesOf(model: Component): Attributes {
   return { ...all, ...tags[tag], ...fromClasses, ...fromAncestor };
 }
 
+/** What MJML takes as set: an empty value is never written, so the head's goes on applying. */
+export const setAttributes = (attributes: Attributes): Attributes =>
+  Object.fromEntries(Object.entries(attributes).filter(([, v]) => v !== undefined && v !== ""));
+
 /** An element's attributes as MJML resolves them: the head's, then its own. */
 export function resolvedAttributesOf(model: Component | undefined): Attributes {
-  return model ? { ...headAttributesOf(model), ...model.getAttributes() } : {};
+  return model ? { ...headAttributesOf(model), ...setAttributes(model.getAttributes()) } : {};
 }
