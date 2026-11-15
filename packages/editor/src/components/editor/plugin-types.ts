@@ -2,6 +2,7 @@
 
 import type { Component, Editor } from "grapesjs";
 
+import { headDefaultsOf, redrawOnHeadChange, withHeadDefaults } from "./head-defaults.js";
 import { addTableType } from "./table-type.js";
 
 type AttrToHTML = (this: Component) => Record<string, unknown>;
@@ -21,6 +22,13 @@ const COLUMN_CHILDREN = new Set([
   "mj-table",
   "mj-text",
 ]);
+
+const OWN_VIEWS: Record<string, (base: PluginView) => Partial<PluginView>> = {
+  "mj-column": groupedColumnView,
+  "mj-group": redrawnGroupView,
+  "mj-social": stackedSocialGroupView,
+  "mj-social-element": socialIconView,
+};
 
 /**
  * Hides mj-head in the canvas. The plugin draws it like any element, so what it holds showed
@@ -47,6 +55,8 @@ export const HEAD_CSS = '[data-gjs-type="mj-head"] { display: none !important; }
  * - Stacked social icons are drawn stacked: the plugin drew them in a row whatever the mode.
  * - A social icon's label is drawn: the plugin compiled the icon without it, then put the
  *   label inside the `<img>`, where nothing shows.
+ * - Every element is drawn with the document's mj-attributes (see `headDefaultsOf`), and drawn
+ *   again when they change.
  */
 export function fixPluginTypes(editor: Editor) {
   addTableType(editor);
@@ -55,12 +65,19 @@ export function fixPluginTypes(editor: Editor) {
     if (!type.id.startsWith("mj-") || type.id === "mj-table") continue;
     const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
     const view = type.view.prototype as PluginView;
+    const own = OWN_VIEWS[type.id]?.(view) ?? {};
+    const template = own.getMjmlTemplate ?? view.getMjmlTemplate;
     editor.Components.addType(type.id, {
-      ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
-      ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
-      ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
-      ...(type.id === "mj-social-element" && { view: socialIconView(view) }),
+      ...(template && {
+        view: {
+          ...own,
+          getMjmlTemplate(this: PluginView) {
+            return withHeadDefaults(template.call(this), headDefaultsOf(this.model));
+          },
+        },
+      }),
       model: {
+        ...(type.id === "mj-head" && { init: redrawOnHeadChange }),
         defaults: {
           "style-default": {},
           ...(type.id === "mj-column" && {
