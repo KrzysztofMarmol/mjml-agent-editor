@@ -67,6 +67,7 @@ export function fixPluginTypes(editor: Editor) {
       ...(type.id === "mj-column" && {
         view: { ...groupedColumnView(view), renderStyle: columnStyle },
       }),
+      ...(type.id === "mj-body" && { view: headBackgroundBodyView(view) }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
       ...((type.id === "mj-section" || type.id === "mj-wrapper") && { view: fullWidthView }),
       ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
@@ -182,6 +183,23 @@ function groupedColumnView(base: PluginView): Partial<PluginView> {
           "div > table > tbody > tr > td > div > div",
         ) ?? null
       );
+    },
+  };
+}
+
+/**
+ * The body's background from the head when it has none of its own. The plugin paints the body
+ * from its own style alone; the head's reached only the sections, compiled in the body's
+ * attributes, so the canvas below the last of them stayed white.
+ */
+function headBackgroundBodyView(base: PluginView): Partial<PluginView> {
+  return {
+    renderStyle(this: PluginView) {
+      base.renderStyle.call(this);
+      const background = headAttributesOf(this.model)["background-color"];
+      if (background && !setAttributes(this.model.getAttributes())["background-color"]) {
+        this.el.style.backgroundColor = String(background);
+      }
     },
   };
 }
