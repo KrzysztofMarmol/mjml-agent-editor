@@ -532,6 +532,9 @@ describe("mj-attributes in the canvas", () => {
 
     model().addAttributes({ "background-color": "#0000ff" });
     expect(body().style.backgroundColor).toBe("rgb(0, 0, 255)");
+    // Cleared again, the head's comes back rather than the stale own one staying.
+    model().removeAttributes("background-color");
+    expect(body().style.backgroundColor).toBe("rgb(0, 255, 0)");
   });
 
   it("gives nothing to the root or the head, which MJML gives no attributes to", () => {
