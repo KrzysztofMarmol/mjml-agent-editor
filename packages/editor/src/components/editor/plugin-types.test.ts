@@ -510,6 +510,30 @@ describe("mj-attributes in the canvas", () => {
     expect(style("mj-button", "td[bgcolor]")).toContain("border-radius:17px");
   });
 
+  it("draws the body's background from the head, under its own", () => {
+    // The document's body; the head's mj-attributes holds an mj-body too.
+    const model = () =>
+      first("mjml")
+        .components()
+        .find((c: Component) => c.get("type") === "mj-body")!;
+    const body = () => model().getEl() as HTMLElement;
+    draw(
+      "<mj-text>Hi</mj-text>",
+      '<mj-attributes><mj-body background-color="#ff0000" width="500px"></mj-body></mj-attributes>',
+    );
+    expect(body().style.backgroundColor).toBe("rgb(255, 0, 0)");
+    // The width reaches the sections, which are compiled in the body's attributes.
+    expect(body().innerHTML).toContain("max-width:500px");
+    draw(
+      "<mj-text>Hi</mj-text>",
+      '<mj-attributes><mj-all background-color="#00ff00"></mj-all></mj-attributes>',
+    );
+    expect(body().style.backgroundColor).toBe("rgb(0, 255, 0)");
+
+    model().addAttributes({ "background-color": "#0000ff" });
+    expect(body().style.backgroundColor).toBe("rgb(0, 0, 255)");
+  });
+
   it("gives nothing to the root or the head, which MJML gives no attributes to", () => {
     draw(
       "<mj-text>Hi</mj-text>",
