@@ -2,9 +2,10 @@
 
 import type { Component, Editor } from "grapesjs";
 
+import { headAttributesOf, resolvedAttributesOf, setAttributes } from "./head-defaults.js";
 import { addTableType } from "./table-type.js";
 
-type AttrToHTML = (this: Component) => Record<string, unknown>;
+type AttributesOf = (this: Component) => Record<string, unknown>;
 
 // What MJML accepts inside an mj-column. The plugin lets a column take anything, so a <p>
 // dragged out of a text landed in the column as an element no validator accepts.
@@ -47,20 +48,38 @@ export const HEAD_CSS = '[data-gjs-type="mj-head"] { display: none !important; }
  * - Stacked social icons are drawn stacked: the plugin drew them in a row whatever the mode.
  * - A social icon's label is drawn: the plugin compiled the icon without it, then put the
  *   label inside the `<img>`, where nothing shows.
+ * - Every element is drawn with the defaults the document's mj-attributes give it (see
+ *   `headAttributesOf`). They are compiled, never saved: saving writes `getAttrToHTML`.
  */
 export function fixPluginTypes(editor: Editor) {
   addTableType(editor);
   for (const type of editor.Components.getTypes()) {
     // mj-table is ours and serialises through GrapesJS's own escaping; this would add a second.
     if (!type.id.startsWith("mj-") || type.id === "mj-table") continue;
-    const base = (type.model.prototype as { getAttrToHTML: AttrToHTML }).getAttrToHTML;
+    const model = type.model.prototype as {
+      getAttrToHTML: AttributesOf;
+      getMjmlAttributes?: AttributesOf;
+    };
+    const base = model.getAttrToHTML;
+    const mjmlAttributes = model.getMjmlAttributes;
     const view = type.view.prototype as PluginView;
     editor.Components.addType(type.id, {
-      ...(type.id === "mj-column" && { view: groupedColumnView(view) }),
+      ...(type.id === "mj-column" && {
+        view: { ...groupedColumnView(view), renderStyle: columnStyle },
+      }),
       ...(type.id === "mj-group" && { view: redrawnGroupView(view) }),
+      ...((type.id === "mj-section" || type.id === "mj-wrapper") && { view: fullWidthView }),
       ...(type.id === "mj-social" && { view: stackedSocialGroupView(view) }),
       ...(type.id === "mj-social-element" && { view: socialIconView(view) }),
       model: {
+        // What the plugin compiles an element, and a parent around it, from. Its own returns
+        // the model's attributes object, so this is a copy.
+        ...(mjmlAttributes && {
+          getMjmlAttributes(this: Component) {
+            const { "mj-class": _class, ...own } = mjmlAttributes.call(this);
+            return { ...headAttributesOf(this), ...setAttributes(own) };
+          },
+        }),
         defaults: {
           "style-default": {},
           ...(type.id === "mj-column" && {
@@ -93,8 +112,40 @@ interface PluginView {
   getMjmlTemplate(): { start: string; end: string };
   getTemplateFromEl(container: HTMLElement): HTMLElement | null;
   getChildrenContainer(): HTMLElement;
+  getChildrenSelector(): string;
   getInnerMjmlTemplate(): { start: string; end: string };
+  renderStyle(): void;
+  checkVisibility(): void;
+  attributes: { style?: string };
 }
+
+/**
+ * The plugin's column style, from the head's defaults as well as its own: a column's padding,
+ * border and background are drawn from these, not from what MJML compiled, which the
+ * column's children replace. Stylable props go in MJML's order, a side after its shorthand.
+ */
+function columnStyle(this: PluginView) {
+  const style = { ...headAttributesOf(this.model), ...this.model.getStyle() };
+  const drawn = (this.model.get("stylable") as string[])
+    .filter((prop) => style[prop] != null)
+    .map((prop) => `${prop}:${String(style[prop])};`);
+  this.el.setAttribute(
+    "style",
+    `${this.attributes.style} ${drawn.join(" ")} ${this.el.getAttribute("style")}`,
+  );
+  // The plugin's fix for a border drawn twice, on the column and on its compiled table.
+  this.el.firstElementChild?.setAttribute("style", "");
+  this.checkVisibility();
+}
+
+/** Where a section's or wrapper's children go: the plugin's, from a full-width the head gives too. */
+const fullWidthView: Partial<PluginView> = {
+  getChildrenSelector(this: PluginView) {
+    return resolvedAttributesOf(this.model)["full-width"]
+      ? "table > tbody > tr > td > div table > tbody > tr > td"
+      : "table > tbody > tr > td";
+  },
+};
 
 const inGroup = (column: Component) => column.parent()?.get("type") === "mj-group";
 
@@ -114,7 +165,7 @@ function groupedColumnView(base: PluginView): Partial<PluginView> {
       // A px width is a share of the group, so the template carries the widths around it. The
       // section's padding is left out; it narrows a px column's share a little on Mobile only.
       const width = (c: Component | undefined) => {
-        const value = c?.getAttributes().width;
+        const value = resolvedAttributesOf(c).width;
         return typeof value === "string" && value ? ` width="${value.replace(/"/g, "")}"` : "";
       };
       let body: Component | undefined = this.model;
@@ -174,7 +225,7 @@ export function socialLayout(mode: unknown, align: unknown) {
 }
 
 const groupLayout = (group: Component | undefined) => {
-  const attributes = group?.getAttributes() ?? {};
+  const attributes = resolvedAttributesOf(group);
   return socialLayout(attributes.mode, attributes.align);
 };
 

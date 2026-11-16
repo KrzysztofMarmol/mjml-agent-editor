@@ -7,6 +7,8 @@
 import { isSafeLink } from "@mjml-agent-editor/core";
 import type { Component, Editor } from "grapesjs";
 
+import { resolvedAttributesOf } from "./head-defaults.js";
+
 // What the agent's guard refuses too, and a nested template, whose content no query reaches.
 const DROPPED =
   "script, style, link, iframe, frame, object, embed, applet, base, meta, animate, set, svg, math, template";
@@ -93,7 +95,11 @@ export function addTableType(editor: Editor) {
         const { el, model } = this;
         el.style.cssText = ROW_STYLE;
         el.replaceChildren(
-          tablePreview(el.ownerDocument, model.getAttributes(), String(model.get("content") ?? "")),
+          tablePreview(
+            el.ownerDocument,
+            resolvedAttributesOf(model),
+            String(model.get("content") ?? ""),
+          ),
         );
       },
     },

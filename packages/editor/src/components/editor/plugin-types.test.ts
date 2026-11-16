@@ -4,6 +4,7 @@ import grapesjs, { type Component, type Editor } from "grapesjs";
 import grapesjsMJML from "grapesjs-mjml";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { headAttributesOf } from "./head-defaults.js";
 import { createWriter } from "./inspector/write.js";
 import { sourceForEditor, withClosedTags } from "./mjml-attributes.js";
 import { fixPluginTypes, HEAD_CSS, socialLabel, socialLayout } from "./plugin-types.js";
@@ -369,5 +370,221 @@ describe("mj-head in the canvas", () => {
   it("is still saved as it was loaded", () => {
     editor.setComponents(`<mjml>${HEAD}<mj-body></mj-body></mjml>`);
     expect(editor.getHtml()).toContain(HEAD);
+  });
+});
+
+describe("mj-attributes in the canvas", () => {
+  const ATTRIBUTES =
+    '<mj-attributes><mj-all font-family="Georgia, serif"></mj-all><mj-button border-radius="17px"></mj-button><mj-class name="big" font-size="31px"></mj-class></mj-attributes>';
+
+  // Headless has no canvas, so the document's views are rendered by hand, as the canvas would.
+  const drawBody = (body: string, head: string) => {
+    editor.setComponents(
+      sourceForEditor(`<mjml><mj-head>${head}</mj-head><mj-body>${body}</mj-body></mjml>`).mjml,
+    );
+    const ComponentsView = (
+      editor.Components as unknown as {
+        ComponentsView: new (o: object) => { render(): { el: HTMLElement } };
+      }
+    ).ComponentsView;
+    document.body.replaceChildren(
+      new ComponentsView({
+        collection: first("mjml").components(),
+        config: { ...editor.Components.config, em: editor.getModel() },
+        componentTypes: editor.Components.getTypes(),
+      }).render().el,
+    );
+  };
+  const draw = (column: string, head = ATTRIBUTES, open = "<mj-section><mj-column>") =>
+    drawBody(`${open}${column}</mj-column></mj-section>`, head);
+  // The element as the body draws it; the head holds defaults of the same tags.
+  const element = (tag: string) => {
+    let found: Component | undefined;
+    first("mj-body").onAll((c) => {
+      if (!found && c.get("type") === tag) found = c;
+    });
+    return found!.getEl() as HTMLElement;
+  };
+  const drawn = (tag: string, selector: string) =>
+    element(tag).querySelector<HTMLElement>(selector)!;
+  const style = (tag: string, selector: string) => drawn(tag, selector).getAttribute("style");
+  // The drawn markup without its values: what the plugin finds an element and its children by.
+  const shape = (el: Element): string => `${el.tagName}(${[...el.children].map(shape).join(",")})`;
+
+  it("draws an element with mj-all, its tag's defaults and its mj-class", () => {
+    draw('<mj-button href="https://a.com">Go</mj-button><mj-text mj-class="big">Hi</mj-text>');
+    expect(style("mj-button", "td[bgcolor]")).toContain("border-radius:17px");
+    expect(style("mj-button", "a")).toContain("font-family:Georgia, serif");
+    expect(style("mj-text", "div")).toContain("font-size:31px");
+    expect(style("mj-text", "div")).toContain("font-family:Georgia, serif");
+  });
+
+  it("lets an element's own attributes win over the defaults", () => {
+    draw('<mj-button href="https://a.com" border-radius="2px" font-family="Arial">Go</mj-button>');
+    expect(style("mj-button", "td[bgcolor]")).toContain("border-radius:2px");
+    expect(style("mj-button", "a")).toContain("font-family:Arial");
+  });
+
+  it("never writes the defaults into the document", () => {
+    const source = sourceForEditor(
+      `<mjml><mj-head>${ATTRIBUTES}</mj-head><mj-body><mj-section><mj-column><mj-button href="https://a.com">Go</mj-button><mj-text mj-class="big">Hi</mj-text></mj-column></mj-section></mj-body></mjml>`,
+    ).mjml;
+    draw('<mj-button href="https://a.com">Go</mj-button><mj-text mj-class="big">Hi</mj-text>');
+    expect(editor.getHtml()).toBe(source);
+  });
+
+  it("draws a document loaded after another with its own head", () => {
+    draw('<mj-button href="https://a.com">Go</mj-button>');
+    draw(
+      '<mj-button href="https://a.com">Go</mj-button>',
+      '<mj-attributes><mj-button border-radius="9px"></mj-button></mj-attributes>',
+    );
+    expect(style("mj-button", "td[bgcolor]")).toContain("border-radius:9px");
+  });
+
+  it("joins the css-classes of several mj-classes, as MJML does", () => {
+    draw(
+      '<mj-text mj-class="a b">Hi</mj-text>',
+      '<mj-attributes><mj-class name="a" css-class="one"></mj-class><mj-class name="b" css-class="two"></mj-class></mj-attributes>',
+    );
+    expect(drawn("mj-text", "td").className).toBe("one two");
+  });
+
+  it("draws a column's padding, border and background from the head as from its own", () => {
+    const column = 'padding="20px" border="1px solid #000000" background-color="#eeeeee"';
+    draw("<mj-text>Hi</mj-text>", "<mj-title>x</mj-title>", `<mj-section><mj-column ${column}>`);
+    const expected = element("mj-column").getAttribute("style");
+    draw(
+      "<mj-text>Hi</mj-text>",
+      `<mj-attributes><mj-column ${column}></mj-column></mj-attributes>`,
+    );
+    expect(element("mj-column").getAttribute("style")).toBe(expected);
+  });
+
+  it("draws a column's side over its shorthand, as MJML does, whichever comes first", () => {
+    draw(
+      "<mj-text>Hi</mj-text>",
+      "<mj-title>x</mj-title>",
+      '<mj-section><mj-column padding-top="5px" padding="20px">',
+    );
+    // The order itself: jsdom does not let a later shorthand override a side.
+    const drawn = String(element("mj-column").getAttribute("style"));
+    expect(drawn.indexOf("padding:20px")).toBeLessThan(drawn.indexOf("padding-top:5px"));
+  });
+
+  it("puts a section's and a wrapper's children where full-width from the head puts them", () => {
+    const column = "<mj-column><mj-text>Hi</mj-text></mj-column>";
+    const cases: [string, string, string][] = [
+      ["mj-section", "", ""],
+      ["mj-wrapper", "<mj-section>", "</mj-section>"],
+    ];
+    for (const [tag, open, close] of cases) {
+      drawBody(
+        `<${tag} full-width="full-width">${open}${column}${close}</${tag}>`,
+        "<mj-title>x</mj-title>",
+      );
+      const expected = shape(element(tag));
+      drawBody(
+        `<${tag}>${open}${column}${close}</${tag}>`,
+        `<mj-attributes><${tag} full-width="full-width"></${tag}></mj-attributes>`,
+      );
+      expect(shape(element(tag)), tag).toBe(expected);
+    }
+  });
+
+  it("compiles a grouped column in the group's and the body's width from the head", () => {
+    drawBody(
+      "<mj-section><mj-group><mj-column><mj-text>a</mj-text></mj-column></mj-group></mj-section>",
+      '<mj-attributes><mj-group width="400px"></mj-group><mj-body width="500px"></mj-body></mj-attributes>',
+    );
+    const view = editor.Components.getType("mj-column")!.view.prototype as unknown as {
+      getMjmlTemplate(this: { model: Component }): { start: string; end: string };
+    };
+    expect(view.getMjmlTemplate.call({ model: first("mj-column") }).start).toBe(
+      '<mjml><mj-body width="500px"><mj-section><mj-group width="400px">',
+    );
+  });
+
+  it("lets the head's default stand for an attribute left empty, as the saved document does", () => {
+    draw('<mj-button href="https://a.com" border-radius="">Go</mj-button>');
+    expect(style("mj-button", "td[bgcolor]")).toContain("border-radius:17px");
+  });
+
+  it("gives nothing to the root or the head, which MJML gives no attributes to", () => {
+    draw(
+      "<mj-text>Hi</mj-text>",
+      `${ATTRIBUTES}<mj-font name="Lato" href="https://a.com/lato.css"></mj-font>`,
+    );
+    expect(headAttributesOf(first("mj-font"))).toEqual({});
+    expect(headAttributesOf(first("mj-button"))).toEqual({});
+    expect(headAttributesOf(first("mjml"))).toEqual({});
+    expect(headAttributesOf(first("mj-body"))).toEqual({ "font-family": "Georgia, serif" });
+  });
+
+  it("gives a child what its ancestor's mj-class sets for its tag", () => {
+    draw(
+      "<mj-text>Hi</mj-text>",
+      '<mj-attributes><mj-class name="dark"><mj-text color="#ffffff"></mj-text></mj-class></mj-attributes>',
+      '<mj-section mj-class="dark"><mj-column>',
+    );
+    expect(style("mj-text", "div")).toContain("color:#ffffff");
+  });
+
+  it("draws the scaffold an element is compiled in without the defaults", () => {
+    const cases: [string, string, string, string][] = [
+      // Head, the column's content, the element whose markup is compared, what opens the column.
+      [
+        '<mj-attributes><mj-all padding="0px"></mj-all></mj-attributes>',
+        '<mj-social mode="vertical"><mj-social-element name="facebook" href="https://a.com">Fb</mj-social-element></mj-social><mj-spacer height="30px"></mj-spacer>',
+        "mj-social",
+        "<mj-section><mj-column>",
+      ],
+      [
+        '<mj-attributes><mj-column padding="20px" background-color="#eeeeee"></mj-column></mj-attributes>',
+        "<mj-text>Hi</mj-text>",
+        "mj-text",
+        "<mj-section><mj-column>",
+      ],
+      [
+        '<mj-attributes><mj-section full-width="full-width" background-color="#ff0000"></mj-section></mj-attributes>',
+        "<mj-text>Hi</mj-text>",
+        "mj-column",
+        '<mj-section background-color="#00ff00"><mj-column>',
+      ],
+    ];
+    for (const [head, column, tag, open] of cases) {
+      draw(column, "<mj-title>x</mj-title>", open);
+      const expected = shape(element(tag));
+      draw(column, head, open);
+      expect.soft(shape(element(tag)), head).toBe(expected);
+    }
+    expect(element("mj-column").className).toContain("mj-column-per-100");
+  });
+
+  it("gives social icons what their group hands down over mj-all: its mode, font and padding", () => {
+    draw(
+      '<mj-social font-family="Arial"><mj-social-element name="facebook" href="https://a.com">Fb</mj-social-element></mj-social>',
+      '<mj-attributes><mj-all font-family="Georgia, serif"></mj-all><mj-social mode="vertical"></mj-social></mj-attributes>',
+    );
+    expect(element("mj-social-element").style.display).toBe("grid");
+    expect(style("mj-social-element", "a[style*=font-family]")).toContain("font-family:Arial");
+
+    draw(
+      '<mj-social inner-padding="8px"><mj-social-element name="facebook">Fb</mj-social-element></mj-social>',
+      '<mj-attributes><mj-all padding="0px"></mj-all></mj-attributes>',
+    );
+    expect(style("mj-social-element", "td")).toContain("padding:8px");
+  });
+
+  it("draws a table, which is not compiled, with the head's attributes under its own", () => {
+    draw(
+      '<mj-table mj-class="small" font-size="12px"><tr><td>A</td></tr></mj-table>',
+      '<mj-attributes><mj-all font-family="Georgia, serif" color="#111111" line-height="10px"></mj-all><mj-table color="#222222" line-height="30px"></mj-table><mj-class name="small" font-size="11px" color="#333333"></mj-class></mj-attributes>',
+    );
+    const table = drawn("mj-table", "table");
+    expect(table.style.fontFamily).toBe("Georgia, serif");
+    expect(table.style.lineHeight).toBe("30px");
+    expect(table.style.color).toBe("rgb(51, 51, 51)");
+    expect(table.style.fontSize).toBe("12px");
   });
 });
