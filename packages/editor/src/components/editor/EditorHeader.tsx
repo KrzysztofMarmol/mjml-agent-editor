@@ -56,7 +56,7 @@ function SaveBadge({ status }: { status: SaveStatus }) {
   if (status === "saving")
     return (
       <span className="flex items-center gap-1 text-xs text-panel-muted-fg">
-        <Spinner className="size-3" /> {labels.saving}
+        <Spinner className="size-3" aria-label={labels.loading} /> {labels.saving}
       </span>
     );
   if (status === "error") return <Badge variant="destructive">{labels.saveFailed}</Badge>;
@@ -139,7 +139,7 @@ export default function EditorHeader({
   }, [api]);
 
   const commitName = async () => {
-    const n = name.trim() || "Untitled";
+    const n = name.trim() || labels.untitled;
     setName(n);
     try {
       await documents.save(docId, { name: n });
@@ -190,7 +190,7 @@ export default function EditorHeader({
               className="gap-1.5 px-2.5 text-panel-muted-fg data-[state=on]:bg-panel-elevated data-[state=on]:text-panel-fg"
             >
               {DEVICE_ICON[d.name]}
-              {d.name}
+              {labels.deviceNames[d.id] ?? d.name}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -321,7 +321,7 @@ export default function EditorHeader({
                   >
                     {devices.map((d) => (
                       <ToggleGroupItem key={d.id} value={d.name} className="px-2.5">
-                        {d.name}
+                        {labels.deviceNames[d.id] ?? d.name}
                       </ToggleGroupItem>
                     ))}
                   </ToggleGroup>
@@ -368,7 +368,7 @@ export default function EditorHeader({
               <Code2 /> Code
             </Button>
           </DialogTrigger>
-          <DialogContent className="flex !max-w-4xl flex-col">
+          <DialogContent className="flex !max-w-4xl flex-col" closeLabel={labels.close}>
             <DialogHeader>
               <DialogTitle>{labels.sourceCode}</DialogTitle>
             </DialogHeader>
