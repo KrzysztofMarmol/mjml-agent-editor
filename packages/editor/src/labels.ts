@@ -8,7 +8,7 @@
  * Flat and shallow-merged on purpose. A nested dictionary reads better and merges worse —
  * overriding one key inside a group would silently drop its siblings. The only nested maps
  * are the ones keyed by an id (`toolLabels`, `blockLabels`, `elementNames`,
- * `inspectorLabels`), and those are
+ * `deviceNames`, `inspectorLabels`), and those are
  * merged key by key for exactly that reason.
  *
  * Values that interpolate are functions rather than templates with placeholders, so the
@@ -34,6 +34,14 @@ export interface EditorLabels {
   readonly exportMjml: string;
   /** `kind` is already upper-cased ("MJML", "HTML"). */
   readonly copied: (kind: string) => string;
+  /** The name an email is given when its name is cleared. */
+  readonly untitled: string;
+  /** The preview sizes in the header, keyed by device id (`desktop`, `mobile`); merged key by key. */
+  readonly deviceNames: Readonly<Record<string, string>>;
+  /** On the button that closes a dialog. */
+  readonly close: string;
+  /** What a screen reader says for a spinner. */
+  readonly loading: string;
 
   // Canvas
   readonly tabBlocks: string;
@@ -156,6 +164,12 @@ export interface EditorLabels {
   /** Under a turn that hit the backend's step ceiling before it could reply. */
   readonly stepLimitReached: string;
   readonly applyComments: string;
+  /**
+   * The message that button sends as the user's. The agent reads it, so a translation has to
+   * ask for the same three things: apply every open comment, resolve each, summarise.
+   */
+  readonly applyCommentsPrompt: string;
+  readonly scrollToEnd: string;
   readonly chatPlaceholder: string;
   readonly stop: string;
   readonly send: string;
@@ -183,6 +197,10 @@ export const DEFAULT_LABELS: EditorLabels = {
   exportHtml: "Export HTML",
   exportMjml: "Export MJML",
   copied: (kind) => `${kind} copied.`,
+  untitled: "Untitled",
+  deviceNames: { desktop: "Desktop", mobile: "Mobile" },
+  close: "Close",
+  loading: "Loading",
 
   tabBlocks: "Blocks",
   tabSettings: "Settings",
@@ -440,6 +458,10 @@ export const DEFAULT_LABELS: EditorLabels = {
     failed > 0 ? `Completed steps (${count}, ${failed} failed)` : `Completed steps (${count})`,
   stepLimitReached: "The agent ran out of steps for this turn. Ask it to continue.",
   applyComments: "Apply changes from comments",
+  applyCommentsPrompt:
+    "Apply changes based on all open section comments. " +
+    "After each successful change mark the comment as resolved and summarize what you changed.",
+  scrollToEnd: "Scroll to end",
   chatPlaceholder: "Describe what you want to change… (Enter = send, Shift+Enter = new line)",
   stop: "Stop",
   send: "Send",
@@ -472,6 +494,7 @@ export function mergeLabels(overrides?: Partial<EditorLabels>): EditorLabels {
     toolLabels: { ...DEFAULT_LABELS.toolLabels, ...overrides.toolLabels },
     blockLabels: { ...DEFAULT_LABELS.blockLabels, ...overrides.blockLabels },
     elementNames: { ...DEFAULT_LABELS.elementNames, ...overrides.elementNames },
+    deviceNames: { ...DEFAULT_LABELS.deviceNames, ...overrides.deviceNames },
     inspectorLabels: { ...DEFAULT_LABELS.inspectorLabels, ...overrides.inspectorLabels },
   };
 }

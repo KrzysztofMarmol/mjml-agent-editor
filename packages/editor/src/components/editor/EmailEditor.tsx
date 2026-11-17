@@ -87,12 +87,7 @@ type Props = {
 };
 
 // Element types that can receive a comment (besides a section).
-const TYPE_LABEL: Record<string, string> = {
-  "mj-text": "Text",
-  "mj-button": "Button",
-  "mj-image": "Image",
-  "mj-column": "Column",
-};
+const COMMENTABLE = new Set(["mj-text", "mj-button", "mj-image", "mj-column"]);
 
 function tagOf(c: Component): string {
   return String(c.get("tagName") || c.get("type") || "");
@@ -116,7 +111,7 @@ function isSection(c: Component): boolean {
 
 function isCommentable(c: Component): boolean {
   const t = tagOf(c);
-  return t === "mj-section" || t in TYPE_LABEL;
+  return t === "mj-section" || COMMENTABLE.has(t);
 }
 
 function closestSection(c: Component | undefined): Component | null {
@@ -133,8 +128,8 @@ function crumbName(c: Component, labels: EditorLabels): string {
   return labels.elementNames[t] ?? t.replace(/^mj-/, "");
 }
 
-function objectLabel(c: Component): string {
-  const base = TYPE_LABEL[tagOf(c)] ?? tagOf(c);
+function objectLabel(c: Component, labels: EditorLabels): string {
+  const base = labels.elementNames[tagOf(c)] ?? tagOf(c);
   const text = String((c.getEl?.() as HTMLElement | undefined)?.textContent ?? "")
     .replace(/\s+/g, " ")
     .trim()
@@ -346,7 +341,7 @@ export default function EmailEditor({
         return { sectionId, objectId: null, objectLabel: null };
       }
       const objectId = addIdClass(c, "obj");
-      return { sectionId, objectId, objectLabel: objectLabel(c) };
+      return { sectionId, objectId, objectLabel: objectLabel(c, labels) };
     };
 
     // Gives the section a sec-<id> and adds a comment button to the toolbar of
@@ -768,13 +763,13 @@ export default function EmailEditor({
         {/* Over the sidebar too, which is as inert as the canvas until the email arrives. */}
         {loading && (
           <div className="absolute inset-0 z-30 flex items-center justify-center gap-2 bg-white/70 text-sm text-zinc-500">
-            <Spinner /> {labels.loadingEditor}
+            <Spinner aria-label={labels.loading} /> {labels.loadingEditor}
           </div>
         )}
         {readOnly && (
           <div className="absolute inset-0 z-30 flex cursor-not-allowed items-start justify-center bg-white/20 pt-3">
             <span className="flex items-center gap-2 rounded-full bg-panel px-3 py-1 text-xs text-panel-fg shadow">
-              <Spinner /> {labels.agentWorking}
+              <Spinner aria-label={labels.loading} /> {labels.agentWorking}
             </span>
           </div>
         )}
