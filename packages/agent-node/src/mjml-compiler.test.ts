@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,14 +36,19 @@ describe("createMjmlCompiler", () => {
 
   it("does not read an include the pattern misses", () => {
     // A quoted `<!--` is not a comment to mjml's parser, but it hides the tag from the pattern.
-    const part = join(mkdtempSync(join(tmpdir(), "mjml-include-")), "part.mjml");
-    writeFileSync(part, "<mj-text>INCLUDED_FILE</mj-text>");
-    const result = compiler.compile(
-      wrap(
-        `<mj-text css-class="<!--">a</mj-text><mj-include path="${part}" />` +
-          `<mj-text css-class="-->">b</mj-text>`,
-      ),
-    );
-    expect(JSON.stringify(result)).not.toContain("INCLUDED_FILE");
+    const dir = mkdtempSync(join(tmpdir(), "mjml-include-"));
+    try {
+      const part = join(dir, "part.mjml");
+      writeFileSync(part, "<mj-text>INCLUDED_FILE</mj-text>");
+      const result = compiler.compile(
+        wrap(
+          `<mj-text css-class="<!--">a</mj-text><mj-include path="${part}" />` +
+            `<mj-text css-class="-->">b</mj-text>`,
+        ),
+      );
+      expect(JSON.stringify(result)).not.toContain("INCLUDED_FILE");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

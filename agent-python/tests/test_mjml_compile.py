@@ -54,6 +54,22 @@ def test_tells_mjml_to_ignore_includes_the_pattern_misses(monkeypatch, echo_bina
     assert "--config.ignoreIncludes=true" in calls[0]
 
 
+def test_real_mjml_does_not_read_an_include_the_pattern_misses(tmp_path) -> None:
+    try:
+        binary = mjml_compile.resolve_mjml_binary()
+    except mjml_compile.MjmlBinaryNotFound:
+        pytest.skip("the mjml CLI is not installed")
+    part = tmp_path / "part.mjml"
+    part.write_text("<mj-text>INCLUDED_FILE</mj-text>")
+    # A quoted `<!--` is not a comment to mjml's parser, but it hides the tag from the pattern.
+    source = BODY.format(
+        f'<mj-text css-class="<!--">a</mj-text><mj-include path="{part}" />'
+        '<mj-text css-class="-->">b</mj-text>'
+    )
+    _, output = mjml_compile.compile_mjml(source, binary=binary)
+    assert "INCLUDED_FILE" not in output
+
+
 def test_compiles_escaped_mention_of_the_tag(echo_binary) -> None:
     source = BODY.format("<mj-text>&lt;mj-include path=&quot;x&quot;</mj-text>")
     ok, html = mjml_compile.compile_mjml(source, binary=echo_binary)
