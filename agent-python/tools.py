@@ -286,6 +286,11 @@ def build_tools(
 
     @_described("resolve_comment")
     async def resolve_comment(comment_id: str) -> str:
+        # db.resolve_comment closes any id; one from another document, or already resolved,
+        # must not be closed from this one.
+        open_comments = await _blocking(db.list_open_comments, doc_id)
+        if not any(c["id"] == comment_id for c in open_comments):
+            return f"ERROR: no open comment with id '{comment_id}' on this document"
         await _blocking(db.resolve_comment, comment_id)
         return "OK"
 

@@ -149,6 +149,10 @@ documents in production.
     the root is not refused: the compiler accepts a stray comment or code fence beside it and
     the editor keeps it through a reload. The editor's own saves are not compiled at all, so a
     `DocumentStore` adapter checks them too and throws `NotMjmlDocumentError`.
+11. **`resolve_comment` resolves only an open comment of the current document.** The store
+    resolves any id it is given, so the tool checks the id against the document's open
+    comments first and refuses anything else — an id from another document, or one already
+    resolved.
 
 ## Settled: multi-line tool arguments
 
