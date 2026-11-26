@@ -24,11 +24,21 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
 
 _TIMEOUT_SECONDS = 30
+
+# mjml reads an <mj-include path> from the server's disk while compiling, before validation,
+# so a document could pull any readable file into the HTML, or block on /dev/zero. Tag names
+# are matched case-insensitively, as mjml's parser does; a mention in text is escaped
+# (`&lt;mj-include`), so only a real tag is refused.
+_INCLUDE_TAG = re.compile(r"<mj-include\b", re.IGNORECASE)
+_INCLUDE_REFUSED = (
+    "<mj-include> cannot be used: an email here is one document. Put the content in it directly."
+)
 
 
 class MjmlBinaryNotFound(RuntimeError):
@@ -70,6 +80,8 @@ def _without_host_paths(message: str, *paths: str) -> str:
 
 def compile_mjml(mjml: str, strict: bool = True, binary: str | None = None) -> tuple[bool, str]:
     """Returns (True, html) on success or (False, errors) on failure."""
+    if _INCLUDE_TAG.search(mjml):
+        return False, _INCLUDE_REFUSED
     mjml_bin = binary or resolve_mjml_binary()
 
     with tempfile.NamedTemporaryFile("w", suffix=".mjml", delete=False) as handle:

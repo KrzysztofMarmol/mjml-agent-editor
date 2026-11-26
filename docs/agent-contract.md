@@ -153,6 +153,10 @@ documents in production.
     resolves any id it is given, so the tool checks the id against the document's open
     comments first and refuses anything else — an id from another document, or one already
     resolved.
+12. **The compiler refuses `<mj-include>`.** mjml reads the included path from the server's
+    disk while compiling, before validation, so a document could pull any file the server can
+    read into the HTML. A real tag is refused before compiling, matched case-insensitively; an
+    escaped mention in text (`&lt;mj-include`) is not a tag and compiles.
 
 ## Settled: multi-line tool arguments
 
