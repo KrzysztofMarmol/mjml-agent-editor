@@ -201,7 +201,9 @@ export const TOOLS: Readonly<Record<ToolName, ToolDefinition>> = {
 
   resolve_comment: {
     name: "resolve_comment",
-    description: "Marks a comment as resolved. Call only after applying the change it asked for.",
+    description:
+      "Marks a comment as resolved. Call only after applying the change it asked for. An id " +
+      "that is not an open comment of the current document is refused.",
     inputSchema: {
       type: "object",
       properties: {

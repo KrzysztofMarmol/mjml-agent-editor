@@ -24,11 +24,22 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
 
 _TIMEOUT_SECONDS = 30
+
+# mjml reads an <mj-include path> from the server's disk while compiling, before validation,
+# so a document could pull any readable file into the HTML, or block on /dev/zero. Tag names
+# are matched case-insensitively, as mjml's parser does; a mention in text is escaped
+# (`&lt;mj-include`) and one in an HTML comment is not a tag, so only a real tag is refused.
+_INCLUDE_TAG = re.compile(r"<mj-include\b", re.IGNORECASE)
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_INCLUDE_REFUSED = (
+    "<mj-include> cannot be used: an email here is one document. Put the content in it directly."
+)
 
 
 class MjmlBinaryNotFound(RuntimeError):
@@ -70,6 +81,8 @@ def _without_host_paths(message: str, *paths: str) -> str:
 
 def compile_mjml(mjml: str, strict: bool = True, binary: str | None = None) -> tuple[bool, str]:
     """Returns (True, html) on success or (False, errors) on failure."""
+    if _INCLUDE_TAG.search(_HTML_COMMENT.sub("", mjml)):
+        return False, _INCLUDE_REFUSED
     mjml_bin = binary or resolve_mjml_binary()
 
     with tempfile.NamedTemporaryFile("w", suffix=".mjml", delete=False) as handle:
@@ -79,7 +92,17 @@ def compile_mjml(mjml: str, strict: bool = True, binary: str | None = None) -> t
 
     try:
         result = subprocess.run(
-            [mjml_bin, source, "-o", output, "-l", "strict" if strict else "soft"],
+            # The flag backs up the pattern above: a quoted `<!--` in an attribute is not a
+            # comment to mjml's parser, but it hides a following tag from the pattern.
+            [
+                mjml_bin,
+                source,
+                "-o",
+                output,
+                "-l",
+                "strict" if strict else "soft",
+                "--config.ignoreIncludes=true",
+            ],
             capture_output=True,
             text=True,
             timeout=_TIMEOUT_SECONDS,

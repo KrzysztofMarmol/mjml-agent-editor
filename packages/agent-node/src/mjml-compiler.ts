@@ -30,7 +30,7 @@ interface MjmlResult {
  */
 const compileSync = mjml2html as unknown as (
   source: string,
-  options?: { validationLevel?: "strict" | "soft" | "skip" },
+  options?: { validationLevel?: "strict" | "soft" | "skip"; ignoreIncludes?: boolean },
 ) => MjmlResult;
 
 /**
@@ -55,6 +55,16 @@ function isErrorList(value: unknown): value is MjmlErrorLike[] {
   return Array.isArray(value) && value.length > 0;
 }
 
+// mjml reads an <mj-include path> from the server's disk while compiling, before validation,
+// so a document could pull any readable file into the HTML, or block on /dev/zero. Tag names
+// are matched case-insensitively, as mjml's parser does; a mention in text is escaped
+// (`&lt;mj-include`) and one in an HTML comment is not a tag, so only a real tag is refused.
+const INCLUDE_TAG = /<mj-include\b/i;
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+const INCLUDE_REFUSED =
+  "<mj-include> cannot be used: an email here is one document. Put the content in it directly.";
+
 export interface MjmlCompilerOptions {
   /**
    * `strict` rejects unknown tags and attributes, which is what stops the agent from
@@ -69,8 +79,13 @@ export function createMjmlCompiler(options: MjmlCompilerOptions = {}): MjmlCompi
 
   return {
     compile(source: string): CompileResult {
+      if (INCLUDE_TAG.test(source.replace(HTML_COMMENT, ""))) {
+        return { ok: false, errors: INCLUDE_REFUSED };
+      }
       try {
-        const result = compileSync(source, { validationLevel });
+        // Also tells mjml itself: a quoted `<!--` in an attribute is not a comment to its
+        // parser, but it hides a following tag from the pattern above.
+        const result = compileSync(source, { validationLevel, ignoreIncludes: true });
         if (isErrorList(result.errors)) {
           return { ok: false, errors: describe(result.errors) };
         }
