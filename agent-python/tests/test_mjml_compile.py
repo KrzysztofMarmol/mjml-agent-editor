@@ -34,6 +34,26 @@ def echo_binary(tmp_path) -> str:
     return str(script)
 
 
+def test_compiles_a_mention_in_an_html_comment(echo_binary) -> None:
+    source = BODY.format("<!-- TODO: Replace <mj-include> in docs --><mj-text>Hi</mj-text>")
+    ok, html = mjml_compile.compile_mjml(source, binary=echo_binary)
+    assert ok
+    assert html == source
+
+
+def test_tells_mjml_to_ignore_includes_the_pattern_misses(monkeypatch, echo_binary) -> None:
+    calls = []
+    real_run = mjml_compile.subprocess.run
+
+    def recording_run(args, **kwargs):
+        calls.append(args)
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(mjml_compile.subprocess, "run", recording_run)
+    mjml_compile.compile_mjml(BODY.format("<mj-text>Hi</mj-text>"), binary=echo_binary)
+    assert "--config.ignoreIncludes=true" in calls[0]
+
+
 def test_compiles_escaped_mention_of_the_tag(echo_binary) -> None:
     source = BODY.format("<mj-text>&lt;mj-include path=&quot;x&quot;</mj-text>")
     ok, html = mjml_compile.compile_mjml(source, binary=echo_binary)
