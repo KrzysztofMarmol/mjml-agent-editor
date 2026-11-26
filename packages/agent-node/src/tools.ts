@@ -313,6 +313,12 @@ export function createAgentTools(context: AgentToolContext): AgentTools {
       inputSchema: schemaOf<ResolveCommentInput>("resolve_comment"),
       execute: async ({ comment_id }) => {
         try {
+          // The store resolves any id it is given; a comment id read from another document,
+          // or one already resolved, must not be closed from this one.
+          const open = await comments.listOpen(documentId);
+          if (!open.some((comment) => comment.id === comment_id)) {
+            return `ERROR: no open comment with id '${comment_id}' on this document`;
+          }
           await comments.resolve(comment_id);
           return "OK";
         } catch (error) {

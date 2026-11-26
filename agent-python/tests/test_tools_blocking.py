@@ -21,8 +21,8 @@ class FakeDb:
     def __init__(self) -> None:
         self.mjml = DOC
         self.comments = [
-            {"id": "c1", "section_id": "aaa", "status": "open"},
-            {"id": "c2", "section_id": "bbb", "status": "resolved"},
+            {"id": "c1", "document_id": "doc-1", "section_id": "aaa", "status": "open"},
+            {"id": "c2", "document_id": "doc-1", "section_id": "bbb", "status": "resolved"},
         ]
 
     def get_document_mjml(self, doc_id: str) -> str:
@@ -32,7 +32,15 @@ class FakeDb:
         self.mjml = mjml
 
     def list_comments(self, doc_id: str) -> list[dict]:
-        return list(self.comments)
+        return [c for c in self.comments if c["document_id"] == doc_id]
+
+    def list_open_comments(self, doc_id: str) -> list[dict]:
+        return [c for c in self.list_comments(doc_id) if c["status"] == "open"]
+
+    def resolve_comment(self, comment_id: str) -> None:
+        self.comments = [
+            {**c, "status": "resolved"} if c["id"] == comment_id else c for c in self.comments
+        ]
 
     def delete_comment(self, comment_id: str) -> None:
         self.comments = [c for c in self.comments if c["id"] != comment_id]
@@ -41,7 +49,14 @@ class FakeDb:
 @pytest.fixture
 def db(monkeypatch: pytest.MonkeyPatch) -> FakeDb:
     fake = FakeDb()
-    for name in ("get_document_mjml", "set_document_mjml", "list_comments", "delete_comment"):
+    for name in (
+        "get_document_mjml",
+        "set_document_mjml",
+        "list_comments",
+        "list_open_comments",
+        "resolve_comment",
+        "delete_comment",
+    ):
         monkeypatch.setattr(tools.db, name, getattr(fake, name))
     return fake
 
@@ -212,3 +227,29 @@ def test_a_document_stored_without_its_closing_tag_stays_editable(
 
     assert result == "OK, saved."
     assert "Changed" in db.mjml
+
+
+def _status(db: FakeDb, comment_id: str) -> str:
+    return next(c["status"] for c in db.comments if c["id"] == comment_id)
+
+
+def test_an_open_comment_on_this_document_is_resolved(db: FakeDb) -> None:
+    result = asyncio.run(_tool("resolve_comment")(comment_id="c1"))
+
+    assert result == "OK"
+    assert _status(db, "c1") == "resolved"
+
+
+def test_a_resolved_comment_is_refused(db: FakeDb) -> None:
+    result = asyncio.run(_tool("resolve_comment")(comment_id="c2"))
+
+    assert result == "ERROR: no open comment with id 'c2' on this document"
+
+
+def test_a_comment_on_another_document_is_refused(db: FakeDb) -> None:
+    db.comments.append({"id": "c3", "document_id": "doc-2", "section_id": "aaa", "status": "open"})
+
+    result = asyncio.run(_tool("resolve_comment")(comment_id="c3"))
+
+    assert result == "ERROR: no open comment with id 'c3' on this document"
+    assert _status(db, "c3") == "open"

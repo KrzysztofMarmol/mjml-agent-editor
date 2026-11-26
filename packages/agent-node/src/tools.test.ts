@@ -51,8 +51,12 @@ class InMemoryComments implements CommentStore {
     return Promise.resolve(this.comments);
   }
 
-  listOpen(): Promise<SectionComment[]> {
-    return Promise.resolve(this.comments.filter((comment) => comment.status === "open"));
+  listOpen(documentId: string): Promise<SectionComment[]> {
+    return Promise.resolve(
+      this.comments.filter(
+        (comment) => comment.documentId === documentId && comment.status === "open",
+      ),
+    );
   }
 
   add(documentId: string, target: CommentTarget, body: string): Promise<void> {
@@ -580,6 +584,25 @@ describe("agent tools", () => {
       await run(tools, "resolve_comment", { comment_id: "c1" });
       expect(comments.resolved).toEqual(["c1"]);
       expect(await run(tools, "list_open_comments", {})).toBe("No open comments.");
+    });
+
+    it("refuses a comment that is already resolved", async () => {
+      await comments.add(DOCUMENT_ID, { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
+      await run(tools, "resolve_comment", { comment_id: "c1" });
+
+      const output = await run(tools, "resolve_comment", { comment_id: "c1" });
+
+      expect(output).toBe("ERROR: no open comment with id 'c1' on this document");
+      expect(comments.resolved).toEqual(["c1"]);
+    });
+
+    it("refuses a comment on another document", async () => {
+      await comments.add("doc-2", { sectionId: "aaa", objectId: null, objectLabel: null }, "x");
+
+      const output = await run(tools, "resolve_comment", { comment_id: "c1" });
+
+      expect(output).toBe("ERROR: no open comment with id 'c1' on this document");
+      expect(comments.resolved).toEqual([]);
     });
   });
 });
