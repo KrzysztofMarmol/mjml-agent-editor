@@ -10,6 +10,13 @@ import { cn } from "../../lib/utils";
 const components: Components = {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   a: ({ node, ...props }) => <a target="_blank" rel="noopener noreferrer" {...props} />,
+  // An image loads the moment the reply renders, so a prompt-injected reply could send
+  // data out in its URL without a click. The URL stays readable, as text only.
+  img: ({ src, alt }) => (
+    <span>
+      [image: {alt}] {typeof src === "string" ? src : ""}
+    </span>
+  ),
 };
 
 function MarkdownImpl({ children }: { children: string }) {
