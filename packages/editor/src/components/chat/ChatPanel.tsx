@@ -6,16 +6,17 @@ import { DefaultChatTransport, type ChatTransport, type ToolUIPart, type UIMessa
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  ArrowDown,
   Brain,
   Check,
-  Loader2,
-  TriangleAlert,
-  Send,
-  Square,
-  Sparkles,
-  MessageSquare,
   ChevronRight,
   CirclePause,
+  Loader2,
+  MessageSquare,
+  Send,
+  Sparkles,
+  Square,
+  TriangleAlert,
 } from "lucide-react";
 
 import { refusal, saveToastId } from "../../lib/refusal.js";
@@ -38,10 +39,6 @@ import {
   MessageScrollerItem,
   MessageScrollerButton,
 } from "../ui/message-scroller";
-
-const APPLY_COMMENTS_PROMPT =
-  "Apply changes based on all open section comments. " +
-  "After each successful change mark the comment as resolved and summarize what you changed.";
 
 // Tools that mutate the document or comments — after each of them we refresh
 // the preview/panel live, without waiting for the agent's turn to finish.
@@ -581,7 +578,10 @@ export default function ChatPanel({
               {busy && !toolRunning && lastMsg?.role !== "assistant" && <BusyMarker />}
             </MessageScrollerContent>
           </MessageScrollerViewport>
-          <MessageScrollerButton direction="end" />
+          <MessageScrollerButton direction="end">
+            <ArrowDown />
+            <span className="sr-only">{labels.scrollToEnd}</span>
+          </MessageScrollerButton>
         </MessageScroller>
       </MessageScrollerProvider>
 
@@ -599,9 +599,9 @@ export default function ChatPanel({
         </div>
         <Button
           className="mb-2 w-full bg-brand text-brand-fg hover:bg-brand/90"
-          disabled={!canStartTurn(APPLY_COMMENTS_PROMPT, gate)}
+          disabled={!canStartTurn(labels.applyCommentsPrompt, gate)}
           aria-describedby={agentUnavailable ? unavailableId : undefined}
-          onClick={() => void send(APPLY_COMMENTS_PROMPT)}
+          onClick={() => void send(labels.applyCommentsPrompt)}
         >
           <Sparkles /> {labels.applyComments}
         </Button>

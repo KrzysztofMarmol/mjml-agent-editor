@@ -148,6 +148,7 @@ export default function ImagePicker({
       {/* A file dropped where nothing takes it would otherwise be opened by the browser in
           place of the editor: with no upload, or with the quota full. */}
       <DialogContent
+        closeLabel={labels.close}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => e.preventDefault()}
         className="editor-dark gap-0 overflow-hidden border border-panel-border bg-panel p-0 text-panel-fg ring-0 sm:max-w-3xl"
@@ -243,7 +244,7 @@ export default function ImagePicker({
               </h3>
               {loading && images.length === 0 && pending === 0 ? (
                 <div className="flex justify-center py-8">
-                  <Spinner />
+                  <Spinner aria-label={labels.loading} />
                 </div>
               ) : images.length === 0 && pending === 0 ? (
                 <p className="py-6 text-center text-sm text-panel-muted-fg">
@@ -256,7 +257,7 @@ export default function ImagePicker({
                       key={`pending-${i}`}
                       className="flex aspect-[4/3] items-center justify-center rounded-lg border border-panel-border bg-panel-elevated"
                     >
-                      <Spinner />
+                      <Spinner aria-label={labels.loading} />
                     </li>
                   ))}
                   {images.map((image) => {
